@@ -2,6 +2,8 @@
   "schemaVersion": 1,
   "profileId": "wild-discard-warlock",
   "activeRuleSetVersion": "0.1.0",
+  "compliancePolicyVersion": 1,
+  "liveAdviceStatus": "BLOCKED_PENDING_WRITTEN_BLIZZARD_AUTHORIZATION",
   "patches": [
     {
       "hearthstoneBuild": 246003,

@@ -48,6 +48,8 @@ also enforce these invariants:
    version, and candidate-set hash still match the current request.
 9. Unknown cards, tags, or generated effects create an `UNSUPPORTED` branch;
    they never create guessed actions or state transitions.
+10. A live request rejected by `profiles/compliance-policy.json` returns
+    `COMPLIANCE_BLOCKED` without running search or an LLM request.
 
 ## Compatibility
 

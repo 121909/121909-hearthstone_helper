@@ -1,0 +1,65 @@
+{
+  "policyVersion": 1,
+  "reviewedOn": "2026-07-21",
+  "decision": "OFFLINE_ONLY",
+  "liveRankedAdvice": {
+    "status": "BLOCKED_PENDING_WRITTEN_BLIZZARD_AUTHORIZATION",
+    "gameMode": "RANKED_WILD",
+    "reason": "Blizzard's current EULA prohibits unauthorized software that influences or facilitates gameplay. Public HDT plugin documentation does not establish Blizzard authorization for turn-by-turn route recommendations."
+  },
+  "allowedDevelopmentModes": [
+    "SYNTHETIC_FIXTURE",
+    "OFFLINE_AUTHORIZED_REPLAY",
+    "OFFLINE_EXPERT_ANNOTATION"
+  ],
+  "prohibitedCapabilities": [
+    "AUTOMATED_GAME_INPUT",
+    "HIDDEN_OPPONENT_INFORMATION",
+    "GAME_MEMORY_INSPECTION",
+    "GAME_PROTOCOL_INTERCEPTION",
+    "LIVE_RANKED_ADVICE",
+    "LIVE_LLM_UPLOAD",
+    "HSREPLAY_NON_API_SCRAPING",
+    "HDT_BINARY_REDISTRIBUTION"
+  ],
+  "requiredBeforeLiveEnablement": [
+    "WRITTEN_BLIZZARD_AUTHORIZATION_FOR_LIVE_STATE_READING",
+    "WRITTEN_BLIZZARD_AUTHORIZATION_FOR_TURN_BY_TURN_RECOMMENDATIONS",
+    "WRITTEN_BLIZZARD_AUTHORIZATION_FOR_RANKED_WILD_USE",
+    "REVIEW_OF_REMOTE_MODEL_DATA_FLOW",
+    "EXPLICIT_USER_OPT_IN_FOR_ANY_UPLOAD",
+    "UPDATED_TERMS_REVIEW"
+  ],
+  "sources": [
+    {
+      "name": "Blizzard End User License Agreement",
+      "url": "https://www.blizzard.com/en-us/legal/08b946df-660a-40e4-a072-1fbde65173b1/blizzard-end-user-license-agreement",
+      "accessedOn": "2026-07-21",
+      "relevantSections": [
+        "1.C License Limitations - Cheating",
+        "1.C License Limitations - Data Mining",
+        "1.C License Limitations - Unauthorized Connections",
+        "1.C License Limitations - esports"
+      ]
+    },
+    {
+      "name": "HearthSim Terms of Service",
+      "url": "https://github.com/HearthSim/legal/blob/ba1c4deefe877eb8638dba89e5cdd9443c1ead69/TERMS.md",
+      "accessedOn": "2026-07-21",
+      "relevantSections": [
+        "2 Access to Service",
+        "8 Intellectual Property"
+      ]
+    },
+    {
+      "name": "HDT Creating Plugins",
+      "url": "https://github.com/HearthSim/Hearthstone-Deck-Tracker/wiki/Creating-Plugins",
+      "accessedOn": "2026-07-21",
+      "relevantSections": [
+        "Creating a Plugin",
+        "Including dependencies",
+        "Required handling for turning off plugins"
+      ]
+    }
+  ]
+}

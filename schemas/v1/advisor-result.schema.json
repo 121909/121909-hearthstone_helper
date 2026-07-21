@@ -38,6 +38,7 @@
         "ANALYZING",
         "STALE",
         "OFFLINE",
+        "COMPLIANCE_BLOCKED",
         "UNSUPPORTED_PATCH",
         "UNSUPPORTED_INTERACTION",
         "NO_LEGAL_ROUTE"
