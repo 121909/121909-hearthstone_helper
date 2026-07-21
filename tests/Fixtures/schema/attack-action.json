@@ -1,0 +1,6 @@
+{
+  "actionId": "action-attack",
+  "type": "ATTACK",
+  "sourceEntityId": 10,
+  "targetEntityId": 3
+}

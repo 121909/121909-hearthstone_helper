@@ -1,0 +1,60 @@
+{
+  "protocolVersion": "1.0.0",
+  "stateId": "turn-1:fixture",
+  "ruleSetVersion": "0.1.0",
+  "candidateSetHash": "f49396d738358f7c773f7df170c6aecd5333094281b797b9ca1f2e75c8823c3d",
+  "status": "READY",
+  "source": "LOCAL",
+  "generatedAt": "2026-07-21T00:00:00Z",
+  "analysisDurationMs": 1,
+  "selectedRouteId": "route-end-turn",
+  "routes": [
+    {
+      "routeId": "route-end-turn",
+      "sourceStateId": "turn-1:fixture",
+      "ruleSetVersion": "0.1.0",
+      "steps": [
+        {
+          "index": 0,
+          "action": {
+            "actionId": "action-end-turn",
+            "type": "END_TURN"
+          },
+          "outcomes": [
+            {
+              "branchId": "branch-end-turn",
+              "kind": "DETERMINISTIC",
+              "probability": 1
+            }
+          ]
+        }
+      ],
+      "score": {
+        "expected": 0,
+        "p10": 0,
+        "variance": 0,
+        "lethalProbability": 0,
+        "dimensions": {
+          "lethal": 0,
+          "survival": 0,
+          "board": 0,
+          "discardValue": 0,
+          "resources": 0,
+          "temporaryValue": 0,
+          "boardSpace": 0,
+          "directDamage": 0,
+          "selfDamage": 0,
+          "dukeGrowth": 0,
+          "opponentPressure": 0
+        }
+      },
+      "confidence": 1,
+      "assumptions": [],
+      "risk": ""
+    }
+  ],
+  "confidence": 1,
+  "summary": "结束回合。",
+  "risk": "无随机分支。",
+  "assumptions": []
+}

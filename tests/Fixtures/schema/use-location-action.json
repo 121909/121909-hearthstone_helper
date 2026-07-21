@@ -1,0 +1,6 @@
+{
+  "actionId": "action-use-location",
+  "type": "USE_LOCATION",
+  "sourceEntityId": 10,
+  "selectedEntityId": 11
+}

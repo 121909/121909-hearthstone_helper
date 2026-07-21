@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.discard-advisor.local/v1/advisor-result.schema.json",
+  "title": "Discard Advisor result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "stateId",
+    "ruleSetVersion",
+    "status",
+    "source",
+    "generatedAt",
+    "analysisDurationMs",
+    "routes",
+    "confidence",
+    "assumptions"
+  ],
+  "properties": {
+    "protocolVersion": {
+      "const": "1.0.0"
+    },
+    "stateId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "ruleSetVersion": {
+      "$ref": "common.schema.json#/$defs/semanticVersion"
+    },
+    "candidateSetHash": {
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "READY",
+        "ANALYZING",
+        "STALE",
+        "OFFLINE",
+        "UNSUPPORTED_PATCH",
+        "UNSUPPORTED_INTERACTION",
+        "NO_LEGAL_ROUTE"
+      ]
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "LOCAL",
+        "LLM_RERANKED"
+      ]
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "analysisDurationMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "selectedRouteId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "alternativeRouteId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "routes": {
+      "type": "array",
+      "items": {
+        "$ref": "route.schema.json"
+      }
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "risk": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "assumptions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "READY"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "selectedRouteId",
+          "summary",
+          "risk"
+        ],
+        "properties": {
+          "selectedRouteId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "risk": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "routes": {
+            "type": "array",
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ]
+}

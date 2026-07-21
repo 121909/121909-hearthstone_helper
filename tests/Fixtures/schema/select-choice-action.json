@@ -1,0 +1,6 @@
+{
+  "actionId": "action-select-choice",
+  "type": "SELECT_CHOICE",
+  "choiceId": 7,
+  "selectedEntityId": 11
+}

@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.discard-advisor.local/v1/branch.schema.json",
+  "title": "Discard Advisor state transition branch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "branchId",
+    "sourceStateId",
+    "action",
+    "kind",
+    "probability",
+    "supported",
+    "events",
+    "scoreDelta",
+    "nextState"
+  ],
+  "properties": {
+    "branchId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceStateId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "action": {
+      "$ref": "action.schema.json"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "DETERMINISTIC",
+        "RANDOM",
+        "UNSUPPORTED"
+      ]
+    },
+    "probability": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "supported": {
+      "type": "boolean"
+    },
+    "unsupportedReason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/gameEvent"
+      }
+    },
+    "scoreDelta": {
+      "$ref": "common.schema.json#/$defs/scoreDimensions"
+    },
+    "nextState": {
+      "$ref": "snapshot.schema.json"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "supported": {
+            "const": false
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "unsupportedReason"
+        ],
+        "properties": {
+          "kind": {
+            "const": "UNSUPPORTED"
+          },
+          "unsupportedReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "gameEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "type"
+      ],
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "CARD_PLAYED",
+            "MANA_SPENT",
+            "DAMAGE",
+            "HEAL",
+            "BUFF",
+            "DRAW",
+            "BURN",
+            "DISCARD",
+            "SUMMON",
+            "DEATH",
+            "ATTACK",
+            "WEAPON_EQUIPPED",
+            "LOCATION_USED",
+            "CHOICE_SELECTED",
+            "TEMPORARY_EXPIRED",
+            "FATIGUE",
+            "TURN_ENDED",
+            "UNSUPPORTED_INTERACTION"
+          ]
+        },
+        "sourceEntityId": {
+          "$ref": "common.schema.json#/$defs/entityId"
+        },
+        "targetEntityId": {
+          "$ref": "common.schema.json#/$defs/entityId"
+        },
+        "cardId": {
+          "$ref": "common.schema.json#/$defs/cardId"
+        },
+        "amount": {
+          "type": "integer"
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 256
+        }
+      }
+    }
+  }
+}

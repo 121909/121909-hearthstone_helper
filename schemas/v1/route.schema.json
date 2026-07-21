@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.discard-advisor.local/v1/route.schema.json",
+  "title": "Discard Advisor candidate route",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "routeId",
+    "sourceStateId",
+    "ruleSetVersion",
+    "steps",
+    "score",
+    "confidence",
+    "assumptions",
+    "risk"
+  ],
+  "properties": {
+    "routeId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceStateId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "ruleSetVersion": {
+      "$ref": "common.schema.json#/$defs/semanticVersion"
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": {
+        "$ref": "#/$defs/routeStep"
+      }
+    },
+    "score": {
+      "$ref": "#/$defs/routeScore"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "assumptions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      }
+    },
+    "risk": {
+      "type": "string",
+      "maxLength": 512
+    }
+  },
+  "$defs": {
+    "routeStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "action",
+        "outcomes"
+      ],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 11
+        },
+        "action": {
+          "$ref": "action.schema.json"
+        },
+        "outcomes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "branchId",
+              "kind",
+              "probability"
+            ],
+            "properties": {
+              "branchId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "DETERMINISTIC",
+                  "RANDOM",
+                  "UNSUPPORTED"
+                ]
+              },
+              "probability": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "routeScore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected",
+        "p10",
+        "variance",
+        "lethalProbability",
+        "dimensions"
+      ],
+      "properties": {
+        "expected": {
+          "type": "number"
+        },
+        "p10": {
+          "type": "number"
+        },
+        "variance": {
+          "type": "number",
+          "minimum": 0
+        },
+        "lethalProbability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "dimensions": {
+          "$ref": "common.schema.json#/$defs/scoreDimensions"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.discard-advisor.local/v1/action.schema.json",
+  "title": "Discard Advisor action",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/playCard"
+    },
+    {
+      "$ref": "#/$defs/attack"
+    },
+    {
+      "$ref": "#/$defs/useHeroPower"
+    },
+    {
+      "$ref": "#/$defs/useLocation"
+    },
+    {
+      "$ref": "#/$defs/selectChoice"
+    },
+    {
+      "$ref": "#/$defs/endTurn"
+    }
+  ],
+  "$defs": {
+    "playCard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actionId",
+        "type",
+        "sourceEntityId"
+      ],
+      "properties": {
+        "actionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "const": "PLAY_CARD"
+        },
+        "sourceEntityId": {
+          "$ref": "common.schema.json#/$defs/entityId"
+        },
+        "targetEntityId": {
+          "$ref": "common.schema.json#/$defs/entityId"
+        },
+        "boardPosition": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7
+        }
+      }
+    },
+    "attack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actionId",
+        "type",
+        "sourceEntityId",
+        "targetEntityId"
+      ],
+      "properties": {
+        "actionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "const": "ATTACK"
+        },
+        "sourceEntityId": {
+          "$ref": "common.schema.json#/$defs/entityId"
+        },
+        "targetEntityId": {
+          "$ref": "common.schema.json#/$defs/entityId"
+        }
+      }
+    },
+    "useHeroPower": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actionId",
+        "type"
+      ],
+      "properties": {
+        "actionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "const": "USE_HERO_POWER"
+        },
+        "targetEntityId": {
+          "$ref": "common.schema.json#/$defs/entityId"
+        }
+      }
+    },
+    "useLocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actionId",
+        "type",
+        "sourceEntityId",
+        "selectedEntityId"
+      ],
+      "properties": {
+        "actionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "const": "USE_LOCATION"
+        },
+        "sourceEntityId": {
+          "$ref": "common.schema.json#/$defs/entityId"
+        },
+        "selectedEntityId": {
+          "$ref": "common.schema.json#/$defs/entityId"
+        }
+      }
+    },
+    "selectChoice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actionId",
+        "type",
+        "choiceId",
+        "selectedEntityId"
+      ],
+      "properties": {
+        "actionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "const": "SELECT_CHOICE"
+        },
+        "choiceId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "selectedEntityId": {
+          "$ref": "common.schema.json#/$defs/entityId"
+        }
+      }
+    },
+    "endTurn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actionId",
+        "type"
+      ],
+      "properties": {
+        "actionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "const": "END_TURN"
+        }
+      }
+    }
+  }
+}

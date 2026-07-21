@@ -1,0 +1,5 @@
+{
+  "actionId": "action-hero-power",
+  "type": "USE_HERO_POWER",
+  "targetEntityId": 3
+}

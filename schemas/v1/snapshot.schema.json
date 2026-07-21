@@ -1,0 +1,325 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.discard-advisor.local/v1/snapshot.schema.json",
+  "title": "Discard Advisor immutable game snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "ruleSetVersion",
+    "hearthstoneBuild",
+    "hdtVersion",
+    "cardDefsHash",
+    "gameId",
+    "gameMode",
+    "stateId",
+    "turnNumber",
+    "step",
+    "activePlayer",
+    "remainingTurnTimeMs",
+    "isStable",
+    "friendly",
+    "opponent",
+    "actionsThisTurn",
+    "derived"
+  ],
+  "properties": {
+    "protocolVersion": {
+      "const": "1.0.0"
+    },
+    "ruleSetVersion": {
+      "$ref": "common.schema.json#/$defs/semanticVersion"
+    },
+    "hearthstoneBuild": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "hdtVersion": {
+      "$ref": "common.schema.json#/$defs/semanticVersion"
+    },
+    "cardDefsHash": {
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "gameId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "gameMode": {
+      "const": "RANKED_WILD"
+    },
+    "stateId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "turnNumber": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "step": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "activePlayer": {
+      "type": "string",
+      "enum": [
+        "FRIENDLY",
+        "OPPONENT",
+        "NONE"
+      ]
+    },
+    "remainingTurnTimeMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "isStable": {
+      "type": "boolean"
+    },
+    "friendly": {
+      "$ref": "#/$defs/friendlyPlayer"
+    },
+    "opponent": {
+      "$ref": "#/$defs/opponentPlayer"
+    },
+    "actionsThisTurn": {
+      "type": "array",
+      "items": {
+        "$ref": "action.schema.json"
+      }
+    },
+    "currentChoice": {
+      "$ref": "common.schema.json#/$defs/choice"
+    },
+    "derived": {
+      "$ref": "#/$defs/derivedState"
+    }
+  },
+  "$defs": {
+    "friendlyPlayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hero",
+        "heroPower",
+        "mana",
+        "hand",
+        "board",
+        "locations",
+        "originalDeck",
+        "knownRemainingDeck",
+        "deckCount",
+        "fatigue",
+        "graveyard",
+        "discarded",
+        "discardCount"
+      ],
+      "properties": {
+        "hero": {
+          "$ref": "common.schema.json#/$defs/hero"
+        },
+        "weapon": {
+          "$ref": "common.schema.json#/$defs/weapon"
+        },
+        "heroPower": {
+          "$ref": "common.schema.json#/$defs/heroPower"
+        },
+        "mana": {
+          "$ref": "common.schema.json#/$defs/mana"
+        },
+        "hand": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "$ref": "common.schema.json#/$defs/handCard"
+          }
+        },
+        "board": {
+          "type": "array",
+          "maxItems": 7,
+          "items": {
+            "$ref": "common.schema.json#/$defs/minion"
+          }
+        },
+        "locations": {
+          "type": "array",
+          "maxItems": 7,
+          "items": {
+            "$ref": "common.schema.json#/$defs/location"
+          }
+        },
+        "originalDeck": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "common.schema.json#/$defs/deckEntry"
+          }
+        },
+        "knownRemainingDeck": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/deckEntry"
+          }
+        },
+        "deckCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60
+        },
+        "fatigue": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "graveyard": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/zoneCard"
+          }
+        },
+        "discarded": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/zoneCard"
+          }
+        },
+        "discardCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "opponentPlayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hero",
+        "heroPower",
+        "handCount",
+        "board",
+        "locations",
+        "deckCount",
+        "fatigue",
+        "graveyard",
+        "revealedCards",
+        "secretCount",
+        "secretCandidates"
+      ],
+      "properties": {
+        "hero": {
+          "$ref": "common.schema.json#/$defs/hero"
+        },
+        "weapon": {
+          "$ref": "common.schema.json#/$defs/weapon"
+        },
+        "heroPower": {
+          "$ref": "common.schema.json#/$defs/heroPower"
+        },
+        "handCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "board": {
+          "type": "array",
+          "maxItems": 7,
+          "items": {
+            "$ref": "common.schema.json#/$defs/minion"
+          }
+        },
+        "locations": {
+          "type": "array",
+          "maxItems": 7,
+          "items": {
+            "$ref": "common.schema.json#/$defs/location"
+          }
+        },
+        "deckCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60
+        },
+        "fatigue": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "graveyard": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/zoneCard"
+          }
+        },
+        "revealedCards": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/deckEntry"
+          }
+        },
+        "secretCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "secretCandidates": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "common.schema.json#/$defs/cardId"
+          }
+        },
+        "questCardId": {
+          "$ref": "common.schema.json#/$defs/cardId"
+        }
+      }
+    },
+    "derivedState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "platysaurBindings",
+        "temporaryEntityIds",
+        "shredsOfTimeInDeck",
+        "unsupportedInteractions"
+      ],
+      "properties": {
+        "platysaurBindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "platysaurEntityId",
+              "drawnEntityId"
+            ],
+            "properties": {
+              "platysaurEntityId": {
+                "$ref": "common.schema.json#/$defs/entityId"
+              },
+              "drawnEntityId": {
+                "$ref": "common.schema.json#/$defs/entityId"
+              }
+            }
+          }
+        },
+        "temporaryEntityIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "common.schema.json#/$defs/entityId"
+          }
+        },
+        "shredsOfTimeInDeck": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unsupportedInteractions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

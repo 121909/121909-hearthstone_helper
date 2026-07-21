@@ -1,0 +1,7 @@
+{
+  "actionId": "action-play-card",
+  "type": "PLAY_CARD",
+  "sourceEntityId": 10,
+  "targetEntityId": 3,
+  "boardPosition": 1
+}

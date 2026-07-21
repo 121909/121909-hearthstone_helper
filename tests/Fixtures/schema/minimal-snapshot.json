@@ -1,0 +1,162 @@
+{
+  "protocolVersion": "1.0.0",
+  "ruleSetVersion": "0.1.0",
+  "hearthstoneBuild": 246003,
+  "hdtVersion": "1.53.11",
+  "cardDefsHash": "0ecabaa56386e967fa16f7595a022b391d2627f1e0a7892f4326f6d125232d83",
+  "gameId": "8ed0a5ab-c11a-4f60-9fb9-2dbb59f13118",
+  "gameMode": "RANKED_WILD",
+  "stateId": "turn-1:fixture",
+  "turnNumber": 1,
+  "step": "MAIN_ACTION",
+  "activePlayer": "FRIENDLY",
+  "remainingTurnTimeMs": 75000,
+  "isStable": true,
+  "friendly": {
+    "hero": {
+      "entityId": 1,
+      "cardId": "HERO_07",
+      "health": 30,
+      "maxHealth": 30,
+      "armor": 0,
+      "attack": 0,
+      "frozen": false,
+      "immune": false,
+      "attacksThisTurn": 0,
+      "maxAttacksThisTurn": 1
+    },
+    "heroPower": {
+      "entityId": 2,
+      "cardId": "CS2_056",
+      "cost": 2,
+      "available": false,
+      "usesThisTurn": 0,
+      "maxUsesThisTurn": 1
+    },
+    "mana": {
+      "available": 1,
+      "temporary": 0,
+      "spent": 0,
+      "maximum": 1,
+      "locked": 0,
+      "overloadedNextTurn": 0
+    },
+    "hand": [],
+    "board": [],
+    "locations": [],
+    "originalDeck": [
+      {
+        "cardId": "BOT_568",
+        "count": 1
+      },
+      {
+        "cardId": "BT_300",
+        "count": 2
+      },
+      {
+        "cardId": "CATA_490",
+        "count": 2
+      },
+      {
+        "cardId": "CATA_493",
+        "count": 2
+      },
+      {
+        "cardId": "CATA_499",
+        "count": 2
+      },
+      {
+        "cardId": "DMF_119",
+        "count": 2
+      },
+      {
+        "cardId": "END_016",
+        "count": 2
+      },
+      {
+        "cardId": "EX1_308",
+        "count": 1
+      },
+      {
+        "cardId": "KAR_205",
+        "count": 1
+      },
+      {
+        "cardId": "RLK_532",
+        "count": 2
+      },
+      {
+        "cardId": "RLK_534",
+        "count": 2
+      },
+      {
+        "cardId": "SCH_147",
+        "count": 2
+      },
+      {
+        "cardId": "TIME_026",
+        "count": 2
+      },
+      {
+        "cardId": "TLC_451",
+        "count": 2
+      },
+      {
+        "cardId": "TLC_603",
+        "count": 2
+      },
+      {
+        "cardId": "VAC_940",
+        "count": 2
+      },
+      {
+        "cardId": "WON_103",
+        "count": 1
+      }
+    ],
+    "knownRemainingDeck": [],
+    "deckCount": 30,
+    "fatigue": 0,
+    "graveyard": [],
+    "discarded": [],
+    "discardCount": 0
+  },
+  "opponent": {
+    "hero": {
+      "entityId": 3,
+      "cardId": "HERO_08",
+      "health": 30,
+      "maxHealth": 30,
+      "armor": 0,
+      "attack": 0,
+      "frozen": false,
+      "immune": false,
+      "attacksThisTurn": 0,
+      "maxAttacksThisTurn": 1
+    },
+    "heroPower": {
+      "entityId": 4,
+      "cardId": "CS2_034",
+      "cost": 2,
+      "available": false,
+      "usesThisTurn": 0,
+      "maxUsesThisTurn": 1
+    },
+    "handCount": 3,
+    "board": [],
+    "locations": [],
+    "deckCount": 27,
+    "fatigue": 0,
+    "graveyard": [],
+    "revealedCards": [],
+    "secretCount": 0,
+    "secretCandidates": []
+  },
+  "actionsThisTurn": [],
+  "derived": {
+    "platysaurBindings": [],
+    "temporaryEntityIds": [],
+    "shredsOfTimeInDeck": 0,
+    "unsupportedInteractions": []
+  }
+}
