@@ -348,7 +348,7 @@ Overlay 是高频工具界面，应保持安静、紧凑并避免遮挡棋盘：
 - [x] 保存目标牌表的 CardId、数量、当前英文/中文文本和标签。
 - [x] 生成牌表哈希、规则版本和补丁兼容矩阵。
 - [x] 定义 Snapshot、Action、Branch、Route 和 AdvisorResult Schema。
-- [ ] 编写 17 张牌的规则规格和事件顺序表。
+- [x] 编写 17 张牌的规则规格和事件顺序表。
 - [ ] 确认实时建议符合暴雪和 HSReplay/HDT 的适用规则。
 
 交付物：`wild-discard-warlock.json`、Schema、规则规格、合规结论。
