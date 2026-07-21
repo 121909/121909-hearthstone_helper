@@ -1,0 +1,503 @@
+{
+  "profileVersion": 1,
+  "profileId": "wild-discard-warlock",
+  "displayName": "Wild Discard Warlock",
+  "gameMode": "RANKED_WILD",
+  "playerClass": "WARLOCK",
+  "deckSize": 30,
+  "cardEntryCount": 17,
+  "cardData": {
+    "provider": "HearthstoneJSON",
+    "build": 246003,
+    "snapshotDate": "2026-07-21",
+    "locales": [
+      "enUS",
+      "zhCN"
+    ],
+    "sources": {
+      "enUS": "https://api.hearthstonejson.com/v1/246003/enUS/cards.collectible.json",
+      "zhCN": "https://api.hearthstonejson.com/v1/246003/zhCN/cards.collectible.json"
+    }
+  },
+  "cards": [
+    {
+      "cardId": "TLC_451",
+      "count": 2,
+      "localization": {
+        "enUS": {
+          "name": "Cursed Catacombs",
+          "text": "<b>Discover</b> another\ncard from your deck. Make it <b>Temporary</b>."
+        },
+        "zhCN": {
+          "name": "咒怨之墓",
+          "text": "从你的牌库中<b>发现</b>另一张牌，将其变为<b>临时</b>卡牌。"
+        }
+      },
+      "tags": {
+        "dbfId": 117892,
+        "collectible": true,
+        "cardClass": "WARLOCK",
+        "cost": 0,
+        "type": "SPELL",
+        "rarity": "EPIC",
+        "set": "THE_LOST_CITY",
+        "spellSchool": "FEL",
+        "mechanics": [
+          "DISCOVER"
+        ]
+      }
+    },
+    {
+      "cardId": "TIME_026",
+      "count": 2,
+      "localization": {
+        "enUS": {
+          "name": "Entropic Continuity",
+          "text": "[x]Give your minions +1/+1.\nShuffle 2 Shreds of Time\ninto your deck."
+        },
+        "zhCN": {
+          "name": "续连熵能",
+          "text": "使你的随从获得+1/+1。将2张时空撕裂洗入你的牌库。"
+        }
+      },
+      "tags": {
+        "dbfId": 120484,
+        "collectible": true,
+        "cardClass": "WARLOCK",
+        "cost": 1,
+        "type": "SPELL",
+        "rarity": "RARE",
+        "set": "TIME_TRAVEL",
+        "mechanics": []
+      }
+    },
+    {
+      "cardId": "VAC_940",
+      "count": 2,
+      "localization": {
+        "enUS": {
+          "name": "Party Fiend",
+          "text": "<b>Battlecry:</b> Summon two 1/1 Felbeasts. Deal 3 damage to your hero."
+        },
+        "zhCN": {
+          "name": "派对邪犬",
+          "text": "<b>战吼：</b>召唤两只1/1的邪能兽。对你的英雄造成3点伤害。"
+        }
+      },
+      "tags": {
+        "dbfId": 107797,
+        "collectible": true,
+        "cardClass": "WARLOCK",
+        "cost": 1,
+        "attack": 1,
+        "health": 1,
+        "type": "MINION",
+        "rarity": "COMMON",
+        "set": "ISLAND_VACATION",
+        "races": [
+          "DEMON"
+        ],
+        "mechanics": [
+          "BATTLECRY"
+        ]
+      }
+    },
+    {
+      "cardId": "TLC_603",
+      "count": 2,
+      "localization": {
+        "enUS": {
+          "name": "Platysaur",
+          "text": "<b>Battlecry:</b> Draw a card. <b>Deathrattle:</b> Discard it."
+        },
+        "zhCN": {
+          "name": "栉龙",
+          "text": "<b>战吼：</b>抽一张牌。<b>亡语：</b>弃掉该牌。"
+        }
+      },
+      "tags": {
+        "dbfId": 117719,
+        "collectible": true,
+        "cardClass": "NEUTRAL",
+        "cost": 1,
+        "attack": 1,
+        "health": 2,
+        "type": "MINION",
+        "rarity": "COMMON",
+        "set": "THE_LOST_CITY",
+        "races": [
+          "BEAST"
+        ],
+        "mechanics": [
+          "BATTLECRY",
+          "DEATHRATTLE"
+        ]
+      }
+    },
+    {
+      "cardId": "EX1_308",
+      "count": 1,
+      "localization": {
+        "enUS": {
+          "name": "Soulfire",
+          "text": "[x]Deal $4 damage.\nDiscard a random card."
+        },
+        "zhCN": {
+          "name": "灵魂之火",
+          "text": "造成$4点伤害，随机弃一\n张牌。"
+        }
+      },
+      "tags": {
+        "dbfId": 974,
+        "collectible": true,
+        "cardClass": "WARLOCK",
+        "cost": 1,
+        "type": "SPELL",
+        "rarity": "FREE",
+        "set": "LEGACY",
+        "spellSchool": "FIRE",
+        "mechanics": []
+      }
+    },
+    {
+      "cardId": "BOT_568",
+      "count": 1,
+      "localization": {
+        "enUS": {
+          "name": "The Soularium",
+          "text": "Draw 3 cards.\nThey are <b>Temporary</b>."
+        },
+        "zhCN": {
+          "name": "莫瑞甘的灵界",
+          "text": "抽三张牌。这些牌为<b>临时</b>牌。"
+        }
+      },
+      "tags": {
+        "dbfId": 49423,
+        "collectible": true,
+        "cardClass": "WARLOCK",
+        "cost": 1,
+        "type": "SPELL",
+        "rarity": "LEGENDARY",
+        "set": "BOOMSDAY",
+        "spellSchool": "SHADOW",
+        "elite": true,
+        "mechanics": []
+      }
+    },
+    {
+      "cardId": "DMF_119",
+      "count": 2,
+      "localization": {
+        "enUS": {
+          "name": "Wicked Whispers",
+          "text": "Discard your lowest Cost card. Give your minions +1/+1."
+        },
+        "zhCN": {
+          "name": "邪恶低语",
+          "text": "弃掉你手牌中法力值消耗最低的牌。使你的所有随从获得+1/+1。"
+        }
+      },
+      "tags": {
+        "dbfId": 61648,
+        "collectible": true,
+        "cardClass": "WARLOCK",
+        "cost": 1,
+        "type": "SPELL",
+        "rarity": "RARE",
+        "set": "DARKMOON_FAIRE",
+        "spellSchool": "SHADOW",
+        "mechanics": []
+      }
+    },
+    {
+      "cardId": "SCH_147",
+      "count": 2,
+      "localization": {
+        "enUS": {
+          "name": "Boneweb Egg",
+          "text": "[x]<b>Deathrattle:</b> Summon\ntwo 2/1 Spiders. If you\ndiscard this, trigger its\n<b>Deathrattle</b>."
+        },
+        "zhCN": {
+          "name": "骨网之卵",
+          "text": "<b>亡语：</b>召唤两只2/1的蜘蛛。如果你弃掉这张牌，触发其<b>亡语</b>。"
+        }
+      },
+      "tags": {
+        "dbfId": 59605,
+        "collectible": true,
+        "cardClass": "WARLOCK",
+        "cost": 2,
+        "attack": 0,
+        "health": 2,
+        "type": "MINION",
+        "rarity": "RARE",
+        "set": "SCHOLOMANCE",
+        "mechanics": [
+          "DEATHRATTLE",
+          "InvisibleDeathrattle"
+        ]
+      }
+    },
+    {
+      "cardId": "CATA_499",
+      "count": 2,
+      "localization": {
+        "enUS": {
+          "name": "Disposable Acolytes",
+          "text": "[x]When you play\nor discard this,\nsummon two random\n1-Cost minions."
+        },
+        "zhCN": {
+          "name": "助祭耗材",
+          "text": "当你使用或弃掉本牌时，随机召唤两个法力值消耗为（1）的随从。"
+        }
+      },
+      "tags": {
+        "dbfId": 122831,
+        "collectible": true,
+        "cardClass": "WARLOCK",
+        "cost": 2,
+        "type": "SPELL",
+        "rarity": "COMMON",
+        "set": "CATACLYSM",
+        "spellSchool": "SHADOW",
+        "mechanics": [
+          "InvisibleDeathrattle"
+        ]
+      }
+    },
+    {
+      "cardId": "WON_103",
+      "count": 1,
+      "localization": {
+        "enUS": {
+          "name": "Chamber of Viscidus",
+          "text": "[x]Look at 3 cards in your\nhand and choose one to\ndiscard. Draw two cards."
+        },
+        "zhCN": {
+          "name": "维希度斯的窟穴",
+          "text": "检视你手牌中的三张牌，选择一张弃掉。抽两张牌。"
+        }
+      },
+      "tags": {
+        "dbfId": 102646,
+        "collectible": true,
+        "cardClass": "WARLOCK",
+        "cost": 3,
+        "health": 2,
+        "type": "LOCATION",
+        "rarity": "RARE",
+        "set": "WONDERS",
+        "mechanics": []
+      }
+    },
+    {
+      "cardId": "CATA_490",
+      "count": 2,
+      "localization": {
+        "enUS": {
+          "name": "Ocular Occultist",
+          "text": "[x]<b>Taunt</b>\n<b>Battlecry:</b> Choose a card in\nyour hand to discard."
+        },
+        "zhCN": {
+          "name": "魔眼秘术师",
+          "text": "<b>嘲讽</b>。<b>战吼：</b>选择你手牌中的一张牌\n并弃掉。"
+        }
+      },
+      "tags": {
+        "dbfId": 122710,
+        "collectible": true,
+        "cardClass": "WARLOCK",
+        "cost": 3,
+        "attack": 3,
+        "health": 6,
+        "type": "MINION",
+        "rarity": "COMMON",
+        "set": "CATACLYSM",
+        "races": [
+          "DEMON"
+        ],
+        "mechanics": [
+          "BATTLECRY",
+          "TAUNT"
+        ]
+      }
+    },
+    {
+      "cardId": "KAR_205",
+      "count": 1,
+      "localization": {
+        "enUS": {
+          "name": "Silverware Golem",
+          "text": "If you discard this minion, summon it."
+        },
+        "zhCN": {
+          "name": "镀银魔像",
+          "text": "如果你弃掉了这张随从牌，则会召唤它。"
+        }
+      },
+      "tags": {
+        "dbfId": 39380,
+        "collectible": true,
+        "cardClass": "WARLOCK",
+        "cost": 3,
+        "attack": 3,
+        "health": 4,
+        "type": "MINION",
+        "rarity": "RARE",
+        "set": "KARA",
+        "mechanics": [
+          "InvisibleDeathrattle"
+        ]
+      }
+    },
+    {
+      "cardId": "RLK_532",
+      "count": 2,
+      "localization": {
+        "enUS": {
+          "name": "Walking Dead",
+          "text": "<b>Taunt</b>\nIf you discard this minion, summon it."
+        },
+        "zhCN": {
+          "name": "行尸",
+          "text": "<b>嘲讽</b>。如果你弃掉了这张随从牌，则会召唤它。"
+        }
+      },
+      "tags": {
+        "dbfId": 84248,
+        "collectible": true,
+        "cardClass": "WARLOCK",
+        "cost": 3,
+        "attack": 2,
+        "health": 5,
+        "type": "MINION",
+        "rarity": "COMMON",
+        "set": "RETURN_OF_THE_LICH_KING",
+        "races": [
+          "UNDEAD"
+        ],
+        "mechanics": [
+          "TAUNT",
+          "InvisibleDeathrattle"
+        ]
+      }
+    },
+    {
+      "cardId": "END_016",
+      "count": 2,
+      "localization": {
+        "enUS": {
+          "name": "Chronoclaws",
+          "text": "After your hero attacks, discard your highest Cost card."
+        },
+        "zhCN": {
+          "name": "时空之爪",
+          "text": "在你的英雄\n攻击后，弃掉你法力值消耗最高的牌。"
+        }
+      },
+      "tags": {
+        "dbfId": 121158,
+        "collectible": true,
+        "classes": [
+          "HUNTER",
+          "WARLOCK"
+        ],
+        "cost": 4,
+        "attack": 4,
+        "health": 3,
+        "durability": 0,
+        "type": "WEAPON",
+        "rarity": "RARE",
+        "set": "TIME_TRAVEL",
+        "isMiniSet": true,
+        "mechanics": [
+          "TRIGGER_VISUAL"
+        ]
+      }
+    },
+    {
+      "cardId": "CATA_493",
+      "count": 2,
+      "localization": {
+        "enUS": {
+          "name": "Duke of Below",
+          "text": "[x]<b>Rush</b>\nHas +2/+2 for each\ncard you've discarded\nthis game."
+        },
+        "zhCN": {
+          "name": "地狱公爵",
+          "text": "<b>突袭</b>。在本局对战中，你每弃掉一张牌，便拥有+2/+2。"
+        }
+      },
+      "tags": {
+        "dbfId": 122713,
+        "collectible": true,
+        "cardClass": "WARLOCK",
+        "cost": 4,
+        "attack": 2,
+        "health": 2,
+        "type": "MINION",
+        "rarity": "EPIC",
+        "set": "CATACLYSM",
+        "mechanics": [
+          "RUSH"
+        ]
+      }
+    },
+    {
+      "cardId": "RLK_534",
+      "count": 2,
+      "localization": {
+        "enUS": {
+          "name": "Soul Barrage",
+          "text": "When you play\nor discard this, deal $5 damage randomly split among all enemies."
+        },
+        "zhCN": {
+          "name": "灵魂弹幕",
+          "text": "当你使用或弃掉这张牌时，造成$5点伤害，随机分配到所有敌人身上。"
+        }
+      },
+      "tags": {
+        "dbfId": 84267,
+        "collectible": true,
+        "cardClass": "WARLOCK",
+        "cost": 4,
+        "type": "SPELL",
+        "rarity": "RARE",
+        "set": "RETURN_OF_THE_LICH_KING",
+        "spellSchool": "SHADOW",
+        "mechanics": [
+          "ImmuneToSpellpower",
+          "InvisibleDeathrattle"
+        ]
+      }
+    },
+    {
+      "cardId": "BT_300",
+      "count": 2,
+      "localization": {
+        "enUS": {
+          "name": "Hand of Gul'dan",
+          "text": "When you play\nor discard this,\ndraw 3 cards."
+        },
+        "zhCN": {
+          "name": "古尔丹之手",
+          "text": "当你使用或弃掉这张牌时，抽三张牌。"
+        }
+      },
+      "tags": {
+        "dbfId": 56501,
+        "collectible": true,
+        "cardClass": "WARLOCK",
+        "cost": 6,
+        "type": "SPELL",
+        "rarity": "COMMON",
+        "set": "BLACK_TEMPLE",
+        "spellSchool": "SHADOW",
+        "mechanics": [
+          "InvisibleDeathrattle"
+        ]
+      }
+    }
+  ]
+}
