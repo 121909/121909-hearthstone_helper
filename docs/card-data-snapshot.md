@@ -11,8 +11,10 @@ card definitions used by the first rule set.
 - Snapshot date: `2026-07-21`
 - English definitions:
   `https://api.hearthstonejson.com/v1/246003/enUS/cards.collectible.json`
+  (`451dc144591d454d54c23f8f79a352ae30dcdd0910b82e811452155d95a02d02`)
 - Simplified Chinese definitions:
   `https://api.hearthstonejson.com/v1/246003/zhCN/cards.collectible.json`
+  (`5ed98d85141a084790963fc1bd755620ae04bc5cb35b5dd37fd3122b036f23e3`)
 
 The localized `name` and `text` values are preserved as published, including
 Hearthstone formatting markup and line-break hints. The `tags` object contains
