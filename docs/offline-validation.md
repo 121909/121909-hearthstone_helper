@@ -34,7 +34,28 @@ Pass HDT's `DiscardAdvisor\Diagnostics` directory as another input to aggregate 
   -InputPath $ReplayDirectory, $FixtureDirectory, $DiagnosticDirectory
 ```
 
+For an incremental Windows checkpoint (safe to run while collecting more
+games), use:
+
+```powershell
+.\scripts\check-shadow-progress.ps1 `
+  -InputPath "$env:APPDATA\HearthstoneDeckTracker\DiscardAdvisor\Diagnostics", `
+             "$env:APPDATA\HearthstoneDeckTracker\DiscardAdvisor\Fixtures" `
+  -OutputPath .\.artifacts\shadow-checkpoint
+```
+
+Add `-RequireAcceptance` only for the final gate. The checkpoint reports
+completed games, request/terminal-analysis closure, true concurrent or
+post-publish duplicate requests, failures, visible suggestions, p95 latency,
+and unsupported-interaction occurrences. Superseded work followed by a retry
+is not counted as a duplicate request.
+
 The shadow section counts only sessions recorded with `mode=shadow`. Only a real HDT `OnGameEnd` increments completed-game progress; plugin unloads and interrupted sessions do not. The report covers end-to-end latency, analyses superseded by a newer state, cancellations, failures, duplicate requests for the same `game_id + state_id`, and any suggestion incorrectly marked visible. Its automated threshold is met at 50 completed games with p95 below 300 ms and zero failures, duplicate requests, or visible suggestions; manual review is still required for obvious HDT lag and gameplay quality.
+Every request and terminal analysis also carries a per-process `runId`, plugin
+version, and rule-set version. The final automated threshold requires complete
+metadata and exactly one plugin/rule version cohort; multiple HDT runs using
+that same version may be combined. Clear or archive diagnostics before testing
+a newer build instead of mixing version cohorts.
 
 ## Expert annotations
 

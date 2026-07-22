@@ -111,9 +111,13 @@ public sealed class PluginDiagnosticsTests
             var store = new RedactedDiagnosticStore(
                 directory,
                 utcNow: () => DateTimeOffset.Parse("2026-07-22T00:00:00Z"),
-                sessionMode: "shadow");
+                sessionMode: "shadow",
+                pluginVersion: "0.4.4",
+                ruleSetVersion: "0.3.1",
+                runId: Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
 
             store.RecordGameStarted(gameId);
+            store.RecordAdvisorRequest(new AdvisorRequestDiagnostic(gameId, "turn-3:fixture"));
             store.RecordAdvisorAnalysis(new AdvisorAnalysisDiagnostic(
                 gameId,
                 "turn-3:fixture",
@@ -128,10 +132,14 @@ public sealed class PluginDiagnosticsTests
             var log = File.ReadAllText(Path.Combine(directory, "discard-advisor.jsonl"));
             Assert.Contains("game_started", log, StringComparison.Ordinal);
             Assert.Contains("game_ended", log, StringComparison.Ordinal);
+            Assert.Contains("advisor_request", log, StringComparison.Ordinal);
             Assert.Contains("\"completed\":true", log, StringComparison.Ordinal);
             Assert.Contains("advisor_analysis", log, StringComparison.Ordinal);
             Assert.Contains("Superseded", log, StringComparison.Ordinal);
             Assert.Contains("\"mode\":\"shadow\"", log, StringComparison.Ordinal);
+            Assert.Contains("\"runId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"", log, StringComparison.Ordinal);
+            Assert.Contains("\"pluginVersion\":\"0.4.4\"", log, StringComparison.Ordinal);
+            Assert.Contains("\"ruleSetVersion\":\"0.3.1\"", log, StringComparison.Ordinal);
             Assert.Contains("\"suggestionVisible\":false", log, StringComparison.Ordinal);
         }
         finally
@@ -190,6 +198,10 @@ public sealed class PluginDiagnosticsTests
         }
 
         public void RecordSnapshot(GameSnapshot snapshot)
+        {
+        }
+
+        public void RecordAdvisorRequest(AdvisorRequestDiagnostic request)
         {
         }
 

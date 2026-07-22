@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using DiscardAdvisor.Domain.Snapshots;
@@ -178,13 +179,70 @@ public sealed class OfflineRegressionTests
         Assert.Equal(2, report.ShadowRun.StartedGameCount);
         Assert.Equal(1, report.ShadowRun.CompletedGameCount);
         Assert.Equal(2, report.ShadowRun.AnalysisCount);
+        Assert.Equal(2, report.ShadowRun.RequestCount);
         Assert.Equal(1, report.ShadowRun.PublishedCount);
         Assert.Equal(1, report.ShadowRun.SupersededCount);
         Assert.Equal(0.5d, report.ShadowRun.SupersededRate);
         Assert.Equal(250d, report.ShadowRun.LatencyP95Ms);
         Assert.Equal(0, report.ShadowRun.VisibleSuggestionCount);
         Assert.Equal(0, report.ShadowRun.DuplicateRequestCount);
+        Assert.Equal(0, report.ShadowRun.MissingRequestCount);
+        Assert.Equal(0, report.ShadowRun.UnfinishedRequestCount);
+        Assert.Equal(1, report.ShadowRun.RunCount);
+        Assert.Equal(1, report.ShadowRun.VersionCohortCount);
+        Assert.Equal(0, report.ShadowRun.MissingVersionMetadataGameCount);
+        var cohort = Assert.Single(report.ShadowRun.VersionCohorts);
+        Assert.Equal(("0.4.4", "0.3.1"), (cohort.PluginVersion, cohort.RuleSetVersion));
         Assert.False(report.ShadowRun.MeetsAutomatedAcceptanceThresholds);
+    }
+
+    [Fact]
+    public void ShadowReportDistinguishesLegitimateRetryFromConcurrentDuplicate()
+    {
+        var gameId = Guid.Parse("5e8908b5-9a47-47de-bcfe-38d5807fb984");
+        var start = DateTimeOffset.Parse("2026-07-22T00:00:00Z");
+        var requests = ImmutableArray.Create(
+            new ShadowAdvisorRequestObservation(start, 1, gameId, "state-a", "shadow"),
+            new ShadowAdvisorRequestObservation(start.AddSeconds(2), 3, gameId, "state-a", "shadow"),
+            new ShadowAdvisorRequestObservation(start.AddSeconds(4), 5, gameId, "state-b", "shadow"),
+            new ShadowAdvisorRequestObservation(start.AddSeconds(4.5), 6, gameId, "state-b", "shadow"));
+        var analyses = ImmutableArray.Create(
+            Analysis(start.AddSeconds(1), 2, gameId, "state-a", "Superseded"),
+            Analysis(start.AddSeconds(3), 4, gameId, "state-a", "Published"),
+            Analysis(start.AddSeconds(5), 7, gameId, "state-b", "Superseded"),
+            Analysis(start.AddSeconds(6), 8, gameId, "state-b", "Published", "UnsupportedInteraction", 2));
+        var telemetry = new ShadowRunTelemetry(
+            1,
+            ImmutableArray.Create(new ShadowGameSession(gameId, "shadow", true, true, true)),
+            requests,
+            analyses,
+            ImmutableArray<string>.Empty);
+
+        var report = ShadowRunReport.FromTelemetry(telemetry);
+
+        Assert.Equal(1, report.DuplicateRequestCount);
+        Assert.Equal(0, report.MissingRequestCount);
+        Assert.Equal(0, report.UnfinishedRequestCount);
+        Assert.Equal(1, report.UnsupportedAnalysisCount);
+        Assert.Equal(2, report.UnsupportedInteractionOccurrenceCount);
+    }
+
+    [Fact]
+    public void ShadowReportRejectsTerminalAnalysisWithoutRequestEvidence()
+    {
+        var gameId = Guid.Parse("5e8908b5-9a47-47de-bcfe-38d5807fb984");
+        var timestamp = DateTimeOffset.Parse("2026-07-22T00:00:00Z");
+        var telemetry = new ShadowRunTelemetry(
+            1,
+            ImmutableArray.Create(new ShadowGameSession(gameId, "shadow", true, true, true)),
+            ImmutableArray<ShadowAdvisorRequestObservation>.Empty,
+            ImmutableArray.Create(Analysis(timestamp, 1, gameId, "state-a", "Published")),
+            ImmutableArray<string>.Empty);
+
+        var report = ShadowRunReport.FromTelemetry(telemetry);
+
+        Assert.Equal(1, report.MissingRequestCount);
+        Assert.False(report.MeetsAutomatedAcceptanceThresholds);
     }
 
     [Fact]
@@ -262,6 +320,27 @@ public sealed class OfflineRegressionTests
     }
 
     private static string FixturePath(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", name);
+
+    private static ShadowAnalysisObservation Analysis(
+        DateTimeOffset timestamp,
+        long sequence,
+        Guid gameId,
+        string stateId,
+        string disposition,
+        string status = "Ready",
+        int unsupportedInteractionCount = 0) => new(
+        timestamp,
+        sequence,
+        gameId,
+        stateId,
+        "shadow",
+        disposition,
+        status,
+        100,
+        80,
+        3,
+        unsupportedInteractionCount,
+        false);
 
     private static string CalculateStateId(JObject json)
     {

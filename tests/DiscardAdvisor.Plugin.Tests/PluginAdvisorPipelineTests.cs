@@ -92,6 +92,7 @@ public sealed class PluginAdvisorPipelineTests
         Assert.Equal(1, events.PollCount);
         await WaitUntilAsync(() => advisor.Snapshot is not null);
         Assert.Equal(advisor.Snapshot!.GameId, Assert.Single(diagnostics.StartedGames));
+        Assert.Equal(advisor.Snapshot.StateId, Assert.Single(diagnostics.Requests).StateId);
         Assert.NotEqual(updateThreadId, advisor.InvocationThreadId);
         advisor.Complete(PluginAdvisorUpdate.StateOnly(
             PluginAdvisorStatus.NoLegalRoute,
@@ -108,6 +109,7 @@ public sealed class PluginAdvisorPipelineTests
         Assert.Equal(PluginAdvisorStatus.NoLegalRoute, runtime.CurrentAdvisorUpdate.Status);
         Assert.Equal(1, advisor.InvocationCount);
         Assert.Equal(2, events.PollCount);
+        Assert.Single(diagnostics.Requests);
     }
 
     [Fact]
@@ -405,6 +407,8 @@ public sealed class PluginAdvisorPipelineTests
 
         public ConcurrentQueue<AdvisorAnalysisDiagnostic> Analyses { get; } = new();
 
+        public ConcurrentQueue<AdvisorRequestDiagnostic> Requests { get; } = new();
+
         public void RecordGameStarted(Guid gameId) => StartedGames.Enqueue(gameId);
 
         public void RecordGameEnded(Guid gameId, bool completed) => EndedGames.Enqueue((gameId, completed));
@@ -416,6 +420,8 @@ public sealed class PluginAdvisorPipelineTests
         public void RecordSnapshot(GameSnapshot snapshot)
         {
         }
+
+        public void RecordAdvisorRequest(AdvisorRequestDiagnostic request) => Requests.Enqueue(request);
 
         public void RecordAdvisorAnalysis(AdvisorAnalysisDiagnostic analysis) => Analyses.Enqueue(analysis);
 

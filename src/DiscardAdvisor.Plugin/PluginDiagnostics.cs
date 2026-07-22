@@ -23,6 +23,8 @@ public interface IPluginDiagnostics
 
     void RecordSnapshot(GameSnapshot snapshot);
 
+    void RecordAdvisorRequest(AdvisorRequestDiagnostic request);
+
     void RecordAdvisorAnalysis(AdvisorAnalysisDiagnostic analysis);
 
     void RecordError(string code, Exception exception);
@@ -34,6 +36,20 @@ public enum AdvisorAnalysisDisposition
     Superseded,
     Cancelled,
     Failed
+}
+
+public sealed class AdvisorRequestDiagnostic
+{
+    public AdvisorRequestDiagnostic(Guid gameId, string stateId)
+    {
+        if (string.IsNullOrWhiteSpace(stateId))
+            throw new ArgumentException("A state id is required.", nameof(stateId));
+        GameId = gameId;
+        StateId = stateId;
+    }
+
+    public Guid GameId { get; }
+    public string StateId { get; }
 }
 
 public sealed class AdvisorAnalysisDiagnostic
@@ -103,6 +119,10 @@ public sealed class NullPluginDiagnostics : IPluginDiagnostics
     {
     }
 
+    public void RecordAdvisorRequest(AdvisorRequestDiagnostic request)
+    {
+    }
+
     public void RecordAdvisorAnalysis(AdvisorAnalysisDiagnostic analysis)
     {
     }
@@ -131,6 +151,9 @@ public sealed class QueuedPluginDiagnostics : IPluginDiagnostics
     public void RecordGateDecision(GateDecision decision) => Enqueue(() => _inner.RecordGateDecision(decision));
 
     public void RecordSnapshot(GameSnapshot snapshot) => Enqueue(() => _inner.RecordSnapshot(snapshot));
+
+    public void RecordAdvisorRequest(AdvisorRequestDiagnostic request) =>
+        Enqueue(() => _inner.RecordAdvisorRequest(request));
 
     public void RecordAdvisorAnalysis(AdvisorAnalysisDiagnostic analysis) =>
         Enqueue(() => _inner.RecordAdvisorAnalysis(analysis));
@@ -185,6 +208,9 @@ public sealed class RedactedDiagnosticStore : IPluginDiagnostics
     private readonly Func<DateTimeOffset> _utcNow;
     private readonly SnapshotFixtureExporter? _fixtureExporter;
     private readonly string _sessionMode;
+    private readonly Guid _runId;
+    private readonly string _pluginVersion;
+    private readonly string _ruleSetVersion;
 
     public RedactedDiagnosticStore(
         string directory,
@@ -192,7 +218,10 @@ public sealed class RedactedDiagnosticStore : IPluginDiagnostics
         int retainedFiles = 3,
         Func<DateTimeOffset>? utcNow = null,
         SnapshotFixtureExporter? fixtureExporter = null,
-        string sessionMode = "experimental")
+        string sessionMode = "experimental",
+        string pluginVersion = "unknown",
+        string? ruleSetVersion = null,
+        Guid? runId = null)
     {
         if (string.IsNullOrWhiteSpace(directory))
             throw new ArgumentException("A diagnostic directory is required.", nameof(directory));
@@ -202,6 +231,10 @@ public sealed class RedactedDiagnosticStore : IPluginDiagnostics
             throw new ArgumentOutOfRangeException(nameof(retainedFiles));
         if (string.IsNullOrWhiteSpace(sessionMode))
             throw new ArgumentException("A session mode is required.", nameof(sessionMode));
+        if (string.IsNullOrWhiteSpace(pluginVersion))
+            throw new ArgumentException("A plugin version is required.", nameof(pluginVersion));
+        if (string.IsNullOrWhiteSpace(ruleSetVersion ?? TargetDeckProfile.RuleSetVersion))
+            throw new ArgumentException("A rule-set version is required.", nameof(ruleSetVersion));
 
         _directory = directory;
         _logPath = Path.Combine(directory, "discard-advisor.jsonl");
@@ -210,6 +243,9 @@ public sealed class RedactedDiagnosticStore : IPluginDiagnostics
         _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
         _fixtureExporter = fixtureExporter;
         _sessionMode = sessionMode;
+        _runId = runId ?? Guid.NewGuid();
+        _pluginVersion = pluginVersion;
+        _ruleSetVersion = ruleSetVersion ?? TargetDeckProfile.RuleSetVersion;
     }
 
     public void RecordGameStarted(Guid gameId) => Write(new DiagnosticEntry(
@@ -219,7 +255,10 @@ public sealed class RedactedDiagnosticStore : IPluginDiagnostics
         new Dictionary<string, object>
         {
             ["gameId"] = gameId.ToString("N"),
-            ["mode"] = _sessionMode
+            ["mode"] = _sessionMode,
+            ["runId"] = _runId.ToString("N"),
+            ["pluginVersion"] = _pluginVersion,
+            ["ruleSetVersion"] = _ruleSetVersion
         }));
 
     public void RecordGameEnded(Guid gameId, bool completed) => Write(new DiagnosticEntry(
@@ -230,6 +269,9 @@ public sealed class RedactedDiagnosticStore : IPluginDiagnostics
         {
             ["gameId"] = gameId.ToString("N"),
             ["mode"] = _sessionMode,
+            ["runId"] = _runId.ToString("N"),
+            ["pluginVersion"] = _pluginVersion,
+            ["ruleSetVersion"] = _ruleSetVersion,
             ["completed"] = completed
         }));
 
@@ -270,6 +312,24 @@ public sealed class RedactedDiagnosticStore : IPluginDiagnostics
         }
     }
 
+    public void RecordAdvisorRequest(AdvisorRequestDiagnostic request)
+    {
+        if (request is null)
+            throw new ArgumentNullException(nameof(request));
+        Write(new DiagnosticEntry(
+            _utcNow(),
+            "advisor_request",
+            request.StateId,
+            new Dictionary<string, object>
+            {
+                ["gameId"] = request.GameId.ToString("N"),
+                ["mode"] = _sessionMode,
+                ["runId"] = _runId.ToString("N"),
+                ["pluginVersion"] = _pluginVersion,
+                ["ruleSetVersion"] = _ruleSetVersion
+            }));
+    }
+
     public void RecordAdvisorAnalysis(AdvisorAnalysisDiagnostic analysis)
     {
         if (analysis is null)
@@ -282,6 +342,9 @@ public sealed class RedactedDiagnosticStore : IPluginDiagnostics
             {
                 ["gameId"] = analysis.GameId.ToString("N"),
                 ["mode"] = _sessionMode,
+                ["runId"] = _runId.ToString("N"),
+                ["pluginVersion"] = _pluginVersion,
+                ["ruleSetVersion"] = _ruleSetVersion,
                 ["disposition"] = analysis.Disposition.ToString(),
                 ["status"] = analysis.Status.ToString(),
                 ["elapsedMs"] = analysis.ElapsedMs,

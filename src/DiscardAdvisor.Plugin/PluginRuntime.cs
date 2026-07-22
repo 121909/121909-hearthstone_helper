@@ -138,6 +138,9 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
                 _diagnostics.RecordSnapshot(workItem.Snapshot);
                 if (!TryPublishAnalyzing(workItem))
                     return;
+                _diagnostics.RecordAdvisorRequest(new AdvisorRequestDiagnostic(
+                    workItem.Snapshot.GameId,
+                    workItem.StateId));
                 SnapshotReady?.Invoke(workItem);
                 if (_advisorService is not null)
                     _ = RunAdvisorAsync(workItem);

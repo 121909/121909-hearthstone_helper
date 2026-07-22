@@ -11,6 +11,7 @@ internal static class HdtPluginDiagnostics
         return new QueuedPluginDiagnostics(new RedactedDiagnosticStore(
             Path.Combine(root, "Diagnostics"),
             fixtureExporter: new SnapshotFixtureExporter(Path.Combine(root, "Fixtures")),
-            sessionMode: sessionMode));
+            sessionMode: sessionMode,
+            pluginVersion: DiscardAdvisorPlugin.SemanticVersion));
     }
 }

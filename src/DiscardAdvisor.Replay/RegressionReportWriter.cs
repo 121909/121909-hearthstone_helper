@@ -65,13 +65,26 @@ public sealed class RegressionReportWriter
         else
         {
             builder.AppendLine($"- Completed games: {report.ShadowRun.CompletedGameCount}/50 ({report.ShadowRun.StartedGameCount} started)");
+            builder.AppendLine($"- Runs / version cohorts / games missing metadata: {report.ShadowRun.RunCount}/{report.ShadowRun.VersionCohortCount}/{report.ShadowRun.MissingVersionMetadataGameCount}");
             builder.AppendLine($"- Automated acceptance thresholds: **{(report.ShadowRun.MeetsAutomatedAcceptanceThresholds ? "MET" : "NOT MET")}**");
-            builder.AppendLine($"- Analyses: {report.ShadowRun.AnalysisCount}");
+            builder.AppendLine($"- Requests/terminal analyses: {report.ShadowRun.RequestCount}/{report.ShadowRun.AnalysisCount}");
             builder.AppendLine($"- Published/superseded/cancelled/failed: {report.ShadowRun.PublishedCount}/{report.ShadowRun.SupersededCount}/{report.ShadowRun.CancelledCount}/{report.ShadowRun.FailedCount}");
             builder.AppendLine($"- Superseded rate: {FormatPercent(report.ShadowRun.SupersededRate)}");
             builder.AppendLine($"- Latency p50/p95/max: {report.ShadowRun.LatencyP50Ms:F2}/{report.ShadowRun.LatencyP95Ms:F2}/{report.ShadowRun.LatencyMaximumMs:F2} ms");
             builder.AppendLine($"- Duplicate state requests: {report.ShadowRun.DuplicateRequestCount}");
+            builder.AppendLine($"- Missing request starts / unfinished requests: {report.ShadowRun.MissingRequestCount}/{report.ShadowRun.UnfinishedRequestCount}");
             builder.AppendLine($"- Visible suggestions: {report.ShadowRun.VisibleSuggestionCount}");
+            builder.AppendLine($"- Unsupported analyses / occurrences: {report.ShadowRun.UnsupportedAnalysisCount}/{report.ShadowRun.UnsupportedInteractionOccurrenceCount}");
+            if (!report.ShadowRun.VersionCohorts.IsEmpty)
+            {
+                builder.AppendLine();
+                builder.AppendLine("| Plugin | Rules | Started | Completed | Requests | Analyses |");
+                builder.AppendLine("| --- | --- | ---: | ---: | ---: | ---: |");
+                foreach (var cohort in report.ShadowRun.VersionCohorts)
+                {
+                    builder.AppendLine($"| `{EscapeCell(cohort.PluginVersion)}` | `{EscapeCell(cohort.RuleSetVersion)}` | {cohort.StartedGameCount} | {cohort.CompletedGameCount} | {cohort.RequestCount} | {cohort.AnalysisCount} |");
+                }
+            }
         }
         builder.AppendLine();
         builder.AppendLine("## Unsupported interactions");

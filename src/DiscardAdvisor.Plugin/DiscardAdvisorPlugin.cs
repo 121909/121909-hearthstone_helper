@@ -10,6 +10,8 @@ namespace DiscardAdvisor.Plugin;
 
 public sealed class DiscardAdvisorPlugin : IPlugin
 {
+    public const string SemanticVersion = "0.4.4";
+
     private readonly IPluginRuntime _runtime;
     private readonly PluginSettings _settings;
     private HdtOverlayController? _overlay;
@@ -37,7 +39,7 @@ public sealed class DiscardAdvisorPlugin : IPlugin
 
     public string Author => "121909";
 
-    public Version Version => new(0, 4, 4);
+    public Version Version => Version.Parse(SemanticVersion);
 
     public MenuItem MenuItem => null!;
 

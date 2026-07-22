@@ -106,6 +106,8 @@ public sealed record OfflineRegressionReport(
                                ShadowRun.StartedGameCount > 0 &&
                                ShadowRun.FailedCount == 0 &&
                                ShadowRun.DuplicateRequestCount == 0 &&
+                               ShadowRun.MissingRequestCount == 0 &&
+                               ShadowRun.UnfinishedRequestCount == 0 &&
                                ShadowRun.VisibleSuggestionCount == 0;
             return (hasOfflineInput || hasShadowInput) && offlinePassed && shadowPassed && InputErrors.IsEmpty;
         }
