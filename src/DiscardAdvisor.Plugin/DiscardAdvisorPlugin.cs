@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows.Controls;
 using DiscardAdvisor.Search;
 using Hearthstone_Deck_Tracker;
+using Hearthstone_Deck_Tracker.API;
 using Hearthstone_Deck_Tracker.Plugins;
 
 namespace DiscardAdvisor.Plugin;
@@ -62,6 +63,25 @@ public sealed class DiscardAdvisorPlugin : IPlugin
     }
 
     public void OnUpdate() => _runtime.Update();
+
+    internal static void RegisterGameEvents(HdtGameEventRegistration registration)
+    {
+        // ActionList attributes callbacks to the immediate Add() caller type.
+        // Register here so HDT can remove them when this plugin is disabled.
+        GameEvents.OnGameStart.Add(registration.NotifyGameStarted);
+        GameEvents.OnGameEnd.Add(registration.NotifyGameEnded);
+        GameEvents.OnTurnStart.Add(_ => registration.NotifyStateChanged());
+        GameEvents.OnPlayerDraw.Add(registration.NotifyPlayerDraw);
+        GameEvents.OnPlayerGet.Add(registration.NotifyPlayerGet);
+        GameEvents.OnPlayerPlay.Add(registration.NotifyPlayerPlay);
+        GameEvents.OnPlayerHandDiscard.Add(registration.NotifyPlayerDiscard);
+        GameEvents.OnOpponentPlay.Add(_ => registration.NotifyStateChanged());
+        GameEvents.OnOpponentHandDiscard.Add(_ => registration.NotifyStateChanged());
+        GameEvents.OnPlayerMinionAttack.Add(_ => registration.NotifyStateChanged());
+        GameEvents.OnOpponentMinionAttack.Add(_ => registration.NotifyStateChanged());
+        GameEvents.OnEntityWillTakeDamage.Add(_ => registration.NotifyStateChanged());
+        GameEvents.OnModeChanged.Add(_ => registration.NotifyStateChanged());
+    }
 
     private static IPluginRuntime CreateRuntime(PluginSettings settings)
     {

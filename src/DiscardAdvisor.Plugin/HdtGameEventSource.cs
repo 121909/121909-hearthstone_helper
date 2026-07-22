@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Hearthstone_Deck_Tracker.API;
 using Hearthstone_Deck_Tracker.Hearthstone;
 using Hearthstone_Deck_Tracker.Hearthstone.Entities;
 using Hearthstone_Deck_Tracker.Utility.Assets;
@@ -16,8 +15,9 @@ internal sealed class HdtGameEventSource : IGameEventSource
     private readonly HashSet<int> _seenCreatedEntities = new();
     private readonly HashSet<int> _seenPlayedEntities = new();
     private readonly HashSet<int> _seenDiscardedEntities = new();
-    private bool _subscribed;
-    private bool _running;
+    private volatile HdtGameEventRegistration? _activeRegistration;
+    private bool _cardDefinitionsSubscribed;
+    private volatile bool _running;
     private Action? _gameStarted;
     private Action? _gameEnded;
     private Action? _stateChanged;
@@ -33,35 +33,31 @@ internal sealed class HdtGameEventSource : IGameEventSource
         _gameEnded = gameEnded ?? throw new ArgumentNullException(nameof(gameEnded));
         _stateChanged = stateChanged ?? throw new ArgumentNullException(nameof(stateChanged));
         _running = true;
-        if (_subscribed)
-            return;
-
-        GameEvents.OnGameStart.Add(NotifyGameStarted);
-        GameEvents.OnGameEnd.Add(NotifyGameEnded);
-        GameEvents.OnTurnStart.Add(_ => NotifyStateChanged());
-        GameEvents.OnPlayerDraw.Add(NotifyPlayerDraw);
-        GameEvents.OnPlayerGet.Add(NotifyPlayerGet);
-        GameEvents.OnPlayerPlay.Add(NotifyPlayerPlay);
-        GameEvents.OnPlayerHandDiscard.Add(NotifyPlayerDiscard);
-        GameEvents.OnOpponentPlay.Add(_ => NotifyStateChanged());
-        GameEvents.OnOpponentHandDiscard.Add(_ => NotifyStateChanged());
-        GameEvents.OnPlayerMinionAttack.Add(_ => NotifyStateChanged());
-        GameEvents.OnOpponentMinionAttack.Add(_ => NotifyStateChanged());
-        GameEvents.OnEntityWillTakeDamage.Add(_ => NotifyStateChanged());
-        GameEvents.OnModeChanged.Add(_ => NotifyStateChanged());
-        CardDefsManager.CardsChanged += NotifyCardDefinitionsChanged;
-        _subscribed = true;
+        var registration = new HdtGameEventRegistration(this);
+        _activeRegistration = registration;
+        DiscardAdvisorPlugin.RegisterGameEvents(registration);
+        if (!_cardDefinitionsSubscribed)
+        {
+            CardDefsManager.CardsChanged += NotifyCardDefinitionsChanged;
+            _cardDefinitionsSubscribed = true;
+        }
     }
 
     public void Stop()
     {
         _running = false;
+        _activeRegistration = null;
         _gameStarted = null;
         _gameEnded = null;
         _stateChanged = null;
+        if (_cardDefinitionsSubscribed)
+        {
+            CardDefsManager.CardsChanged -= NotifyCardDefinitionsChanged;
+            _cardDefinitionsSubscribed = false;
+        }
     }
 
-    private void NotifyGameStarted()
+    internal void NotifyGameStarted()
     {
         if (!_running)
             return;
@@ -73,7 +69,7 @@ internal sealed class HdtGameEventSource : IGameEventSource
         _gameStarted?.Invoke();
     }
 
-    private void NotifyGameEnded()
+    internal void NotifyGameEnded()
     {
         if (!_running)
             return;
@@ -81,7 +77,7 @@ internal sealed class HdtGameEventSource : IGameEventSource
         _mechanics.Reset();
     }
 
-    private void NotifyStateChanged()
+    internal void NotifyStateChanged()
     {
         if (_running)
             _stateChanged?.Invoke();
@@ -93,7 +89,7 @@ internal sealed class HdtGameEventSource : IGameEventSource
         NotifyStateChanged();
     }
 
-    private void NotifyPlayerPlay(Card card)
+    internal void NotifyPlayerPlay(Card card)
     {
         if (!_running)
             return;
@@ -104,7 +100,7 @@ internal sealed class HdtGameEventSource : IGameEventSource
         NotifyStateChanged();
     }
 
-    private void NotifyPlayerDraw(Card card)
+    internal void NotifyPlayerDraw(Card card)
     {
         if (!_running)
             return;
@@ -114,7 +110,7 @@ internal sealed class HdtGameEventSource : IGameEventSource
         NotifyStateChanged();
     }
 
-    private void NotifyPlayerGet(Card card)
+    internal void NotifyPlayerGet(Card card)
     {
         if (!_running)
             return;
@@ -130,7 +126,7 @@ internal sealed class HdtGameEventSource : IGameEventSource
         NotifyStateChanged();
     }
 
-    private void NotifyPlayerDiscard(Card card)
+    internal void NotifyPlayerDiscard(Card card)
     {
         if (!_running)
             return;
@@ -140,6 +136,9 @@ internal sealed class HdtGameEventSource : IGameEventSource
             _mechanics.RecordCardDiscarded(entity.Id);
         NotifyStateChanged();
     }
+
+    internal bool IsRegistrationActive(HdtGameEventRegistration registration) =>
+        _running && ReferenceEquals(_activeRegistration, registration);
 
     private static Entity? FindLatestUnseenEntity(string cardId, ISet<int> seen)
     {
@@ -151,5 +150,35 @@ internal sealed class HdtGameEventSource : IGameEventSource
         if (entity is not null)
             seen.Add(entity.Id);
         return entity;
+    }
+}
+
+internal sealed class HdtGameEventRegistration
+{
+    private readonly WeakReference<HdtGameEventSource> _source;
+
+    public HdtGameEventRegistration(HdtGameEventSource source)
+    {
+        _source = new WeakReference<HdtGameEventSource>(source);
+    }
+
+    public void NotifyGameStarted() => Invoke(source => source.NotifyGameStarted());
+
+    public void NotifyGameEnded() => Invoke(source => source.NotifyGameEnded());
+
+    public void NotifyStateChanged() => Invoke(source => source.NotifyStateChanged());
+
+    public void NotifyPlayerPlay(Card card) => Invoke(source => source.NotifyPlayerPlay(card));
+
+    public void NotifyPlayerDraw(Card card) => Invoke(source => source.NotifyPlayerDraw(card));
+
+    public void NotifyPlayerGet(Card card) => Invoke(source => source.NotifyPlayerGet(card));
+
+    public void NotifyPlayerDiscard(Card card) => Invoke(source => source.NotifyPlayerDiscard(card));
+
+    private void Invoke(Action<HdtGameEventSource> action)
+    {
+        if (_source.TryGetTarget(out var source) && source.IsRegistrationActive(this))
+            action(source);
     }
 }
