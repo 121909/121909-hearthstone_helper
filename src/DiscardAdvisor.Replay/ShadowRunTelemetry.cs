@@ -68,6 +68,7 @@ public sealed record ShadowRunReport(
     int LogFileCount,
     int StartedGameCount,
     int CompletedGameCount,
+    int CompletedGameWithPublishedAnalysisCount,
     int RequestCount,
     int AnalysisCount,
     int PublishedCount,
@@ -90,7 +91,10 @@ public sealed record ShadowRunReport(
 {
     public double SupersededRate => AnalysisCount == 0 ? 0 : (double)SupersededCount / AnalysisCount;
 
-    public bool MeetsAutomatedAcceptanceThresholds => CompletedGameCount >= 50 &&
+    public int CompletedGameWithoutPublishedAnalysisCount =>
+        Math.Max(0, CompletedGameCount - CompletedGameWithPublishedAnalysisCount);
+
+    public bool MeetsAutomatedAcceptanceThresholds => CompletedGameWithPublishedAnalysisCount >= 50 &&
                                                        AnalysisCount > 0 &&
                                                        RequestCount == AnalysisCount &&
                                                        MissingRequestCount == 0 &&
@@ -133,10 +137,15 @@ public sealed record ShadowRunReport(
                     analyses.Count(analysis => cohortGameIds.Contains(analysis.GameId)));
             })
             .ToImmutableArray();
+        var publishedGameIds = analyses
+            .Where(analysis => string.Equals(analysis.Disposition, "Published", StringComparison.OrdinalIgnoreCase))
+            .Select(analysis => analysis.GameId)
+            .ToHashSet();
         return new ShadowRunReport(
             telemetry.LogFileCount,
             games.Count(game => game.Started),
             games.Count(game => game.Started && game.Ended && game.Completed),
+            games.Count(game => game.Started && game.Ended && game.Completed && publishedGameIds.Contains(game.GameId)),
             requests.Length,
             analyses.Length,
             CountDisposition(analyses, "Published"),

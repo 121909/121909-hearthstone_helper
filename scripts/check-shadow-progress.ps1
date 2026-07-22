@@ -41,7 +41,8 @@ if(-not (Test-Path -LiteralPath $reportPath -PathType Leaf))
 }
 $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
 $shadow = $report.shadowRun
-Write-Host ("Shadow checkpoint: {0}/50 completed games" -f $shadow.completedGameCount)
+Write-Host ("Shadow checkpoint: {0}/50 completed games with a published analysis ({1} completed total)" -f `
+    $shadow.completedGameWithPublishedAnalysisCount, $shadow.completedGameCount)
 Write-Host ("Runs/version cohorts/missing metadata: {0}/{1}/{2}" -f `
     $shadow.runCount, $shadow.versionCohortCount, $shadow.missingVersionMetadataGameCount)
 Write-Host ("Requests/analyses: {0}/{1}; missing starts: {2}; unfinished: {3}" -f `
@@ -49,11 +50,11 @@ Write-Host ("Requests/analyses: {0}/{1}; missing starts: {2}; unfinished: {3}" -
 Write-Host ("p95: {0:N2} ms; duplicates: {1}; failures: {2}; visible: {3}; unsupported occurrences: {4}" -f `
     $shadow.latencyP95Ms, $shadow.duplicateRequestCount, $shadow.failedCount, $shadow.visibleSuggestionCount, $shadow.unsupportedInteractionOccurrenceCount)
 
-$enoughGames = $shadow.completedGameCount -ge 50
+$enoughGames = $shadow.completedGameWithPublishedAnalysisCount -ge 50
 $hardThresholds = [bool]$shadow.meetsAutomatedAcceptanceThresholds
 if($RequireAcceptance -and (-not $enoughGames -or -not $hardThresholds))
 {
-    [Console]::Error.WriteLine("Shadow acceptance is not met. Keep settings.json in shadow mode and collect more real completed games.")
+    [Console]::Error.WriteLine("Shadow acceptance is not met. Keep settings.json in shadow mode and collect more real completed games with published analyses.")
     exit 3
 }
 exit 0

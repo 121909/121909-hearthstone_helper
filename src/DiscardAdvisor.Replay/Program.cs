@@ -40,7 +40,7 @@ public static class Program
             Console.WriteLine($"Snapshots: {report.EvaluatedSnapshotCount}/{report.SnapshotCount}");
             Console.WriteLine($"Legal routes: {report.LegalRouteCount}/{report.RouteCount}");
             Console.WriteLine($"Latency p95: {report.LatencyP95Ms:F2} ms");
-            Console.WriteLine($"Shadow games: {report.ShadowRun.CompletedGameCount}/50");
+            Console.WriteLine($"Shadow games with published analyses: {report.ShadowRun.CompletedGameWithPublishedAnalysisCount}/50");
             Console.WriteLine($"Shadow runs/version cohorts: {report.ShadowRun.RunCount}/{report.ShadowRun.VersionCohortCount}");
             Console.WriteLine($"Shadow requests/analyses: {report.ShadowRun.RequestCount}/{report.ShadowRun.AnalysisCount}");
             Console.WriteLine($"Shadow superseded: {report.ShadowRun.SupersededCount}/{report.ShadowRun.AnalysisCount}");

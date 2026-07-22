@@ -65,7 +65,8 @@ public sealed class RegressionReportWriter
         }
         else
         {
-            builder.AppendLine($"- Completed games: {report.ShadowRun.CompletedGameCount}/50 ({report.ShadowRun.StartedGameCount} started)");
+            builder.AppendLine($"- Completed games with a published Shadow analysis: {report.ShadowRun.CompletedGameWithPublishedAnalysisCount}/50 ({report.ShadowRun.CompletedGameCount} completed, {report.ShadowRun.StartedGameCount} started)");
+            builder.AppendLine($"- Completed games without a published analysis: {report.ShadowRun.CompletedGameWithoutPublishedAnalysisCount}");
             builder.AppendLine($"- Runs / version cohorts / games missing metadata: {report.ShadowRun.RunCount}/{report.ShadowRun.VersionCohortCount}/{report.ShadowRun.MissingVersionMetadataGameCount}");
             builder.AppendLine($"- Automated acceptance thresholds: **{(report.ShadowRun.MeetsAutomatedAcceptanceThresholds ? "MET" : "NOT MET")}**");
             builder.AppendLine($"- Requests/terminal analyses: {report.ShadowRun.RequestCount}/{report.ShadowRun.AnalysisCount}");

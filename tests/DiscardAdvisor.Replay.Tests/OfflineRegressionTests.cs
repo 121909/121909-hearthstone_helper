@@ -179,6 +179,8 @@ public sealed class OfflineRegressionTests
         Assert.True(report.Passed);
         Assert.Equal(2, report.ShadowRun.StartedGameCount);
         Assert.Equal(1, report.ShadowRun.CompletedGameCount);
+        Assert.Equal(1, report.ShadowRun.CompletedGameWithPublishedAnalysisCount);
+        Assert.Equal(0, report.ShadowRun.CompletedGameWithoutPublishedAnalysisCount);
         Assert.Equal(2, report.ShadowRun.AnalysisCount);
         Assert.Equal(2, report.ShadowRun.RequestCount);
         Assert.Equal(1, report.ShadowRun.PublishedCount);
@@ -247,12 +249,30 @@ public sealed class OfflineRegressionTests
     }
 
     [Fact]
+    public void ShadowAcceptanceCountsOnlyCompletedGamesWithPublishedAnalyses()
+    {
+        var incompleteEvidence = ShadowRunReport.FromTelemetry(BuildCompletedShadowRunTelemetry(49));
+
+        Assert.Equal(50, incompleteEvidence.CompletedGameCount);
+        Assert.Equal(49, incompleteEvidence.CompletedGameWithPublishedAnalysisCount);
+        Assert.Equal(1, incompleteEvidence.CompletedGameWithoutPublishedAnalysisCount);
+        Assert.False(incompleteEvidence.MeetsAutomatedAcceptanceThresholds);
+
+        var acceptedEvidence = ShadowRunReport.FromTelemetry(BuildCompletedShadowRunTelemetry(50));
+
+        Assert.Equal(50, acceptedEvidence.CompletedGameWithPublishedAnalysisCount);
+        Assert.Equal(0, acceptedEvidence.CompletedGameWithoutPublishedAnalysisCount);
+        Assert.True(acceptedEvidence.MeetsAutomatedAcceptanceThresholds);
+    }
+
+    [Fact]
     public void VisibleSuggestionGateRequiresCompleteOfflineAndShadowEvidence()
     {
         var shadow = new ShadowRunReport(
             LogFileCount: 1,
             StartedGameCount: 50,
             CompletedGameCount: 50,
+            CompletedGameWithPublishedAnalysisCount: 50,
             RequestCount: 200,
             AnalysisCount: 200,
             PublishedCount: 200,
@@ -297,7 +317,7 @@ public sealed class OfflineRegressionTests
         Assert.False((report with { LatencyP95Ms = 300 }).MeetsVisibleSuggestionPrerequisites);
         Assert.False((report with
         {
-            ShadowRun = shadow with { CompletedGameCount = 49 }
+            ShadowRun = shadow with { CompletedGameWithPublishedAnalysisCount = 49 }
         }).MeetsVisibleSuggestionPrerequisites);
         Assert.False((report with
         {
@@ -404,6 +424,42 @@ public sealed class OfflineRegressionTests
         3,
         unsupportedInteractionCount,
         false);
+
+    private static ShadowRunTelemetry BuildCompletedShadowRunTelemetry(int publishedGameCount)
+    {
+        var start = DateTimeOffset.Parse("2026-07-22T00:00:00Z");
+        var games = ImmutableArray.CreateBuilder<ShadowGameSession>(50);
+        var requests = ImmutableArray.CreateBuilder<ShadowAdvisorRequestObservation>(50);
+        var analyses = ImmutableArray.CreateBuilder<ShadowAnalysisObservation>(50);
+        for (var index = 0; index < 50; index++)
+        {
+            var gameId = new Guid(index + 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            var timestamp = start.AddMinutes(index);
+            var stateId = $"state-{index}";
+            games.Add(new ShadowGameSession(
+                gameId,
+                "shadow",
+                true,
+                true,
+                true,
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "0.4.4",
+                "0.3.1"));
+            requests.Add(new ShadowAdvisorRequestObservation(timestamp, index * 2 + 1, gameId, stateId, "shadow"));
+            analyses.Add(Analysis(
+                timestamp.AddMilliseconds(100),
+                index * 2 + 2,
+                gameId,
+                stateId,
+                index < publishedGameCount ? "Published" : "Superseded"));
+        }
+        return new ShadowRunTelemetry(
+            1,
+            games.ToImmutable(),
+            requests.ToImmutable(),
+            analyses.ToImmutable(),
+            ImmutableArray<string>.Empty);
+    }
 
     private static string CalculateStateId(JObject json)
     {

@@ -64,7 +64,7 @@ After the run, aggregate all evidence in one report:
     "$env:APPDATA\HearthstoneDeckTracker\DiscardAdvisor\Diagnostics"
 ```
 
-The release cohort is recorded in `profiles\release.json`. Do not switch a live settings file to `experimental` manually. After the final report contains at least 200 real expert annotations, at least 50 completed real shadow games, and all automated thresholds, run the Windows gate:
+The release cohort is recorded in `profiles\release.json`. Do not switch a live settings file to `experimental` manually. After the final report contains at least 200 real expert annotations, at least 50 completed real shadow games with a published analysis, and all automated thresholds, run the Windows gate:
 
 ```powershell
 .\scripts\enable-visible-test.ps1 `
