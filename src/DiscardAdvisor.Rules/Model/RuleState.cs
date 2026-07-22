@@ -116,7 +116,8 @@ public sealed record PendingChoiceState(
     int ChoiceId,
     string ChoiceType,
     string SourceCardId,
-    ImmutableArray<ChoiceCandidateState> Candidates);
+    ImmutableArray<ChoiceCandidateState> Candidates,
+    int? SourceEntityId = null);
 
 public sealed record PlayerState(
     HeroState Hero,
@@ -128,7 +129,8 @@ public sealed record PlayerState(
     ImmutableArray<HandCardState> Deck,
     ImmutableArray<ZoneCardState> Graveyard,
     int Fatigue,
-    WeaponState? Weapon = null)
+    WeaponState? Weapon = null,
+    int DiscardCount = 0)
 {
     public int BoardCount => Board.Length + Locations.Length;
 
@@ -142,7 +144,8 @@ public sealed record PlayerState(
         IEnumerable<HandCardState>? deck = null,
         IEnumerable<ZoneCardState>? graveyard = null,
         int fatigue = 0,
-        WeaponState? weapon = null) => new(
+        WeaponState? weapon = null,
+        int discardCount = 0) => new(
             hero,
             heroPower,
             mana,
@@ -152,7 +155,8 @@ public sealed record PlayerState(
             (deck ?? Enumerable.Empty<HandCardState>()).ToImmutableArray(),
             (graveyard ?? Enumerable.Empty<ZoneCardState>()).ToImmutableArray(),
             fatigue,
-            weapon);
+            weapon,
+            discardCount);
 
     public PlayerState NormalizePositions() => this with
     {
@@ -177,7 +181,8 @@ public sealed record RuleGameState(
     PlayerState Friendly,
     PlayerState Opponent,
     int NextEntityId = 10000,
-    PendingChoiceState? PendingChoice = null)
+    PendingChoiceState? PendingChoice = null,
+    ImmutableDictionary<int, int>? PlatysaurBindings = null)
 {
     public PlayerState Player(PlayerSide side) => side == PlayerSide.Friendly ? Friendly : Opponent;
 
@@ -192,4 +197,6 @@ public sealed record RuleGameState(
         entityId = NextEntityId;
         return this with { NextEntityId = NextEntityId + 1 };
     }
+
+    public ImmutableDictionary<int, int> Bindings => PlatysaurBindings ?? ImmutableDictionary<int, int>.Empty;
 }

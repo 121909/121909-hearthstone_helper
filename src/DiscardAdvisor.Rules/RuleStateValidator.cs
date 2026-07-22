@@ -45,6 +45,8 @@ public static class RuleStateValidator
             errors.Add($"{name}_board_overflow");
         if (player.Fatigue < 0 || player.Hero.Health < 0 || player.Hero.MaxHealth < 1)
             errors.Add($"{name}_hero_health");
+        if (player.DiscardCount < 0)
+            errors.Add($"{name}_discard_count");
         if (player.Mana.Available < 0 || player.Mana.Temporary < 0 || player.Mana.Spent < 0 || player.Mana.Maximum < 0)
             errors.Add($"{name}_mana_negative");
         if (player.Mana.Available > player.Mana.Maximum + player.Mana.Temporary)

@@ -92,13 +92,17 @@ public sealed class DiscardWarlockCardTests
     public void SoulfireDealsDamageBeforeRequestingRandomDiscard()
     {
         var soulfire = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.Soulfire, 10);
-        var state = CreateState(hand: new[] { soulfire }, opponentHealth: 10);
+        var discarded = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.HandOfGuldan, 11);
+        var state = CreateState(hand: new[] { soulfire, discarded }, opponentHealth: 10);
 
         var result = _engine.Apply(state, new PlayCardAction(PlayerSide.Friendly, 10, 200));
 
         Assert.Equal(6, result.State.Opponent.Hero.Health);
-        Assert.Equal("damage", result.Events[^2].Type);
-        Assert.Equal("random_discard_pending", result.Events[^1].Type);
+        var damageIndex = result.Events.Select((ruleEvent, index) => (ruleEvent, index))
+            .First(value => value.ruleEvent.Type == "damage").index;
+        var discardIndex = result.Events.Select((ruleEvent, index) => (ruleEvent, index))
+            .First(value => value.ruleEvent.Type == "discard").index;
+        Assert.True(damageIndex < discardIndex);
     }
 
     [Fact]
