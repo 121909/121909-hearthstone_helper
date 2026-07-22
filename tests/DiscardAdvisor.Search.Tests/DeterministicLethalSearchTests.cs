@@ -74,6 +74,8 @@ public sealed class DeterministicLethalSearchTests
         Assert.True(result.DeterministicLethalFound);
         Assert.Null(result.BeamSearchMetrics);
         Assert.Single(result.Routes);
+        var candidate = Assert.Single(result.Candidates);
+        Assert.Equal(1, candidate.Risk.LethalProbability, 10);
     }
 
     [Fact]
@@ -88,6 +90,7 @@ public sealed class DeterministicLethalSearchTests
         Assert.False(result.DeterministicLethalFound);
         Assert.NotNull(result.BeamSearchMetrics);
         Assert.NotEmpty(result.Routes);
+        Assert.NotEmpty(result.Candidates);
     }
 
     private static RuleGameState CreateState(

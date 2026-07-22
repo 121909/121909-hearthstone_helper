@@ -11,7 +11,8 @@ public sealed record BeamSearchOptions(
     int MaximumActions = 12,
     int TopK = 5,
     TimeSpan? TimeBudget = null,
-    RandomSamplingOptions? RandomSampling = null)
+    RandomSamplingOptions? RandomSampling = null,
+    OpponentBelief? OpponentBelief = null)
 {
     public TimeSpan EffectiveTimeBudget => TimeBudget ?? TimeSpan.FromMilliseconds(250);
 
@@ -37,7 +38,8 @@ public sealed record BeamSearchMetrics(
 
 public sealed record BeamSearchResult(
     ImmutableArray<SearchRoute> Routes,
-    BeamSearchMetrics Metrics);
+    BeamSearchMetrics Metrics,
+    ImmutableArray<RiskAwareRouteCandidate> Candidates);
 
 public interface IStateEvaluator
 {

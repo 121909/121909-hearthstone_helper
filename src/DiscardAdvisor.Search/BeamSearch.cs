@@ -16,12 +16,13 @@ public sealed class BeamSearch
     private readonly IStateEvaluator _evaluator;
     private readonly DominancePruner _dominancePruner;
     private readonly RandomOutcomeSampler _randomOutcomes;
+    private readonly RiskAwareRouteRanker _routeRanker;
 
     public BeamSearch()
         : this(
             new LegalActionEnumerator(),
             new DiscardWarlockRuleEngine(),
-            new FastStateEvaluator(),
+            new MultiDimensionalStateEvaluator(),
             new DominancePruner(),
             new RandomOutcomeSampler())
     {
@@ -31,7 +32,7 @@ public sealed class BeamSearch
         : this(
             new LegalActionEnumerator(),
             new DiscardWarlockRuleEngine(),
-            new FastStateEvaluator(),
+            new MultiDimensionalStateEvaluator(),
             new DominancePruner(),
             new RandomOutcomeSampler(oneCostMinions))
     {
@@ -58,6 +59,7 @@ public sealed class BeamSearch
         _evaluator = evaluator ?? throw new ArgumentNullException(nameof(evaluator));
         _dominancePruner = dominancePruner ?? throw new ArgumentNullException(nameof(dominancePruner));
         _randomOutcomes = randomOutcomes ?? throw new ArgumentNullException(nameof(randomOutcomes));
+        _routeRanker = new RiskAwareRouteRanker(evaluator as IDetailedStateEvaluator);
     }
 
     public BeamSearchResult Search(
@@ -69,6 +71,7 @@ public sealed class BeamSearch
             throw new ArgumentNullException(nameof(initialState));
         options ??= new BeamSearchOptions();
         ValidateOptions(options);
+        var opponentBelief = options.OpponentBelief ?? new OpponentBeliefModel().Estimate(initialState);
 
         var stopwatch = Stopwatch.StartNew();
         var frontier = ImmutableArray.Create(new SearchRoute(
@@ -76,7 +79,7 @@ public sealed class BeamSearch
             ImmutableArray<RuleAction>.Empty,
             ImmutableArray<RuleEvent>.Empty,
             1d,
-            _evaluator.Evaluate(initialState)));
+            Evaluate(initialState, opponentBelief)));
         var completed = new List<SearchRoute>();
         var seenAtDepth = new Dictionary<string, int>(StringComparer.Ordinal)
         {
@@ -132,7 +135,7 @@ public sealed class BeamSearch
                             route.Actions.Add(action),
                             route.Events.AddRange(outcome.Events),
                             route.Probability * outcome.Probability,
-                            _evaluator.Evaluate(outcome.State),
+                            Evaluate(outcome.State, opponentBelief),
                             route.UsesMonteCarlo || outcome.UsesMonteCarlo);
                         var terminal = action is EndTurnAction ||
                                        outcome.State.Opponent.Hero.Health <= 0 ||
@@ -171,13 +174,25 @@ public sealed class BeamSearch
                 .ToImmutableArray();
         }
 
-        stopwatch.Stop();
-        var routes = completed.Concat(frontier)
+        var finalRoutes = completed.Concat(frontier)
             .GroupBy(route => RuleStateKey.Calculate(route.State))
             .Select(group => group.OrderByDescending(RoutePriority).First())
-            .OrderByDescending(RoutePriority)
+            .ToImmutableArray();
+        var candidates = _routeRanker.Rank(
+            initialState,
+            finalRoutes,
+            opponentBelief,
+            options.TopK);
+        var candidateRanks = candidates
+            .Select((candidate, index) => (Key: RiskAwareRouteRanker.ActionSequenceKey(candidate.RepresentativeRoute), Rank: index))
+            .ToDictionary(entry => entry.Key, entry => entry.Rank, StringComparer.Ordinal);
+        var routes = finalRoutes
+            .Where(route => candidateRanks.ContainsKey(RiskAwareRouteRanker.ActionSequenceKey(route)))
+            .OrderBy(route => candidateRanks[RiskAwareRouteRanker.ActionSequenceKey(route)])
+            .ThenByDescending(RoutePriority)
             .Take(options.TopK)
             .ToImmutableArray();
+        stopwatch.Stop();
         return new BeamSearchResult(
             routes,
             new BeamSearchMetrics(
@@ -187,10 +202,15 @@ public sealed class BeamSearch
                 dominancePruned,
                 stopwatch.Elapsed,
                 timedOut,
-                cancelled));
+                cancelled),
+            candidates);
     }
 
     private static double RoutePriority(SearchRoute route) => route.Score + Math.Log(Math.Max(route.Probability, 1e-12));
+
+    private double Evaluate(RuleGameState state, OpponentBelief belief) => _evaluator is IDetailedStateEvaluator detailed
+        ? detailed.EvaluateDetailed(state, belief).Total
+        : _evaluator.Evaluate(state);
 
     private static void ValidateOptions(BeamSearchOptions options)
     {

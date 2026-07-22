@@ -14,6 +14,7 @@ public sealed record LocalAdvisorOptions(
 }
 public sealed record LocalAdvisorResult(
     ImmutableArray<SearchRoute> Routes,
+    ImmutableArray<RiskAwareRouteCandidate> Candidates,
     bool DeterministicLethalFound,
     LethalSearchResult LethalSearch,
     BeamSearchMetrics? BeamSearchMetrics,
@@ -23,6 +24,7 @@ public sealed class LocalTurnAdvisor
 {
     private readonly DeterministicLethalSearch _lethalSearch;
     private readonly BeamSearch _beamSearch;
+    private readonly RiskAwareRouteRanker _routeRanker;
 
     public LocalTurnAdvisor()
         : this(new DeterministicLethalSearch(), new BeamSearch())
@@ -38,6 +40,7 @@ public sealed class LocalTurnAdvisor
     {
         _lethalSearch = lethalSearch ?? throw new ArgumentNullException(nameof(lethalSearch));
         _beamSearch = beamSearch ?? throw new ArgumentNullException(nameof(beamSearch));
+        _routeRanker = new RiskAwareRouteRanker();
     }
 
     public LocalAdvisorResult Advise(
@@ -57,9 +60,12 @@ public sealed class LocalTurnAdvisor
             cancellationToken);
         if (lethal.Found && lethal.Route is not null)
         {
+            var belief = options.BeamSearch.OpponentBelief ?? new OpponentBeliefModel().Estimate(state);
+            var candidates = _routeRanker.Rank(state, new[] { lethal.Route }, belief, 1);
             stopwatch.Stop();
             return new LocalAdvisorResult(
                 ImmutableArray.Create(lethal.Route),
+                candidates,
                 true,
                 lethal,
                 null,
@@ -72,6 +78,7 @@ public sealed class LocalTurnAdvisor
             stopwatch.Stop();
             return new LocalAdvisorResult(
                 ImmutableArray<SearchRoute>.Empty,
+                ImmutableArray<RiskAwareRouteCandidate>.Empty,
                 false,
                 lethal,
                 null,
@@ -82,6 +89,7 @@ public sealed class LocalTurnAdvisor
         stopwatch.Stop();
         return new LocalAdvisorResult(
             beam.Routes,
+            beam.Candidates,
             false,
             lethal,
             beam.Metrics,
