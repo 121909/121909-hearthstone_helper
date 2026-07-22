@@ -48,6 +48,24 @@ public sealed class RegressionReportWriter
         builder.AppendLine($"- Deadline expiration: {report.DeadlineExpiredCount}/{report.EvaluatedSnapshotCount} ({FormatPercent(report.DeadlineExpirationRate)})");
         builder.AppendLine($"- Expert Top-3 consistency: {FormatOptionalPercent(report.ExpertTop3ConsistencyRate)} ({report.ExpertTop3MatchCount}/{report.AnnotatedSnapshotCount})");
         builder.AppendLine();
+        builder.AppendLine("## Shadow run");
+        builder.AppendLine();
+        if (report.ShadowRun.LogFileCount == 0)
+        {
+            builder.AppendLine("No shadow-run telemetry supplied.");
+        }
+        else
+        {
+            builder.AppendLine($"- Completed games: {report.ShadowRun.CompletedGameCount}/50 ({report.ShadowRun.StartedGameCount} started)");
+            builder.AppendLine($"- Automated acceptance thresholds: **{(report.ShadowRun.MeetsAutomatedAcceptanceThresholds ? "MET" : "NOT MET")}**");
+            builder.AppendLine($"- Analyses: {report.ShadowRun.AnalysisCount}");
+            builder.AppendLine($"- Published/superseded/cancelled/failed: {report.ShadowRun.PublishedCount}/{report.ShadowRun.SupersededCount}/{report.ShadowRun.CancelledCount}/{report.ShadowRun.FailedCount}");
+            builder.AppendLine($"- Superseded rate: {FormatPercent(report.ShadowRun.SupersededRate)}");
+            builder.AppendLine($"- Latency p50/p95/max: {report.ShadowRun.LatencyP50Ms:F2}/{report.ShadowRun.LatencyP95Ms:F2}/{report.ShadowRun.LatencyMaximumMs:F2} ms");
+            builder.AppendLine($"- Duplicate state requests: {report.ShadowRun.DuplicateRequestCount}");
+            builder.AppendLine($"- Visible suggestions: {report.ShadowRun.VisibleSuggestionCount}");
+        }
+        builder.AppendLine();
         builder.AppendLine("## Unsupported interactions");
         builder.AppendLine();
         if (report.UnsupportedInteractions.IsEmpty)
@@ -70,7 +88,7 @@ public sealed class RegressionReportWriter
                 builder.AppendLine($"- {error}");
         }
         builder.AppendLine();
-        builder.AppendLine("Deadline expiration is an offline deadline check. State supersession and visible stale-result rate require shadow-run telemetry.");
+        builder.AppendLine("Deadline expiration is an offline deadline check. Actual state supersession is reported separately when shadow-run telemetry is supplied.");
         return builder.ToString();
     }
 

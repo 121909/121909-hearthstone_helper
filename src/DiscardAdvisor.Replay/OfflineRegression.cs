@@ -57,6 +57,7 @@ public sealed record OfflineRegressionReport(
     double LatencyP50Ms,
     double LatencyP95Ms,
     double LatencyMaximumMs,
+    ShadowRunReport ShadowRun,
     ImmutableDictionary<string, int> UnsupportedInteractions,
     ImmutableArray<string> InputErrors,
     ImmutableArray<ReplayArchiveSummary> Replays,
@@ -72,11 +73,24 @@ public sealed record OfflineRegressionReport(
         ? 0
         : (double)DeadlineExpiredCount / EvaluatedSnapshotCount;
 
-    public bool Passed => SnapshotCount > 0 &&
-                          EvaluatedSnapshotCount == SnapshotCount &&
-                          RouteCount > 0 &&
-                          LegalRouteCount == RouteCount &&
-                          InputErrors.IsEmpty;
+    public bool Passed
+    {
+        get
+        {
+            var hasOfflineInput = SnapshotCount > 0;
+            var hasShadowInput = ShadowRun.StartedGameCount > 0 || ShadowRun.AnalysisCount > 0;
+            var offlinePassed = !hasOfflineInput ||
+                                EvaluatedSnapshotCount == SnapshotCount &&
+                                RouteCount > 0 &&
+                                LegalRouteCount == RouteCount;
+            var shadowPassed = !hasShadowInput ||
+                               ShadowRun.StartedGameCount > 0 &&
+                               ShadowRun.FailedCount == 0 &&
+                               ShadowRun.DuplicateRequestCount == 0 &&
+                               ShadowRun.VisibleSuggestionCount == 0;
+            return (hasOfflineInput || hasShadowInput) && offlinePassed && shadowPassed && InputErrors.IsEmpty;
+        }
+    }
 }
 
 public sealed class OfflineRegressionRunner
@@ -178,6 +192,7 @@ public sealed class OfflineRegressionRunner
             Percentile(latencies, 0.50),
             Percentile(latencies, 0.95),
             latencies.Length == 0 ? 0 : latencies[^1],
+            ShadowRunReport.FromTelemetry(input.ShadowTelemetry),
             unsupported.ToImmutableDictionary(StringComparer.Ordinal),
             input.Errors,
             input.Replays,

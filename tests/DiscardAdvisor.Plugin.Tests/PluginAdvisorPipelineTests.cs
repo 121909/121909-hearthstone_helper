@@ -42,12 +42,14 @@ public sealed class PluginAdvisorPipelineTests
             GameSnapshotBuilderTests.CreateFriendly(Array.Empty<HandCardSnapshot>()));
         var source = new StubSnapshotSource(observation);
         var advisor = new ControlledAdvisorService();
+        var diagnostics = new RecordingDiagnostics();
         using var coordinator = new SnapshotCoordinator(() => DateTimeOffset.UtcNow, TimeSpan.Zero);
         using var runtime = new PluginRuntime(
             new PluginLifetime(),
             new StubContextProvider(SupportedContext()),
             snapshotSource: source,
             snapshotCoordinator: coordinator,
+            diagnostics: diagnostics,
             advisorService: advisor);
         var statuses = new ConcurrentQueue<PluginAdvisorStatus>();
         runtime.AdvisorUpdated += update => statuses.Enqueue(update.Status);
@@ -64,6 +66,7 @@ public sealed class PluginAdvisorPipelineTests
 
         Assert.Equal(PluginAdvisorStatus.Analyzing, runtime.CurrentAdvisorUpdate.Status);
         await WaitUntilAsync(() => advisor.Snapshot is not null);
+        Assert.Equal(advisor.Snapshot!.GameId, Assert.Single(diagnostics.StartedGames));
         Assert.NotEqual(updateThreadId, advisor.InvocationThreadId);
         advisor.Complete(PluginAdvisorUpdate.StateOnly(
             PluginAdvisorStatus.NoLegalRoute,
@@ -84,6 +87,7 @@ public sealed class PluginAdvisorPipelineTests
         var source = new SequencedSnapshotSource(firstObservation, secondObservation);
         var events = new TriggerGameEventSource();
         var advisor = new IgnoringCancellationAdvisorService();
+        var diagnostics = new RecordingDiagnostics();
         using var coordinator = new SnapshotCoordinator(() => DateTimeOffset.UtcNow, TimeSpan.Zero);
         using var runtime = new PluginRuntime(
             new PluginLifetime(),
@@ -91,18 +95,22 @@ public sealed class PluginAdvisorPipelineTests
             events,
             source,
             coordinator,
+            diagnostics,
             advisorService: advisor);
 
         runtime.Start();
         runtime.Update();
         await WaitUntilAsync(() => advisor.Count == 1);
         var firstStateId = advisor.StateId(0);
+        var firstGameId = advisor.GameId(0);
 
-        events.TriggerStateChanged();
+        events.TriggerGameStarted();
         runtime.Update();
         await WaitUntilAsync(() => advisor.Count == 2);
         var secondStateId = advisor.StateId(1);
+        var secondGameId = advisor.GameId(1);
         Assert.NotEqual(firstStateId, secondStateId);
+        Assert.NotEqual(firstGameId, secondGameId);
 
         advisor.Complete(0, PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.NoLegalRoute, firstStateId));
         await Task.Delay(50);
@@ -112,6 +120,36 @@ public sealed class PluginAdvisorPipelineTests
         advisor.Complete(1, PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.NoLegalRoute, secondStateId));
         await WaitUntilAsync(() => runtime.CurrentAdvisorUpdate.Status == PluginAdvisorStatus.NoLegalRoute);
         Assert.Equal(secondStateId, runtime.CurrentAdvisorUpdate.StateId);
+        await WaitUntilAsync(() => diagnostics.Analyses.Count == 2);
+        Assert.Contains(diagnostics.Analyses, analysis =>
+            analysis.StateId == firstStateId &&
+            analysis.GameId == firstGameId &&
+            analysis.Disposition == AdvisorAnalysisDisposition.Superseded);
+        Assert.Contains(diagnostics.Analyses, analysis =>
+            analysis.StateId == secondStateId &&
+            analysis.GameId == secondGameId &&
+            analysis.Disposition == AdvisorAnalysisDisposition.Published);
+    }
+
+    [Fact]
+    public void RuntimeRecordsGameSessionBoundaries()
+    {
+        var events = new TriggerGameEventSource();
+        var diagnostics = new RecordingDiagnostics();
+        using var runtime = new PluginRuntime(
+            new PluginLifetime(),
+            new StubContextProvider(SupportedContext()),
+            events,
+            snapshotSource: null,
+            diagnostics: diagnostics);
+
+        runtime.Start();
+        events.TriggerGameStarted();
+        events.TriggerGameEnded();
+
+        var ended = Assert.Single(diagnostics.EndedGames);
+        Assert.Equal(Assert.Single(diagnostics.StartedGames), ended.GameId);
+        Assert.True(ended.Completed);
     }
 
     [Fact]
@@ -177,7 +215,7 @@ public sealed class PluginAdvisorPipelineTests
 
         public bool TryCapture(Guid gameId, bool isStable, out GameObservation? observation)
         {
-            observation = _observation;
+            observation = WithGameId(_observation, gameId);
             return true;
         }
     }
@@ -212,26 +250,80 @@ public sealed class PluginAdvisorPipelineTests
 
         public bool TryCapture(Guid gameId, bool isStable, out GameObservation? observation)
         {
-            observation = _observations.Count > 0 ? _observations.Dequeue() : null;
+            observation = _observations.Count > 0 ? WithGameId(_observations.Dequeue(), gameId) : null;
             return observation is not null;
         }
     }
 
+    private static GameObservation WithGameId(GameObservation observation, Guid gameId) => new(
+        observation.HearthstoneBuild,
+        observation.HdtVersion,
+        observation.CardDefsHash,
+        gameId,
+        observation.TurnNumber,
+        observation.Step,
+        observation.ActivePlayer,
+        observation.RemainingTurnTimeMs,
+        observation.IsStable,
+        observation.Friendly,
+        observation.Opponent,
+        observation.Derived,
+        observation.SensitiveMetadata,
+        observation.ActionsThisTurn,
+        observation.CurrentChoice);
+
     private sealed class TriggerGameEventSource : IGameEventSource
     {
+        private Action? _gameStarted;
+        private Action? _gameEnded;
         private Action? _stateChanged;
 
         public void Start(Action gameStarted, Action gameEnded, Action stateChanged)
         {
+            _gameStarted = gameStarted;
+            _gameEnded = gameEnded;
             _stateChanged = stateChanged;
         }
 
         public void Stop()
         {
+            _gameStarted = null;
+            _gameEnded = null;
             _stateChanged = null;
         }
 
+        public void TriggerGameStarted() => _gameStarted?.Invoke();
+
+        public void TriggerGameEnded() => _gameEnded?.Invoke();
+
         public void TriggerStateChanged() => _stateChanged?.Invoke();
+    }
+
+    private sealed class RecordingDiagnostics : IPluginDiagnostics
+    {
+        public ConcurrentQueue<Guid> StartedGames { get; } = new();
+
+        public ConcurrentQueue<(Guid GameId, bool Completed)> EndedGames { get; } = new();
+
+        public ConcurrentQueue<AdvisorAnalysisDiagnostic> Analyses { get; } = new();
+
+        public void RecordGameStarted(Guid gameId) => StartedGames.Enqueue(gameId);
+
+        public void RecordGameEnded(Guid gameId, bool completed) => EndedGames.Enqueue((gameId, completed));
+
+        public void RecordGateDecision(GateDecision decision)
+        {
+        }
+
+        public void RecordSnapshot(GameSnapshot snapshot)
+        {
+        }
+
+        public void RecordAdvisorAnalysis(AdvisorAnalysisDiagnostic analysis) => Analyses.Enqueue(analysis);
+
+        public void RecordError(string code, Exception exception)
+        {
+        }
     }
 
     private sealed class IgnoringCancellationAdvisorService : ILocalAdvisorService
@@ -260,6 +352,12 @@ public sealed class PluginAdvisorPipelineTests
         {
             lock (_gate)
                 return _calls[index].Snapshot.StateId;
+        }
+
+        public Guid GameId(int index)
+        {
+            lock (_gate)
+                return _calls[index].Snapshot.GameId;
         }
 
         public void Complete(int index, PluginAdvisorUpdate update)

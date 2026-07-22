@@ -1,6 +1,8 @@
 using System;
+using System.IO;
 using System.Windows.Controls;
 using DiscardAdvisor.Search;
+using Hearthstone_Deck_Tracker;
 using Hearthstone_Deck_Tracker.Plugins;
 
 namespace DiscardAdvisor.Plugin;
@@ -8,23 +10,29 @@ namespace DiscardAdvisor.Plugin;
 public sealed class DiscardAdvisorPlugin : IPlugin
 {
     private readonly IPluginRuntime _runtime;
+    private readonly PluginSettings _settings;
     private HdtOverlayController? _overlay;
 
     public DiscardAdvisorPlugin()
-        : this(CreateRuntime())
     {
+        _settings = PluginSettings.Load(Path.Combine(
+            Config.Instance.DataDir,
+            "DiscardAdvisor",
+            "settings.json"));
+        _runtime = CreateRuntime(_settings);
     }
 
     internal DiscardAdvisorPlugin(IPluginRuntime runtime)
     {
         _runtime = runtime;
+        _settings = PluginSettings.Experimental;
     }
 
     public string Name => "Discard Advisor";
 
     public string Description => "Turn-by-turn recommendations for the locked Wild discard-warlock deck.";
 
-    public string ButtonText => "Show / Hide";
+    public string ButtonText => _settings.ShowOverlay ? "Show / Hide" : "Shadow mode";
 
     public string Author => "121909";
 
@@ -35,6 +43,8 @@ public sealed class DiscardAdvisorPlugin : IPlugin
     public void OnLoad()
     {
         _runtime.Start();
+        if (!_settings.ShowOverlay)
+            return;
         _overlay = new HdtOverlayController(_runtime as IOverlayStateSource);
         _overlay.Attach();
     }
@@ -53,14 +63,14 @@ public sealed class DiscardAdvisorPlugin : IPlugin
 
     public void OnUpdate() => _runtime.Update();
 
-    private static IPluginRuntime CreateRuntime()
+    private static IPluginRuntime CreateRuntime(PluginSettings settings)
     {
         var mechanics = new SpecialMechanicsTracker();
         return new PluginRuntime(
             new HdtGameContextProvider(),
             new HdtGameEventSource(mechanics),
             new HdtSnapshotObservationFactory(mechanics),
-            HdtPluginDiagnostics.Create(),
+            HdtPluginDiagnostics.Create(settings.ModeName),
             new LocalAdvisorService(new LocalTurnAdvisor(new HdtRandomOneCostMinionPool())));
     }
 }

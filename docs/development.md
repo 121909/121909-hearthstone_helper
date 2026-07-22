@@ -31,3 +31,15 @@ DiscardAdvisor\Fixtures\<state_id>.snapshot.json
 ```
 
 Diagnostics contain state identifiers, counts, gate status, and exception type only. They do not contain exception messages, account identifiers, server data, or local paths. Logs rotate at 5 MiB and retain three previous files.
+
+## Presentation mode
+
+The plugin defaults to `experimental`, which attaches the recommendation Overlay. For a no-display shadow run, create `DiscardAdvisor\settings.json` under HDT's data directory before loading the plugin:
+
+```json
+{
+  "mode": "shadow"
+}
+```
+
+Shadow mode still captures privacy-filtered fixtures and runs the local advisor, but it never attaches the Overlay. Diagnostics record game boundaries and one terminal disposition for each analysis (`Published`, `Superseded`, `Cancelled`, or `Failed`). Invalid settings fail closed to shadow mode.

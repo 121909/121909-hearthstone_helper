@@ -27,6 +27,15 @@ Run the regression on Windows with PowerShell:
 
 The command writes `.artifacts\offline-regression\offline-regression.json` and `.md`. It returns a non-zero exit code when an input cannot be loaded, a Snapshot cannot be mapped, no route is generated, or any generated route fails independent legality replay.
 
+Pass HDT's `DiscardAdvisor\Diagnostics` directory as another input to aggregate shadow-run JSONL telemetry:
+
+```powershell
+.\scripts\run-offline-regression.ps1 `
+  -InputPath $ReplayDirectory, $FixtureDirectory, $DiagnosticDirectory
+```
+
+The shadow section counts only sessions recorded with `mode=shadow`. Only a real HDT `OnGameEnd` increments completed-game progress; plugin unloads and interrupted sessions do not. The report covers end-to-end latency, analyses superseded by a newer state, cancellations, failures, duplicate requests for the same `game_id + state_id`, and any suggestion incorrectly marked visible. Its automated threshold is met at 50 completed games with p95 below 300 ms and zero failures, duplicate requests, or visible suggestions; manual review is still required for obvious HDT lag and gameplay quality.
+
 ## Expert annotations
 
 An optional `*.annotation.json` identifies one to three acceptable expert routes for a `state_id`. Actions use the stable protocol kinds `PLAY_CARD`, `ATTACK`, `USE_HERO_POWER`, `USE_LOCATION`, `SELECT_CHOICE`, and `END_TURN`, plus the relevant entity IDs, target, board position, or choice ID. A Snapshot is Top-3 consistent when at least one of the advisor's first three complete action sequences exactly matches one of the expert routes.

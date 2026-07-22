@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using DiscardAdvisor.Domain;
 using DiscardAdvisor.Domain.Snapshots;
@@ -20,6 +21,7 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
     private PluginAdvisorUpdate _currentAdvisorUpdate = PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Offline);
     private GateStatus? _lastRecordedGateStatus;
     private Guid _gameId;
+    private bool _gameSessionActive;
 
     public PluginRuntime()
         : this(new PluginLifetime(), null, null, null, new SnapshotCoordinator(), NullPluginDiagnostics.Instance, null)
@@ -100,6 +102,11 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
 
     public void Stop()
     {
+        if (_gameSessionActive)
+        {
+            _diagnostics.RecordGameEnded(_gameId, completed: false);
+            _gameSessionActive = false;
+        }
         _lifetime.Stop();
         _gameEventSource?.Stop();
         _snapshotCoordinator.Reset();
@@ -118,6 +125,7 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
         {
             if (_snapshotCoordinator.TryCreateWork(CaptureSnapshot, out var workItem) && workItem is not null)
             {
+                EnsureGameSessionStarted(workItem.Snapshot.GameId);
                 _diagnostics.RecordSnapshot(workItem.Snapshot);
                 PublishAdvisorUpdate(PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Analyzing, workItem.StateId));
                 SnapshotReady?.Invoke(workItem);
@@ -173,12 +181,32 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
 
     private void HandleGameStarted()
     {
+        if (_gameSessionActive)
+            _diagnostics.RecordGameEnded(_gameId, completed: false);
         _gameId = Guid.NewGuid();
+        _gameSessionActive = true;
+        _diagnostics.RecordGameStarted(_gameId);
         HandleStateChanged();
+    }
+
+    private void EnsureGameSessionStarted(Guid snapshotGameId)
+    {
+        if (_gameSessionActive && _gameId == snapshotGameId)
+            return;
+        if (_gameSessionActive)
+            _diagnostics.RecordGameEnded(_gameId, completed: false);
+        _gameId = snapshotGameId;
+        _gameSessionActive = true;
+        _diagnostics.RecordGameStarted(_gameId);
     }
 
     private void HandleGameEnded()
     {
+        if (_gameSessionActive)
+        {
+            _diagnostics.RecordGameEnded(_gameId, completed: true);
+            _gameSessionActive = false;
+        }
         _snapshotCoordinator.Reset();
         CurrentGateDecision = null;
         _lastRecordedGateStatus = null;
@@ -194,6 +222,7 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
 
     private async Task RunAdvisorAsync(SnapshotWorkItem workItem)
     {
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             var update = await Task.Run(
@@ -201,18 +230,48 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
                     workItem.CancellationToken)
                 .ConfigureAwait(false);
             if (workItem.CancellationToken.IsCancellationRequested || !_snapshotCoordinator.CanAcceptResult(workItem.StateId))
+            {
+                stopwatch.Stop();
+                RecordAdvisorAnalysis(workItem, update, stopwatch.Elapsed, AdvisorAnalysisDisposition.Superseded);
                 return;
+            }
             PublishAdvisorUpdate(update);
+            stopwatch.Stop();
+            RecordAdvisorAnalysis(workItem, update, stopwatch.Elapsed, AdvisorAnalysisDisposition.Published);
         }
         catch (OperationCanceledException) when (workItem.CancellationToken.IsCancellationRequested)
         {
+            stopwatch.Stop();
+            var disposition = _snapshotCoordinator.CanAcceptResult(workItem.StateId)
+                ? AdvisorAnalysisDisposition.Cancelled
+                : AdvisorAnalysisDisposition.Superseded;
+            RecordAdvisorAnalysis(workItem, null, stopwatch.Elapsed, disposition);
         }
         catch (Exception exception)
         {
+            stopwatch.Stop();
+            RecordAdvisorAnalysis(workItem, null, stopwatch.Elapsed, AdvisorAnalysisDisposition.Failed);
             _diagnostics.RecordError("local_advisor_failed", exception);
             if (_snapshotCoordinator.CanAcceptResult(workItem.StateId))
                 PublishAdvisorUpdate(PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Offline, workItem.StateId));
         }
+    }
+
+    private void RecordAdvisorAnalysis(
+        SnapshotWorkItem workItem,
+        PluginAdvisorUpdate? update,
+        TimeSpan elapsed,
+        AdvisorAnalysisDisposition disposition)
+    {
+        _diagnostics.RecordAdvisorAnalysis(new AdvisorAnalysisDiagnostic(
+            workItem.Snapshot.GameId,
+            workItem.StateId,
+            disposition,
+            update?.Status ?? PluginAdvisorStatus.Offline,
+            elapsed.TotalMilliseconds,
+            update?.Result?.Elapsed.TotalMilliseconds ?? 0,
+            update?.Result?.Candidates.Length ?? 0,
+            update?.Details.Count ?? 0));
     }
 
     private void PublishAdvisorUpdate(PluginAdvisorUpdate update)

@@ -24,6 +24,7 @@ public sealed record RegressionInputSet(
     ImmutableArray<SnapshotFixture> Snapshots,
     ImmutableDictionary<string, ExpertAnnotation> Annotations,
     ImmutableArray<ReplayArchiveSummary> Replays,
+    ShadowRunTelemetry ShadowTelemetry,
     ImmutableArray<string> Errors);
 
 internal sealed record RawDocument(string Source, string Json);
@@ -156,6 +157,7 @@ public sealed class RegressionInputLoader
         var rawSnapshots = new Dictionary<string, RawDocument>(StringComparer.OrdinalIgnoreCase);
         var rawAnnotations = new Dictionary<string, RawDocument>(StringComparer.OrdinalIgnoreCase);
         var replays = ImmutableArray.CreateBuilder<ReplayArchiveSummary>();
+        var diagnosticPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var errors = ImmutableArray.CreateBuilder<string>();
         foreach (var path in Discover(paths, errors))
         {
@@ -167,6 +169,10 @@ public sealed class RegressionInputLoader
                     replays.Add(replay.Summary);
                     AddDocuments(rawSnapshots, replay.Snapshots);
                     AddDocuments(rawAnnotations, replay.Annotations);
+                }
+                else if (IsDiagnosticLog(path))
+                {
+                    diagnosticPaths.Add(path);
                 }
                 else if (path.EndsWith(".annotation.json", StringComparison.OrdinalIgnoreCase))
                 {
@@ -219,10 +225,14 @@ public sealed class RegressionInputLoader
             }
         }
 
+        var shadowTelemetry = new ShadowRunTelemetryReader().Read(diagnosticPaths);
+        errors.AddRange(shadowTelemetry.Errors);
+
         return new RegressionInputSet(
             fixturesByStateId.Values.OrderBy(fixture => fixture.Snapshot.StateId, StringComparer.Ordinal).ToImmutableArray(),
             annotations.ToImmutable(),
             replays.ToImmutable(),
+            shadowTelemetry,
             errors.ToImmutable());
     }
 
@@ -246,8 +256,17 @@ public sealed class RegressionInputLoader
                 foreach (var path in Directory.EnumerateFiles(input, pattern, SearchOption.AllDirectories))
                     paths.Add(Path.GetFullPath(path));
             }
+            foreach (var path in Directory.EnumerateFiles(input, "discard-advisor.jsonl*", SearchOption.AllDirectories))
+                paths.Add(Path.GetFullPath(path));
         }
         return paths;
+    }
+
+    private static bool IsDiagnosticLog(string path)
+    {
+        var name = Path.GetFileName(path);
+        return name.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase) ||
+               name.Contains(".jsonl.", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void AddDocuments(IDictionary<string, RawDocument> destination, IEnumerable<RawDocument> documents)

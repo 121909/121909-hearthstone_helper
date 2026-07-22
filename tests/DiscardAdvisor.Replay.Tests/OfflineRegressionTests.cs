@@ -116,6 +116,27 @@ public sealed class OfflineRegressionTests
     }
 
     [Fact]
+    public void Run_AggregatesOnlyShadowModeTelemetry()
+    {
+        var input = new RegressionInputLoader().Load(new[] { FixturePath("shadow-run.jsonl") });
+
+        var report = new OfflineRegressionRunner().Run(input);
+
+        Assert.Empty(input.Errors);
+        Assert.True(report.Passed);
+        Assert.Equal(2, report.ShadowRun.StartedGameCount);
+        Assert.Equal(1, report.ShadowRun.CompletedGameCount);
+        Assert.Equal(2, report.ShadowRun.AnalysisCount);
+        Assert.Equal(1, report.ShadowRun.PublishedCount);
+        Assert.Equal(1, report.ShadowRun.SupersededCount);
+        Assert.Equal(0.5d, report.ShadowRun.SupersededRate);
+        Assert.Equal(250d, report.ShadowRun.LatencyP95Ms);
+        Assert.Equal(0, report.ShadowRun.VisibleSuggestionCount);
+        Assert.Equal(0, report.ShadowRun.DuplicateRequestCount);
+        Assert.False(report.ShadowRun.MeetsAutomatedAcceptanceThresholds);
+    }
+
+    [Fact]
     public void RouteLegalityVerifier_RejectsInvalidAction()
     {
         var input = new RegressionInputLoader().Load(new[] { FixturePath("minimal-snapshot.json") });

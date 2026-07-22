@@ -10,6 +10,29 @@ namespace DiscardAdvisor.Plugin.Tests;
 public sealed class PluginDiagnosticsTests
 {
     [Fact]
+    public void SettingsUseExperimentalByDefaultAndFailClosedToShadow()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "settings.json");
+            Assert.Equal(PluginPresentationMode.Experimental, PluginSettings.Load(path).PresentationMode);
+
+            File.WriteAllText(path, "{ \"mode\": \"shadow\" }");
+            var shadow = PluginSettings.Load(path);
+            Assert.Equal(PluginPresentationMode.Shadow, shadow.PresentationMode);
+            Assert.False(shadow.ShowOverlay);
+
+            File.WriteAllText(path, "{ invalid json");
+            Assert.Equal(PluginPresentationMode.Shadow, PluginSettings.Load(path).PresentationMode);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
     public void ExportsPrivacyFilteredSnapshotAtomically()
     {
         var directory = CreateTemporaryDirectory();
@@ -67,6 +90,45 @@ public sealed class PluginDiagnosticsTests
             Assert.DoesNotContain("account-secret", allLogs, StringComparison.Ordinal);
             Assert.DoesNotContain("C:\\Users\\secret", allLogs, StringComparison.Ordinal);
             Assert.Single(Directory.GetFiles(fixtureDirectory, "*.snapshot.json"));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void WritesShadowSessionAndAnalysisTelemetry()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var gameId = Guid.Parse("5e8908b5-9a47-47de-bcfe-38d5807fb984");
+            var store = new RedactedDiagnosticStore(
+                directory,
+                utcNow: () => DateTimeOffset.Parse("2026-07-22T00:00:00Z"),
+                sessionMode: "shadow");
+
+            store.RecordGameStarted(gameId);
+            store.RecordAdvisorAnalysis(new AdvisorAnalysisDiagnostic(
+                gameId,
+                "turn-3:fixture",
+                AdvisorAnalysisDisposition.Superseded,
+                PluginAdvisorStatus.Ready,
+                123.5,
+                100.25,
+                5,
+                0));
+            store.RecordGameEnded(gameId, completed: true);
+
+            var log = File.ReadAllText(Path.Combine(directory, "discard-advisor.jsonl"));
+            Assert.Contains("game_started", log, StringComparison.Ordinal);
+            Assert.Contains("game_ended", log, StringComparison.Ordinal);
+            Assert.Contains("\"completed\":true", log, StringComparison.Ordinal);
+            Assert.Contains("advisor_analysis", log, StringComparison.Ordinal);
+            Assert.Contains("Superseded", log, StringComparison.Ordinal);
+            Assert.Contains("\"mode\":\"shadow\"", log, StringComparison.Ordinal);
+            Assert.Contains("\"suggestionVisible\":false", log, StringComparison.Ordinal);
         }
         finally
         {

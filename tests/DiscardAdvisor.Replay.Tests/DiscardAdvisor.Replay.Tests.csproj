@@ -21,5 +21,6 @@
   <ItemGroup>
     <None Include="../Fixtures/schema/minimal-snapshot.json" Link="Fixtures/minimal-snapshot.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Fixtures/schema/minimal-snapshot.annotation.json" Link="Fixtures/minimal-snapshot.annotation.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/telemetry/shadow-run.jsonl" Link="Fixtures/shadow-run.jsonl" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

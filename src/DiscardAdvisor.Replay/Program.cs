@@ -26,6 +26,9 @@ public static class Program
             Console.WriteLine($"Snapshots: {report.EvaluatedSnapshotCount}/{report.SnapshotCount}");
             Console.WriteLine($"Legal routes: {report.LegalRouteCount}/{report.RouteCount}");
             Console.WriteLine($"Latency p95: {report.LatencyP95Ms:F2} ms");
+            Console.WriteLine($"Shadow games: {report.ShadowRun.CompletedGameCount}/50");
+            Console.WriteLine($"Shadow superseded: {report.ShadowRun.SupersededCount}/{report.ShadowRun.AnalysisCount}");
+            Console.WriteLine($"Shadow thresholds: {(report.ShadowRun.MeetsAutomatedAcceptanceThresholds ? "MET" : "NOT MET")}");
             Console.WriteLine($"JSON report: {paths.JsonPath}");
             Console.WriteLine($"Markdown report: {paths.MarkdownPath}");
             return report.Passed ? 0 : 1;
