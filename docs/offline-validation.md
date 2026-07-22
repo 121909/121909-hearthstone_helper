@@ -117,3 +117,16 @@ byte length, category, and an anonymous source index for each copied file; it
 does not record absolute local source paths. Verify source authenticity and
 reviewer identity outside this automated archive before treating it as real
 evidence.
+
+Verify a transferred archive before using it for review or release gating:
+
+```powershell
+.\scripts\verify-validation-evidence.ps1 `
+  -EvidencePath .\.artifacts\validation-evidence\<archive-directory>
+```
+
+It rejects incomplete archives, malformed or duplicate relative paths, missing
+or untracked files, byte-length changes, SHA-256 mismatches, report/manifest
+timestamp mismatches, and release-manifest drift. Add `-RequireVisiblePrerequisites` only
+for the final archive; this also requires the final report and its sole Shadow
+version cohort to match the current release manifest.
