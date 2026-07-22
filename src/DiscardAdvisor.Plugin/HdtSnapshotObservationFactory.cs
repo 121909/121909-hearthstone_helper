@@ -138,12 +138,8 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
             .GroupBy(card => card.Id, StringComparer.Ordinal)
             .Select(group => new DeckEntrySnapshot(group.Key, group.Sum(card => card.Count)))
             .OrderBy(card => card.CardId, StringComparer.Ordinal)
-            ?? Enumerable.Empty<DeckEntrySnapshot>();
-        var remainingDeck = game.Player.KnownCardsInDeck
-            .Where(card => !string.IsNullOrWhiteSpace(card.Id) && card.Count > 0)
-            .GroupBy(card => card.Id, StringComparer.Ordinal)
-            .Select(group => new DeckEntrySnapshot(group.Key, group.Sum(card => card.Count)))
-            .OrderBy(card => card.CardId, StringComparer.Ordinal);
+            .ToArray() ?? Array.Empty<DeckEntrySnapshot>();
+        var remainingDeck = CaptureRemainingDeck(game, originalDeck);
 
         return new FriendlyPlayerSnapshot(
             CaptureHero(hero),
@@ -161,6 +157,27 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
             game.Player.EntitiesDiscardedFromHand.Where(HasPublicCard).Select(CaptureZoneCard),
             mechanics.DiscardCount,
             CaptureWeapon(game.Player));
+    }
+
+    private static IEnumerable<DeckEntrySnapshot> CaptureRemainingDeck(
+        GameV2 game,
+        IEnumerable<DeckEntrySnapshot> originalDeck)
+    {
+        var removedOriginalCards = game.Player.RevealedEntities.Where(entity =>
+                (!entity.Info.Created || entity.Info.OriginalEntityWasCreated == false) &&
+                entity.IsPlayableCard &&
+                ((!entity.IsInDeck && (!entity.Info.Stolen || entity.Info.OriginalController == game.Player.Id)) ||
+                 (entity.Info.Stolen && entity.Info.OriginalController == game.Player.Id)) &&
+                !entity.Info.Hidden)
+            .Select(entity => entity.Info.WasTransformed ? entity.Info.OriginalCardId : entity.CardId)
+            .Where(cardId => !string.IsNullOrWhiteSpace(cardId))
+            .Cast<string>();
+        var createdCardsInDeck = game.Player.Deck.Where(entity =>
+                HasPublicCard(entity) &&
+                (entity.Info.Created || entity.Info.Stolen) &&
+                !entity.Info.Hidden)
+            .Select(entity => entity.CardId!);
+        return RemainingDeckSnapshotBuilder.Build(originalDeck, removedOriginalCards, createdCardsInDeck);
     }
 
     private static OpponentObservation CaptureOpponent(GameV2 game, Entity hero, Entity heroPower)
