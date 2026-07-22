@@ -29,13 +29,17 @@ public sealed class SpecialMechanicsState
         IReadOnlyDictionary<int, int> platysaurBindings,
         IReadOnlyCollection<int> temporaryEntityIds,
         int shredsOfTimeInDeck,
-        IReadOnlyDictionary<int, TrackedLocationState> locations)
+        IReadOnlyDictionary<int, TrackedLocationState> locations,
+        int? pendingChoiceSourceEntityId,
+        string? pendingChoiceSourceCardId)
     {
         DiscardCount = discardCount;
         PlatysaurBindings = platysaurBindings;
         TemporaryEntityIds = temporaryEntityIds;
         ShredsOfTimeInDeck = shredsOfTimeInDeck;
         Locations = locations;
+        PendingChoiceSourceEntityId = pendingChoiceSourceEntityId;
+        PendingChoiceSourceCardId = pendingChoiceSourceCardId;
     }
 
     public int DiscardCount { get; }
@@ -43,6 +47,8 @@ public sealed class SpecialMechanicsState
     public IReadOnlyCollection<int> TemporaryEntityIds { get; }
     public int ShredsOfTimeInDeck { get; }
     public IReadOnlyDictionary<int, TrackedLocationState> Locations { get; }
+    public int? PendingChoiceSourceEntityId { get; }
+    public string? PendingChoiceSourceCardId { get; }
 }
 
 public sealed class SpecialMechanicsTracker
@@ -56,6 +62,8 @@ public sealed class SpecialMechanicsTracker
     private int _cursedCatacombsGetsRemaining;
     private int _discardCount;
     private int _shredsOfTimeInDeck;
+    private int? _pendingChoiceSourceEntityId;
+    private string? _pendingChoiceSourceCardId;
 
     public void Reset()
     {
@@ -69,6 +77,8 @@ public sealed class SpecialMechanicsTracker
             _cursedCatacombsGetsRemaining = 0;
             _discardCount = 0;
             _shredsOfTimeInDeck = 0;
+            _pendingChoiceSourceEntityId = null;
+            _pendingChoiceSourceCardId = null;
         }
     }
 
@@ -77,6 +87,11 @@ public sealed class SpecialMechanicsTracker
         lock (_gate)
         {
             _temporaryEntityIds.Remove(entityId);
+            if (cardId is DiscardWarlockCardIds.CursedCatacombs or DiscardWarlockCardIds.OcularOccultist)
+            {
+                _pendingChoiceSourceEntityId = entityId;
+                _pendingChoiceSourceCardId = cardId;
+            }
             switch (cardId)
             {
                 case DiscardWarlockCardIds.Platysaur:
@@ -119,6 +134,8 @@ public sealed class SpecialMechanicsTracker
                 return;
             _temporaryEntityIds.Add(entityId);
             _cursedCatacombsGetsRemaining--;
+            if (_pendingChoiceSourceCardId == DiscardWarlockCardIds.CursedCatacombs)
+                ClearPendingChoice();
         }
     }
 
@@ -128,6 +145,8 @@ public sealed class SpecialMechanicsTracker
         {
             _discardCount++;
             _temporaryEntityIds.Remove(entityId);
+            if (_pendingChoiceSourceCardId == DiscardWarlockCardIds.OcularOccultist)
+                ClearPendingChoice();
         }
     }
 
@@ -141,6 +160,12 @@ public sealed class SpecialMechanicsTracker
     {
         lock (_gate)
             _locations[entityId] = new TrackedLocationState(entityId, durability, cooldown, available);
+    }
+
+    public void RecordChoiceClosed()
+    {
+        lock (_gate)
+            ClearPendingChoice();
     }
 
     public SpecialMechanicsState Capture(
@@ -165,7 +190,9 @@ public sealed class SpecialMechanicsTracker
                 new ReadOnlyDictionary<int, int>(new Dictionary<int, int>(_platysaurBindings)),
                 new ReadOnlyCollection<int>(_temporaryEntityIds.OrderBy(entityId => entityId).ToArray()),
                 _shredsOfTimeInDeck,
-                new ReadOnlyDictionary<int, TrackedLocationState>(new Dictionary<int, TrackedLocationState>(_locations)));
+                new ReadOnlyDictionary<int, TrackedLocationState>(new Dictionary<int, TrackedLocationState>(_locations)),
+                _pendingChoiceSourceEntityId,
+                _pendingChoiceSourceCardId);
 
             // A capture happens only after the event stream has been stable for the debounce window.
             // Any unresolved one-shot expectation belongs to an effect that produced no entity.
@@ -174,5 +201,11 @@ public sealed class SpecialMechanicsTracker
             _cursedCatacombsGetsRemaining = 0;
             return snapshot;
         }
+    }
+
+    private void ClearPendingChoice()
+    {
+        _pendingChoiceSourceEntityId = null;
+        _pendingChoiceSourceCardId = null;
     }
 }

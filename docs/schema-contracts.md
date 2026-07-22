@@ -52,6 +52,13 @@ and compatibility fingerprints. It intentionally excludes
 cancel or duplicate an otherwise identical state. After a dirty event, an
 identical state may reuse only a completed result; cancelled in-flight work is
 redispatched.
+
+HDT `v1.53.11` exposes the currently offered entity IDs but not the numeric
+Choice log ID through its plugin API. Live Snapshots therefore use the visible
+source entity ID as a stable local `choiceId`. Candidate entity IDs and CardIds
+still come only from `Player.OfferedEntityIds` and its public entities; this key
+is used for route validation and is never sent back to the game client.
+
 8. `selectedRouteId` and `alternativeRouteId` identify routes in the same
    result; the alternative is absent or different from the selected route.
 9. A result is accepted only when its `stateId`, protocol version, rule-set

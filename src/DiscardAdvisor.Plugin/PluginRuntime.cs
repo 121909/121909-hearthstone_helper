@@ -121,11 +121,14 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
     public void Update()
     {
         // HDT calls this on its update thread. Future work is limited to cheap dirty-state checks here.
-        if (!_lifetime.TryGetSession(out _) || _snapshotSource is null || CurrentGateDecision?.IsEnabled != true)
+        if (!_lifetime.TryGetSession(out _))
             return;
 
         try
         {
+            _gameEventSource?.Poll();
+            if (_snapshotSource is null || CurrentGateDecision?.IsEnabled != true)
+                return;
             if (_snapshotCoordinator.TryCreateWork(
                     CaptureSnapshot,
                     out var workItem,

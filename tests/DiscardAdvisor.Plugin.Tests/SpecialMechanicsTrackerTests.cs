@@ -49,6 +49,25 @@ public sealed class SpecialMechanicsTrackerTests
     }
 
     [Fact]
+    public void TracksChoiceSourceUntilTheChoiceResolvesOrCloses()
+    {
+        var tracker = new SpecialMechanicsTracker();
+        tracker.RecordCardPlayed(DiscardWarlockCardIds.OcularOccultist, 10);
+
+        var pending = tracker.Capture(Array.Empty<int>(), new[] { 10 }, 0, 0);
+        tracker.RecordCardDiscarded(20);
+        var resolved = tracker.Capture(Array.Empty<int>(), new[] { 10 }, 1, 0);
+        tracker.RecordCardPlayed(DiscardWarlockCardIds.CursedCatacombs, 11);
+        tracker.RecordChoiceClosed();
+        var closed = tracker.Capture(Array.Empty<int>(), new[] { 10 }, 1, 0);
+
+        Assert.Equal(10, pending.PendingChoiceSourceEntityId);
+        Assert.Equal(DiscardWarlockCardIds.OcularOccultist, pending.PendingChoiceSourceCardId);
+        Assert.Null(resolved.PendingChoiceSourceEntityId);
+        Assert.Null(closed.PendingChoiceSourceEntityId);
+    }
+
+    [Fact]
     public void StableCaptureClearsUnresolvedOneShotExpectations()
     {
         var platysaur = new SpecialMechanicsTracker();

@@ -17,6 +17,9 @@ internal sealed class HdtGameEventSource : IGameEventSource
     private readonly HashSet<int> _seenDiscardedEntities = new();
     private volatile HdtGameEventRegistration? _activeRegistration;
     private bool _cardDefinitionsSubscribed;
+    private int _lastOfferedChoiceCount;
+    private int _lastOfferedChoiceHash;
+    private bool _choiceSignatureInitialized;
     private volatile bool _running;
     private Action? _gameStarted;
     private Action? _gameEnded;
@@ -33,6 +36,8 @@ internal sealed class HdtGameEventSource : IGameEventSource
         _gameEnded = gameEnded ?? throw new ArgumentNullException(nameof(gameEnded));
         _stateChanged = stateChanged ?? throw new ArgumentNullException(nameof(stateChanged));
         _running = true;
+        CaptureChoiceSignature(out _lastOfferedChoiceCount, out _lastOfferedChoiceHash);
+        _choiceSignatureInitialized = true;
         var registration = new HdtGameEventRegistration(this);
         _activeRegistration = registration;
         DiscardAdvisorPlugin.RegisterGameEvents(registration);
@@ -43,10 +48,30 @@ internal sealed class HdtGameEventSource : IGameEventSource
         }
     }
 
+    public void Poll()
+    {
+        if (!_running)
+            return;
+        CaptureChoiceSignature(out var count, out var hash);
+        if (!_choiceSignatureInitialized)
+        {
+            _lastOfferedChoiceCount = count;
+            _lastOfferedChoiceHash = hash;
+            _choiceSignatureInitialized = true;
+            return;
+        }
+        if (count == _lastOfferedChoiceCount && hash == _lastOfferedChoiceHash)
+            return;
+        _lastOfferedChoiceCount = count;
+        _lastOfferedChoiceHash = hash;
+        NotifyStateChanged();
+    }
+
     public void Stop()
     {
         _running = false;
         _activeRegistration = null;
+        _choiceSignatureInitialized = false;
         _gameStarted = null;
         _gameEnded = null;
         _stateChanged = null;
@@ -139,6 +164,20 @@ internal sealed class HdtGameEventSource : IGameEventSource
 
     internal bool IsRegistrationActive(HdtGameEventRegistration registration) =>
         _running && ReferenceEquals(_activeRegistration, registration);
+
+    private static void CaptureChoiceSignature(out int count, out int hash)
+    {
+        count = 0;
+        var sum = 0;
+        var xor = 0;
+        foreach (var entityId in HdtApiCore.Game.Player.OfferedEntityIds)
+        {
+            count++;
+            sum = unchecked(sum + entityId);
+            xor ^= entityId;
+        }
+        hash = unchecked((count * 397) ^ sum ^ (xor * 7919));
+    }
 
     private static Entity? FindLatestUnseenEntity(string cardId, ISet<int> seen)
     {

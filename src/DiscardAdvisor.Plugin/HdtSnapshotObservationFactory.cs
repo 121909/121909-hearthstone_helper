@@ -54,6 +54,9 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
             game.Player.Minions.Where(entity => entity.CardId == DiscardWarlockCardIds.Platysaur).Select(entity => entity.Id),
             game.Player.EntitiesDiscardedFromHand.Count,
             game.Player.Deck.Count(entity => entity.CardId == DiscardWarlockCardIds.ShredOfTime));
+        var currentChoice = CaptureChoice(game, mechanics);
+        if (currentChoice is null && game.Player.OfferedEntityIds.Count == 0)
+            _mechanics.RecordChoiceClosed();
         var friendly = CaptureFriendly(game, friendlyHero, friendlyHeroPower, mechanics);
         var opponent = CaptureOpponent(game, opponentHero, opponentHeroPower);
         var sensitive = new SensitiveGameMetadata(null, null, null, null);
@@ -75,8 +78,52 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
                 mechanics.TemporaryEntityIds,
                 mechanics.ShredsOfTimeInDeck,
                 Array.Empty<string>()),
-            sensitive);
+            sensitive,
+            currentChoice: currentChoice);
         return true;
+    }
+
+    private static ChoiceSnapshot? CaptureChoice(GameV2 game, SpecialMechanicsState mechanics)
+    {
+        var offeredEntityIds = game.Player.OfferedEntityIds
+            .Where(entityId => entityId > 0)
+            .Distinct()
+            .OrderBy(entityId => entityId)
+            .ToArray();
+        if (offeredEntityIds.Length == 0)
+            return null;
+
+        var sourceEntityId = mechanics.PendingChoiceSourceEntityId;
+        var sourceCardId = mechanics.PendingChoiceSourceCardId;
+        if (sourceEntityId is null && offeredEntityIds.All(entityId =>
+                game.Player.Hand.Any(entity => entity.Id == entityId)))
+        {
+            var chamber = game.Player.Board.FirstOrDefault(entity =>
+                entity.IsLocation && entity.CardId == DiscardWarlockCardIds.ChamberOfViscidus);
+            if (chamber is not null)
+            {
+                sourceEntityId = chamber.Id;
+                sourceCardId = chamber.CardId;
+            }
+        }
+
+        var choiceType = sourceCardId == DiscardWarlockCardIds.CursedCatacombs
+            ? "DISCOVER"
+            : sourceCardId is DiscardWarlockCardIds.OcularOccultist or DiscardWarlockCardIds.ChamberOfViscidus
+                ? "HAND_DISCARD"
+                : "UNKNOWN";
+        var candidates = offeredEntityIds.Select(entityId =>
+        {
+            var cardId = game.Entities.TryGetValue(entityId, out var entity) && HasPublicCard(entity)
+                ? entity.CardId
+                : null;
+            return new EntityReferenceSnapshot(entityId, cardId);
+        });
+        return new ChoiceSnapshot(
+            sourceEntityId ?? offeredEntityIds[0],
+            choiceType,
+            candidates,
+            sourceEntityId);
     }
 
     private static FriendlyPlayerSnapshot CaptureFriendly(

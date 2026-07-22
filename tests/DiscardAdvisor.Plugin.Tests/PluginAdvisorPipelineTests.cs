@@ -67,6 +67,7 @@ public sealed class PluginAdvisorPipelineTests
         updateThread.Join();
 
         Assert.Equal(PluginAdvisorStatus.Analyzing, runtime.CurrentAdvisorUpdate.Status);
+        Assert.Equal(1, events.PollCount);
         await WaitUntilAsync(() => advisor.Snapshot is not null);
         Assert.Equal(advisor.Snapshot!.GameId, Assert.Single(diagnostics.StartedGames));
         Assert.NotEqual(updateThreadId, advisor.InvocationThreadId);
@@ -84,6 +85,7 @@ public sealed class PluginAdvisorPipelineTests
 
         Assert.Equal(PluginAdvisorStatus.NoLegalRoute, runtime.CurrentAdvisorUpdate.Status);
         Assert.Equal(1, advisor.InvocationCount);
+        Assert.Equal(2, events.PollCount);
     }
 
     [Fact]
@@ -323,6 +325,8 @@ public sealed class PluginAdvisorPipelineTests
         private Action? _gameEnded;
         private Action? _stateChanged;
 
+        public int PollCount { get; private set; }
+
         public void Start(Action gameStarted, Action gameEnded, Action stateChanged)
         {
             _gameStarted = gameStarted;
@@ -335,6 +339,11 @@ public sealed class PluginAdvisorPipelineTests
             _gameStarted = null;
             _gameEnded = null;
             _stateChanged = null;
+        }
+
+        public void Poll()
+        {
+            PollCount++;
         }
 
         public void TriggerGameStarted() => _gameStarted?.Invoke();
