@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -137,6 +138,35 @@ public sealed class OfflineRegressionTests
     }
 
     [Fact]
+    public void ExpertConsistencyUsesThePrimaryRouteInsteadOfSetIntersection()
+    {
+        var primaryNotSuggested = new ExpertAnnotation(
+            "1.0.0",
+            "turn-1:test",
+            new[]
+            {
+                new AnnotatedRoute("primary", new[] { new AnnotatedAction("PLAY_CARD", 1) }),
+                new AnnotatedRoute("alternative", new[] { new AnnotatedAction("END_TURN") })
+            });
+        var advisorTop3 = new IEnumerable<RuleAction>[]
+        {
+            new RuleAction[] { new EndTurnAction(PlayerSide.Friendly) }
+        };
+
+        Assert.False(OfflineRegressionRunner.ExpertPrimaryMatchesAdvisorTop3(advisorTop3, primaryNotSuggested));
+
+        var primarySuggested = new ExpertAnnotation(
+            "1.0.0",
+            "turn-1:test",
+            new[]
+            {
+                new AnnotatedRoute("primary", new[] { new AnnotatedAction("END_TURN") }),
+                new AnnotatedRoute("alternative", new[] { new AnnotatedAction("PLAY_CARD", 1) })
+            });
+        Assert.True(OfflineRegressionRunner.ExpertPrimaryMatchesAdvisorTop3(advisorTop3, primarySuggested));
+    }
+
+    [Fact]
     public void Run_AggregatesOnlyShadowModeTelemetry()
     {
         var input = new RegressionInputLoader().Load(new[] { FixturePath("shadow-run.jsonl") });
@@ -187,11 +217,15 @@ public sealed class OfflineRegressionTests
         Assert.True(File.Exists(paths.ExpertReviewPath));
         Assert.Contains("Legal routes", File.ReadAllText(paths.MarkdownPath), StringComparison.Ordinal);
         var review = JObject.Parse(File.ReadAllText(paths.ExpertReviewPath));
+        Assert.Equal("BLIND_ROUTE_RANKING", review.Value<string>("reviewMethod"));
         var pending = Assert.IsType<JArray>(review["pending"]);
         var item = Assert.IsType<JObject>(Assert.Single(pending));
         Assert.Equal("minimal-snapshot.json", item.Value<string>("source"));
-        var candidates = Assert.IsType<JArray>(item["candidates"]);
+        Assert.NotNull(item["customRouteTemplate"]);
+        var candidates = Assert.IsType<JArray>(item["options"]);
         var candidate = Assert.IsType<JObject>(Assert.Single(candidates));
+        Assert.Null(candidate["candidateId"]);
+        Assert.Null(candidate["riskAdjustedScore"]);
         var actions = Assert.IsType<JArray>(candidate["actions"]);
         var action = Assert.IsType<JObject>(Assert.Single(actions));
         Assert.Equal("END_TURN", action["annotation"]?.Value<string>("kind"));

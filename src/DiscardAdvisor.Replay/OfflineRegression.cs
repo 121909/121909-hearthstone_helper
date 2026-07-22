@@ -181,7 +181,9 @@ public sealed class OfflineRegressionRunner
             var legalRouteCount = routes.Count(actions =>
                 _legalityVerifier.IsLegal(mapping.State, actions, options.Seed));
             var top3Matched = input.Annotations.TryGetValue(fixture.Snapshot.StateId, out var annotation)
-                ? MatchesExpertTop3(result.Candidates, annotation)
+                ? ExpertPrimaryMatchesAdvisorTop3(
+                    result.Candidates.Select(candidate => candidate.Actions.AsEnumerable()),
+                    annotation)
                 : (bool?)null;
             var elapsedMs = Math.Max(result.Elapsed.TotalMilliseconds, stopwatch.Elapsed.TotalMilliseconds);
             evaluations.Add(new SnapshotEvaluation(
@@ -222,14 +224,20 @@ public sealed class OfflineRegressionRunner
             values);
     }
 
-    private static bool MatchesExpertTop3(
-        IEnumerable<RiskAwareRouteCandidate> candidates,
+    public static bool ExpertPrimaryMatchesAdvisorTop3(
+        IEnumerable<IEnumerable<RuleAction>> advisorCandidates,
         ExpertAnnotation annotation)
     {
-        var advisorTop3 = candidates.Take(3).Select(candidate => candidate.Actions).ToArray();
-        return annotation.ExpertTop3.Any(expert => advisorTop3.Any(candidate =>
-            candidate.Length == expert.Actions.Length &&
-            candidate.Zip(expert.Actions, (action, expected) => expected.Matches(action)).All(value => value)));
+        if (advisorCandidates is null)
+            throw new ArgumentNullException(nameof(advisorCandidates));
+        if (annotation is null)
+            throw new ArgumentNullException(nameof(annotation));
+        annotation.Validate();
+        var advisorTop3 = advisorCandidates.Take(3).Select(candidate => candidate.ToArray()).ToArray();
+        var expertPrimary = annotation.ExpertTop3[0];
+        return advisorTop3.Any(candidate =>
+            candidate.Length == expertPrimary.Actions.Length &&
+            candidate.Zip(expertPrimary.Actions, (action, expected) => expected.Matches(action)).All(value => value));
     }
 
     private static ImmutableArray<ExpertReviewCandidate> BuildReviewCandidates(

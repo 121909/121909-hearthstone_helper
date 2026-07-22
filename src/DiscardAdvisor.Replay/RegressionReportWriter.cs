@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
@@ -52,7 +53,7 @@ public sealed class RegressionReportWriter
         builder.AppendLine($"- Latency p50/p95/max: {report.LatencyP50Ms:F2}/{report.LatencyP95Ms:F2}/{report.LatencyMaximumMs:F2} ms");
         builder.AppendLine($"- Deadline expiration: {report.DeadlineExpiredCount}/{report.EvaluatedSnapshotCount} ({FormatPercent(report.DeadlineExpirationRate)})");
         builder.AppendLine($"- Expert annotations: {report.AnnotatedSnapshotCount}/200");
-        builder.AppendLine($"- Expert Top-3 consistency: {FormatOptionalPercent(report.ExpertTop3ConsistencyRate)} ({report.ExpertTop3MatchCount}/{report.AnnotatedSnapshotCount}, target 80%)");
+        builder.AppendLine($"- Expert primary route in Advisor Top-3: {FormatOptionalPercent(report.ExpertTop3ConsistencyRate)} ({report.ExpertTop3MatchCount}/{report.AnnotatedSnapshotCount}, target 80%)");
         builder.AppendLine($"- Expert thresholds: **{(report.MeetsExpertAnnotationTarget ? "MET" : "NOT MET")}**");
         builder.AppendLine();
         builder.AppendLine("## Shadow run");
@@ -102,6 +103,8 @@ public sealed class RegressionReportWriter
     private static object BuildExpertReviewPack(OfflineRegressionReport report) => new
     {
         ProtocolVersion = "1.0.0",
+        ReviewMethod = "BLIND_ROUTE_RANKING",
+        Instructions = "Rank routes without opening offline-regression.json. Put the strongest route first in expertTop3; only that primary route is used for the Advisor Top-3 metric. Author a custom route when none of the blinded options is correct.",
         TargetAnnotationCount = 200,
         AnnotatedSnapshotCount = report.AnnotatedSnapshotCount,
         RemainingToTarget = Math.Max(0, 200 - report.AnnotatedSnapshotCount),
@@ -112,7 +115,19 @@ public sealed class RegressionReportWriter
                 snapshot.StateId,
                 snapshot.Source,
                 snapshot.TurnNumber,
-                Candidates = snapshot.ReviewCandidates,
+                Options = BlindOrder(snapshot)
+                    .Select((candidate, index) => new
+                    {
+                        ReviewOptionId = $"option-{index + 1}",
+                        candidate.Actions
+                    })
+                    .ToArray(),
+                CustomRouteTemplate = new
+                {
+                    Label = "",
+                    Reason = "",
+                    Actions = Array.Empty<object>()
+                },
                 AnnotationTemplate = new
                 {
                     ProtocolVersion = "1.0.0",
@@ -122,6 +137,18 @@ public sealed class RegressionReportWriter
             })
             .ToArray()
     };
+
+    private static IOrderedEnumerable<ExpertReviewCandidate> BlindOrder(SnapshotEvaluation snapshot) =>
+        snapshot.ReviewCandidates.OrderBy(
+            candidate => BlindSortKey(snapshot.StateId, candidate.CandidateId),
+            StringComparer.Ordinal);
+
+    private static string BlindSortKey(string stateId, string candidateId)
+    {
+        using var sha256 = SHA256.Create();
+        return string.Concat(sha256.ComputeHash(Encoding.UTF8.GetBytes(stateId + "\n" + candidateId))
+            .Select(value => value.ToString("x2", CultureInfo.InvariantCulture)));
+    }
 
     private static string FormatPercent(double value) => value.ToString("P2", CultureInfo.InvariantCulture);
 
