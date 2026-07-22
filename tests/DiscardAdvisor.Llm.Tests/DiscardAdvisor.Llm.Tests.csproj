@@ -16,5 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/DiscardAdvisor.Llm/DiscardAdvisor.Llm.csproj" />
+    <ProjectReference Include="../../src/DiscardAdvisor.Rules/DiscardAdvisor.Rules.csproj" />
+    <ProjectReference Include="../../src/DiscardAdvisor.Search/DiscardAdvisor.Search.csproj" />
   </ItemGroup>
 </Project>
