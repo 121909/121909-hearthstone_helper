@@ -108,9 +108,11 @@ public sealed class CommonRuleEngine
                     break;
                 }
             case RuleCardType.Weapon:
+                var attackWithoutOldWeapon = Math.Max(0, nextPlayer.Hero.Attack - (nextPlayer.Weapon?.Attack ?? 0));
                 nextPlayer = nextPlayer with
                 {
                     Weapon = new WeaponState(card.EntityId, card.CardId, card.Attack, Math.Max(1, card.Health)),
+                    Hero = nextPlayer.Hero with { Attack = attackWithoutOldWeapon + card.Attack },
                     Graveyard = nextPlayer.Weapon is null
                         ? nextPlayer.Graveyard
                         : nextPlayer.Graveyard.Add(new ZoneCardState(nextPlayer.Weapon.EntityId, nextPlayer.Weapon.CardId))
@@ -239,7 +241,7 @@ public sealed class CommonRuleEngine
         bool targetsHero)
     {
         var hero = attackerPlayer.Hero;
-        var attack = hero.Attack + (attackerPlayer.Weapon?.Attack ?? 0);
+        var attack = hero.Attack;
         if (hero.Frozen)
             return TransitionResult.Illegal(state, RuleError.Frozen);
         if (hero.AttacksThisTurn >= hero.MaxAttacksThisTurn || attack <= 0)
@@ -276,6 +278,7 @@ public sealed class CommonRuleEngine
             if (weapon.Durability <= 0)
             {
                 events.Add(new RuleEvent("weapon_destroyed", weapon.EntityId, null, 0, weapon.CardId));
+                updatedHero = updatedHero with { Attack = Math.Max(0, updatedHero.Attack - weapon.Attack) };
                 weapon = null;
             }
         }

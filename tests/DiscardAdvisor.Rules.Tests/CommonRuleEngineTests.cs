@@ -201,16 +201,40 @@ public sealed class CommonRuleEngineTests
     [Fact]
     public void HeroAttackConsumesWeaponDurabilityAndArmorAbsorbsRetaliation()
     {
-        var friendly = CreatePlayer(heroHealth: 30, heroArmor: 2, weapon: new WeaponState(30, "WEAPON", 3, 1));
+        var friendly = CreatePlayer(
+            heroHealth: 30,
+            heroArmor: 2,
+            heroAttack: 3,
+            weapon: new WeaponState(30, "WEAPON", 3, 1));
         var defender = Minion(20, 1, attack: 4, health: 3);
         var state = CreateState(friendly: friendly, opponent: CreatePlayer(board: new[] { defender }));
 
         var result = _engine.Apply(state, new AttackAction(PlayerSide.Friendly, 100, 20));
 
         Assert.Null(result.State.Friendly.Weapon);
+        Assert.Equal(0, result.State.Friendly.Hero.Attack);
         Assert.Equal(28, result.State.Friendly.Hero.Health);
         Assert.Equal(0, result.State.Friendly.Hero.Armor);
         Assert.Empty(result.State.Opponent.Board);
+    }
+
+    [Fact]
+    public void PlayingWeaponReplacesOnlyTheOldWeaponAttackContribution()
+    {
+        var weaponCard = new HandCardState(10, "NEW_WEAPON", 1, RuleCardType.Weapon, 3, 2);
+        var player = CreatePlayer(
+            hand: new[] { weaponCard },
+            mana: 1,
+            heroAttack: 5,
+            weapon: new WeaponState(30, "OLD_WEAPON", 2, 1));
+
+        var result = _engine.Apply(
+            CreateState(friendly: player),
+            new PlayCardAction(PlayerSide.Friendly, weaponCard.EntityId));
+
+        Assert.Equal(6, result.State.Friendly.Hero.Attack);
+        Assert.Equal(3, result.State.Friendly.Weapon!.Attack);
+        Assert.Contains(result.State.Friendly.Graveyard, card => card.EntityId == 30);
     }
 
     [Fact]
@@ -302,9 +326,10 @@ public sealed class CommonRuleEngineTests
         int heroId = 100,
         int heroHealth = 30,
         int heroArmor = 0,
+        int heroAttack = 0,
         int fatigue = 0,
         WeaponState? weapon = null) => PlayerState.Create(
-            new HeroState(heroId, "HERO", heroHealth, 30, heroArmor),
+            new HeroState(heroId, "HERO", heroHealth, 30, heroArmor, heroAttack),
             new HeroPowerState(heroId + 1, "HERO_POWER", 2),
             new ManaState(mana, 0, 10 - mana, 10, 0, 0),
             hand,

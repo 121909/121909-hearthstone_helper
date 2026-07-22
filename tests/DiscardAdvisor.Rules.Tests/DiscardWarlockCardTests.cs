@@ -282,6 +282,7 @@ public sealed class DiscardWarlockCardTests
 
         Assert.Equal(2, chamberResult.State.Friendly.Locations[0].Durability);
         Assert.Equal((4, 3), (clawsResult.State.Friendly.Weapon!.Attack, clawsResult.State.Friendly.Weapon.Durability));
+        Assert.Equal(4, clawsResult.State.Friendly.Hero.Attack);
     }
 
     [Fact]

@@ -1,6 +1,6 @@
 # Wild Discard Warlock rule specification
 
-Rule-set version: `0.3.0`
+Rule-set version: `0.3.1`
 Card definitions: Hearthstone build `246003`  
 Target mode: `RANKED_WILD`
 
@@ -58,6 +58,11 @@ destroys a minion only when damage is applied, and Lifesteal heals after the
 simultaneous combat damage is known. A visible Reborn minion currently marks
 the Snapshot `unsupported_reborn`; reconstructing it without the original
 unbuffed stats and enchantment split would invent state.
+
+`HeroState.Attack` is the total visible hero `ATK`, including the equipped
+weapon contribution, matching HDT's `BoardHero` semantics. Equipping or
+destroying a weapon replaces or removes that contribution; combat never adds
+`Weapon.Attack` a second time.
 
 ## Draw, discard, and board invariants
 

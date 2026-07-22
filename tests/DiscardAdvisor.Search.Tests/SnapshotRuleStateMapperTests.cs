@@ -159,7 +159,7 @@ public sealed class SnapshotRuleStateMapperTests
             0,
             Array.Empty<string>());
         return new GameSnapshot(
-            "0.3.0",
+            "0.3.1",
             246003,
             "1.53.11",
             new string('a', 64),

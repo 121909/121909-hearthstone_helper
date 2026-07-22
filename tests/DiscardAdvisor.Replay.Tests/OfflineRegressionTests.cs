@@ -28,7 +28,7 @@ public sealed class OfflineRegressionTests
         Assert.Empty(input.Errors);
         var snapshot = Assert.Single(input.Snapshots);
         Assert.Equal(
-            "turn-1:5ca6cff1d6c958dfe87bd35290c1976301202d6b4322c9e35002e9908f77d700",
+            "turn-1:9a3f2e4d0e8b5cc00a8359f826f6980848affb497b5a6ec086e7d2236b8f0c1b",
             snapshot.Snapshot.StateId);
         Assert.True(input.Annotations.ContainsKey(snapshot.Snapshot.StateId));
     }

@@ -169,7 +169,7 @@ public sealed class DiscardSourceTests
         WeaponState? weapon = null)
     {
         var friendly = PlayerState.Create(
-            new HeroState(100, "HERO", 30, 30),
+            new HeroState(100, "HERO", 30, 30, Attack: weapon?.Attack ?? 0),
             new HeroPowerState(101, "POWER", 2),
             new ManaState(10, 0, 0, 10, 0, 0),
             hand,
