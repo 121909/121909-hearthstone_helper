@@ -38,6 +38,14 @@ public static class SnapshotStateId
             return;
         }
 
+        if (value is SnapshotAction action)
+        {
+            output.Append("{SnapshotAction:ActionType=");
+            AppendValue(output, action.ActionType, ancestors);
+            output.Append("};");
+            return;
+        }
+
         if (value is bool boolean)
         {
             output.Append(boolean ? "b1;" : "b0;");

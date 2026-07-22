@@ -3,10 +3,13 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
+using DiscardAdvisor.Domain.Snapshots;
 using DiscardAdvisor.Replay;
 using DiscardAdvisor.Rules.Model;
 using DiscardAdvisor.Search;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
 using Xunit;
 
 namespace DiscardAdvisor.Replay.Tests;
@@ -24,7 +27,9 @@ public sealed class OfflineRegressionTests
 
         Assert.Empty(input.Errors);
         var snapshot = Assert.Single(input.Snapshots);
-        Assert.Equal("turn-1:fixture", snapshot.Snapshot.StateId);
+        Assert.Equal(
+            "turn-1:458d5075d07ea0c3eb58bbf55f80627e0b672925d47e538510f752ffaf764a87",
+            snapshot.Snapshot.StateId);
         Assert.True(input.Annotations.ContainsKey(snapshot.Snapshot.StateId));
     }
 
@@ -86,12 +91,28 @@ public sealed class OfflineRegressionTests
         var path = Path.Combine(directory.Path, "recorded.snapshot.json");
         var json = JObject.Parse(File.ReadAllText(FixturePath("minimal-snapshot.json")));
         json["actionsThisTurn"] = new JArray(new JObject { ["actionType"] = "END_TURN" });
+        json["stateId"] = CalculateStateId(json);
         File.WriteAllText(path, json.ToString());
 
         var input = new RegressionInputLoader().Load(new[] { path });
 
         Assert.Empty(input.Errors);
         Assert.Equal("END_TURN", Assert.Single(input.Snapshots).Snapshot.ActionsThisTurn.Single().ActionType);
+    }
+
+    [Fact]
+    public void Load_RejectsSnapshotWhoseStateIdDoesNotMatchItsContents()
+    {
+        using var directory = new TemporaryDirectory();
+        var path = Path.Combine(directory.Path, "modified.snapshot.json");
+        var json = JObject.Parse(File.ReadAllText(FixturePath("minimal-snapshot.json")));
+        json["turnNumber"] = json.Value<int>("turnNumber") + 1;
+        File.WriteAllText(path, json.ToString());
+
+        var input = new RegressionInputLoader().Load(new[] { path });
+
+        Assert.Empty(input.Snapshots);
+        Assert.Contains(input.Errors, error => error.Contains("does not match calculated state_id", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -178,6 +199,20 @@ public sealed class OfflineRegressionTests
 
     private static string FixturePath(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", name);
 
+    private static string CalculateStateId(JObject json)
+    {
+        var serializer = JsonSerializer.Create(new JsonSerializerSettings
+        {
+            ContractResolver = new CamelCasePropertyNamesContractResolver(),
+            MissingMemberHandling = MissingMemberHandling.Error,
+            NullValueHandling = NullValueHandling.Include,
+            Converters = { new TestSnapshotActionJsonConverter() }
+        });
+        var snapshot = json.ToObject<GameSnapshot>(serializer) ??
+                       throw new InvalidOperationException("Test Snapshot JSON produced null.");
+        return SnapshotStateId.Calculate(snapshot);
+    }
+
     private static void CreateReplay(string path, params (string Name, string Contents)[] entries)
     {
         using var archive = ZipFile.Open(path, ZipArchiveMode.Create);
@@ -200,5 +235,35 @@ public sealed class OfflineRegressionTests
         public string Path { get; }
 
         public void Dispose() => Directory.Delete(Path, true);
+    }
+
+    private sealed class TestSnapshotActionJsonConverter : JsonConverter
+    {
+        public override bool CanWrite => false;
+
+        public override bool CanConvert(Type objectType) => objectType == typeof(SnapshotAction);
+
+        public override object ReadJson(
+            JsonReader reader,
+            Type objectType,
+            object? existingValue,
+            JsonSerializer serializer)
+        {
+            var value = JObject.Load(reader);
+            var actionType = value.Value<string>("actionType") ??
+                             throw new JsonSerializationException("Recorded snapshot action requires actionType.");
+            return new TestSnapshotAction(actionType);
+        }
+
+        public override void WriteJson(JsonWriter writer, object? value, JsonSerializer serializer) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class TestSnapshotAction : SnapshotAction
+    {
+        public TestSnapshotAction(string actionType)
+            : base(actionType)
+        {
+        }
     }
 }

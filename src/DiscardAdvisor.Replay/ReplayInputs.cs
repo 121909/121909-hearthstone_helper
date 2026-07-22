@@ -283,6 +283,12 @@ public sealed class RegressionInputLoader
             throw new InvalidOperationException("Snapshot state_id is required.");
         if (snapshot.Friendly is null || snapshot.Opponent is null || snapshot.Derived is null)
             throw new InvalidOperationException("Snapshot player and derived state fields are required.");
+        var calculatedStateId = SnapshotStateId.Calculate(snapshot);
+        if (!string.Equals(snapshot.StateId, calculatedStateId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Snapshot state_id '{snapshot.StateId}' does not match calculated state_id '{calculatedStateId}'.");
+        }
     }
 
     private sealed class SnapshotActionJsonConverter : JsonConverter

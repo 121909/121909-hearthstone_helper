@@ -1,6 +1,6 @@
 {
   "protocolVersion": "1.0.0",
-  "stateId": "turn-1:fixture",
+  "stateId": "turn-1:458d5075d07ea0c3eb58bbf55f80627e0b672925d47e538510f752ffaf764a87",
   "ruleSetVersion": "0.2.0",
   "candidateSetHash": "f49396d738358f7c773f7df170c6aecd5333094281b797b9ca1f2e75c8823c3d",
   "status": "READY",
@@ -11,7 +11,7 @@
   "routes": [
     {
       "routeId": "route-end-turn",
-      "sourceStateId": "turn-1:fixture",
+      "sourceStateId": "turn-1:458d5075d07ea0c3eb58bbf55f80627e0b672925d47e538510f752ffaf764a87",
       "ruleSetVersion": "0.2.0",
       "steps": [
         {
