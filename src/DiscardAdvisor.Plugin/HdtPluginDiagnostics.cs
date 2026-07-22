@@ -8,9 +8,9 @@ internal static class HdtPluginDiagnostics
     public static IPluginDiagnostics Create(string sessionMode)
     {
         var root = Path.Combine(Config.Instance.DataDir, "DiscardAdvisor");
-        return new RedactedDiagnosticStore(
+        return new QueuedPluginDiagnostics(new RedactedDiagnosticStore(
             Path.Combine(root, "Diagnostics"),
             fixtureExporter: new SnapshotFixtureExporter(Path.Combine(root, "Fixtures")),
-            sessionMode: sessionMode);
+            sessionMode: sessionMode));
     }
 }

@@ -31,6 +31,8 @@ DiscardAdvisor\Fixtures\<state_id>.snapshot.json
 ```
 
 Diagnostics contain state identifiers, counts, gate status, and exception type only. They do not contain exception messages, account identifiers, server data, or local paths. Logs rotate at 5 MiB and retain three previous files.
+Production diagnostics are queued in event order and serialized on a background
+worker; Snapshot fixture I/O does not run on HDT's update thread.
 
 ## Presentation mode
 

@@ -4,6 +4,8 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using DiscardAdvisor.Domain;
 using DiscardAdvisor.Domain.Snapshots;
 using Newtonsoft.Json;
@@ -107,6 +109,62 @@ public sealed class NullPluginDiagnostics : IPluginDiagnostics
 
     public void RecordError(string code, Exception exception)
     {
+    }
+}
+
+public sealed class QueuedPluginDiagnostics : IPluginDiagnostics
+{
+    private readonly object _gate = new();
+    private readonly IPluginDiagnostics _inner;
+    private Task _tail = Task.CompletedTask;
+
+    public QueuedPluginDiagnostics(IPluginDiagnostics inner)
+    {
+        _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+    }
+
+    public void RecordGameStarted(Guid gameId) => Enqueue(() => _inner.RecordGameStarted(gameId));
+
+    public void RecordGameEnded(Guid gameId, bool completed) =>
+        Enqueue(() => _inner.RecordGameEnded(gameId, completed));
+
+    public void RecordGateDecision(GateDecision decision) => Enqueue(() => _inner.RecordGateDecision(decision));
+
+    public void RecordSnapshot(GameSnapshot snapshot) => Enqueue(() => _inner.RecordSnapshot(snapshot));
+
+    public void RecordAdvisorAnalysis(AdvisorAnalysisDiagnostic analysis) =>
+        Enqueue(() => _inner.RecordAdvisorAnalysis(analysis));
+
+    public void RecordError(string code, Exception exception) => Enqueue(() => _inner.RecordError(code, exception));
+
+    public Task DrainAsync()
+    {
+        lock (_gate)
+            return _tail;
+    }
+
+    private void Enqueue(Action action)
+    {
+        lock (_gate)
+        {
+            _tail = _tail.ContinueWith(
+                _ => Execute(action),
+                CancellationToken.None,
+                TaskContinuationOptions.DenyChildAttach,
+                TaskScheduler.Default);
+        }
+    }
+
+    private static void Execute(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch
+        {
+            // Diagnostics must never interrupt HDT, including serialization failures.
+        }
     }
 }
 

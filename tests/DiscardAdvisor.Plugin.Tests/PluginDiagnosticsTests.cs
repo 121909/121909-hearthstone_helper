@@ -1,6 +1,10 @@
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using DiscardAdvisor.Domain;
 using DiscardAdvisor.Domain.Snapshots;
 using Json.Schema;
 using Xunit;
@@ -136,6 +140,23 @@ public sealed class PluginDiagnosticsTests
         }
     }
 
+    [Fact]
+    public async Task QueuesDiagnosticsOffTheCallerAndPreservesEventOrder()
+    {
+        var inner = new BlockingDiagnostics();
+        var queued = new QueuedPluginDiagnostics(inner);
+
+        queued.RecordGameStarted(Guid.Empty);
+        Assert.True(inner.Started.Wait(TimeSpan.FromSeconds(2)));
+        queued.RecordGameEnded(Guid.Empty, completed: true);
+        Assert.Empty(inner.Events);
+
+        inner.Release.Set();
+        await queued.DrainAsync().WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(new[] { "started", "ended" }, inner.Events);
+    }
+
     private static GameSnapshot CreateSnapshot()
     {
         var friendly = GameSnapshotBuilderTests.CreateFriendly(Array.Empty<HandCardSnapshot>());
@@ -147,5 +168,37 @@ public sealed class PluginDiagnosticsTests
         var path = Path.Combine(Path.GetTempPath(), "discard-advisor-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(path);
         return path;
+    }
+
+    private sealed class BlockingDiagnostics : IPluginDiagnostics
+    {
+        public ManualResetEventSlim Started { get; } = new();
+        public ManualResetEventSlim Release { get; } = new();
+        public ConcurrentQueue<string> Events { get; } = new();
+
+        public void RecordGameStarted(Guid gameId)
+        {
+            Started.Set();
+            Release.Wait();
+            Events.Enqueue("started");
+        }
+
+        public void RecordGameEnded(Guid gameId, bool completed) => Events.Enqueue("ended");
+
+        public void RecordGateDecision(GateDecision decision)
+        {
+        }
+
+        public void RecordSnapshot(GameSnapshot snapshot)
+        {
+        }
+
+        public void RecordAdvisorAnalysis(AdvisorAnalysisDiagnostic analysis)
+        {
+        }
+
+        public void RecordError(string code, Exception exception)
+        {
+        }
     }
 }
