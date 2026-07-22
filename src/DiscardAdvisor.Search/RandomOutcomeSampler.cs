@@ -215,6 +215,10 @@ public sealed class RandomOutcomeSampler
                 outcome.State,
                 FindSourceSide(outcome.State, pending.SourceEntityId)).Length,
             RandomSummonPending => _oneCostMinions.Candidates.Count,
+            DiscardWarlockRuleEngine.RandomDrawPending or
+                DiscardWarlockRuleEngine.RandomTemporaryDrawPending or
+                DiscardWarlockRuleEngine.RandomBoundDrawPending => outcome.State
+                    .Player((PlayerSide)(pending.TargetEntityId ?? 0)).Deck.Length,
             _ => 1
         };
         if (choices <= 1 || pending.Amount <= 0)
@@ -238,9 +242,13 @@ public sealed class RandomOutcomeSampler
         {
             RandomDamagePending => ExpandRandomDamageExactly(outcome, pendingIndex, pending),
             RandomSummonPending => ExpandRandomSummonsExactly(outcome, pendingIndex, pending),
+            DiscardWarlockRuleEngine.RandomDrawPending or
+                DiscardWarlockRuleEngine.RandomTemporaryDrawPending or
+                DiscardWarlockRuleEngine.RandomBoundDrawPending => ExpandRandomDrawExactly(outcome, pendingIndex, pending),
             DiscardWarlockRuleEngine.ContinueWickedWhispersPending or
                 DiscardWarlockRuleEngine.ContinueChamberDrawPending or
-                DiscardWarlockRuleEngine.ContinueEndTurnPending => ExpandContinuation(outcome, pendingIndex, pending),
+                DiscardWarlockRuleEngine.ContinueEndTurnPending or
+                DiscardWarlockRuleEngine.ContinueLifeTapDamagePending => ExpandContinuation(outcome, pendingIndex, pending),
             _ => new[] { outcome }
         };
     }
@@ -373,6 +381,28 @@ public sealed class RandomOutcomeSampler
         };
     }
 
+    private IEnumerable<RandomOutcome> ExpandRandomDrawExactly(
+        RandomOutcome outcome,
+        int pendingIndex,
+        RuleEvent pending)
+    {
+        var side = (PlayerSide)(pending.TargetEntityId ?? 0);
+        var deck = outcome.State.Player(side).Deck;
+        if (deck.IsEmpty)
+            return new[] { outcome };
+        var probability = 1d / deck.Length;
+        return deck.Select(card =>
+        {
+            var draw = _continuations.ResolveRandomDraw(outcome.State, pending, card.EntityId);
+            return outcome with
+            {
+                State = draw.State,
+                Events = ReplacePending(outcome.Events, pendingIndex, draw.Events),
+                Probability = outcome.Probability * probability
+            };
+        });
+    }
+
     private RandomOutcome ResolveSample(RandomOutcome root, IRandomSource random)
     {
         var current = root;
@@ -387,9 +417,13 @@ public sealed class RandomOutcomeSampler
             {
                 RandomDamagePending => SampleRandomDamage(current, pendingIndex, pending, random),
                 RandomSummonPending => SampleRandomSummons(current, pendingIndex, pending, random),
+                DiscardWarlockRuleEngine.RandomDrawPending or
+                    DiscardWarlockRuleEngine.RandomTemporaryDrawPending or
+                    DiscardWarlockRuleEngine.RandomBoundDrawPending => SampleRandomDraw(current, pendingIndex, pending, random),
                 DiscardWarlockRuleEngine.ContinueWickedWhispersPending or
                     DiscardWarlockRuleEngine.ContinueChamberDrawPending or
-                    DiscardWarlockRuleEngine.ContinueEndTurnPending => ResolveContinuation(current, pendingIndex, pending),
+                    DiscardWarlockRuleEngine.ContinueEndTurnPending or
+                    DiscardWarlockRuleEngine.ContinueLifeTapDamagePending => ResolveContinuation(current, pendingIndex, pending),
                 _ => current
             };
         }
@@ -444,6 +478,26 @@ public sealed class RandomOutcomeSampler
         {
             State = continuation.State,
             Events = ReplacePending(outcome.Events, pendingIndex, continuation.Events)
+        };
+    }
+
+    private RandomOutcome SampleRandomDraw(
+        RandomOutcome outcome,
+        int pendingIndex,
+        RuleEvent pending,
+        IRandomSource random)
+    {
+        var side = (PlayerSide)(pending.TargetEntityId ?? 0);
+        var deck = outcome.State.Player(side).Deck;
+        if (deck.IsEmpty)
+            return outcome;
+        var selected = deck[random.Next(deck.Length)];
+        var draw = _continuations.ResolveRandomDraw(outcome.State, pending, selected.EntityId);
+        return outcome with
+        {
+            State = draw.State,
+            Events = ReplacePending(outcome.Events, pendingIndex, draw.Events),
+            UsesMonteCarlo = true
         };
     }
 
@@ -616,7 +670,11 @@ public sealed class RandomOutcomeSampler
             if (events[index].Type is RandomDamagePending or RandomSummonPending or
                 DiscardWarlockRuleEngine.ContinueWickedWhispersPending or
                 DiscardWarlockRuleEngine.ContinueChamberDrawPending or
-                DiscardWarlockRuleEngine.ContinueEndTurnPending)
+                DiscardWarlockRuleEngine.ContinueEndTurnPending or
+                DiscardWarlockRuleEngine.ContinueLifeTapDamagePending or
+                DiscardWarlockRuleEngine.RandomDrawPending or
+                DiscardWarlockRuleEngine.RandomTemporaryDrawPending or
+                DiscardWarlockRuleEngine.RandomBoundDrawPending)
                 return index;
         }
 
@@ -660,8 +718,9 @@ public sealed class RandomOutcomeSampler
     private static string OutcomeKey(RandomOutcome outcome)
     {
         var pending = string.Join(",", outcome.Events
-            .Where(ruleEvent => ruleEvent.Type is RandomDamagePending or RandomSummonPending)
-            .Select(ruleEvent => $"{ruleEvent.Type}:{ruleEvent.SourceEntityId}:{ruleEvent.Amount}:{ruleEvent.CardId}"));
+            .Where(ruleEvent => ruleEvent.Type.EndsWith("_pending", StringComparison.Ordinal))
+            .Select(ruleEvent =>
+                $"{ruleEvent.Type}:{ruleEvent.SourceEntityId}:{ruleEvent.TargetEntityId}:{ruleEvent.Amount}:{ruleEvent.CardId}"));
         return RuleStateKey.Calculate(outcome.State) + "|" + pending;
     }
 

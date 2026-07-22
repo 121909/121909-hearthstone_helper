@@ -1,6 +1,6 @@
 # Wild Discard Warlock rule specification
 
-Rule-set version: `0.1.0`  
+Rule-set version: `0.2.0`
 Card definitions: Hearthstone build `246003`  
 Target mode: `RANKED_WILD`
 
@@ -45,6 +45,12 @@ their real probabilities. Production sampling records its seed. Equal-cost
 random discard candidates are equiprobable unless CardDefs explicitly supplies
 different weights. Fixed seed, Snapshot, and rule-set version must reproduce
 the same branch set and event order.
+
+The live Snapshot exposes the friendly remaining deck as a complete CardId
+multiset, never as a known order. Each draw from a deck with more than one
+remaining entity is therefore a uniform random branch. Small branch sets are
+enumerated exactly; larger multi-draw chains use the configured deterministic
+Monte Carlo seed. Ordered decks are permitted only in explicit rule fixtures.
 
 ## Draw, discard, and board invariants
 

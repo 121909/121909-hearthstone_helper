@@ -55,6 +55,8 @@ public sealed class SnapshotRuleStateMapper
         var knownShreds = deck.Count(card => card.CardId == DiscardWarlockCardIds.ShredOfTime);
         for (var index = knownShreds; index < snapshot.Derived.ShredsOfTimeInDeck; index++)
             deck.Add(DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.ShredOfTime, nextEntityId++));
+        if (deck.Count != snapshot.Friendly.DeckCount)
+            unsupported.Add($"incomplete_known_deck:{deck.Count}/{snapshot.Friendly.DeckCount}");
         var pendingChoice = MapChoice(snapshot, unsupported);
 
         if (unsupported.Count > 0)
@@ -71,7 +73,8 @@ public sealed class SnapshotRuleStateMapper
             snapshot.Friendly.Graveyard.Select(card => new ZoneCardState(card.EntityId, card.CardId)),
             snapshot.Friendly.Fatigue,
             snapshot.Friendly.Weapon is null ? null : MapWeapon(snapshot.Friendly.Weapon),
-            snapshot.Friendly.DiscardCount);
+            snapshot.Friendly.DiscardCount,
+            deckOrderKnown: false);
         var opponent = PlayerState.Create(
             MapHero(snapshot.Opponent.Hero),
             MapHeroPower(snapshot.Opponent.HeroPower),

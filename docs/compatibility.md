@@ -12,8 +12,11 @@ all of the following values match a reviewed row:
 
 The initial row targets Windows, HDT `1.53.11` at commit
 `ddc0ec01afe61a03d459c96b7d7b3f3b5d344573`, and Hearthstone build `246003`.
-Its `runtimeStatus` remains `NOT_IMPLEMENTED` until the plugin gate and card
-rules are implemented and verified.
+Its rule set `0.2.0` is `EXPERIMENTAL`: the plugin gate, specialized card rules,
+unknown-deck sampling, local search, LLM validation, Overlay, replay regression,
+and shadow telemetry are implemented. Promotion beyond experimental still
+requires the phase 5 expert annotations, 50 completed shadow games, metric
+review, and a small visible-advice trial.
 
 ## Deck hash
 

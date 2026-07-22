@@ -132,7 +132,8 @@ public sealed record PlayerState(
     ImmutableArray<ZoneCardState> Graveyard,
     int Fatigue,
     WeaponState? Weapon = null,
-    int DiscardCount = 0)
+    int DiscardCount = 0,
+    bool DeckOrderKnown = true)
 {
     public int BoardCount => Board.Length + Locations.Length;
 
@@ -147,7 +148,8 @@ public sealed record PlayerState(
         IEnumerable<ZoneCardState>? graveyard = null,
         int fatigue = 0,
         WeaponState? weapon = null,
-        int discardCount = 0)
+        int discardCount = 0,
+        bool deckOrderKnown = true)
     {
         var normalized = NormalizeBoardSlots(
             board ?? Enumerable.Empty<MinionState>(),
@@ -163,7 +165,8 @@ public sealed record PlayerState(
             (graveyard ?? Enumerable.Empty<ZoneCardState>()).ToImmutableArray(),
             fatigue,
             weapon,
-            discardCount);
+            discardCount,
+            deckOrderKnown);
     }
 
     public PlayerState NormalizePositions()

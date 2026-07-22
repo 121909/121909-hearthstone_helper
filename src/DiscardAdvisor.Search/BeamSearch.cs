@@ -292,7 +292,7 @@ public sealed class BeamSearch
 
     private static TimeSpan CalculateExpansionTimeBudget(TimeSpan totalBudget)
     {
-        var reserveTicks = Math.Min(TimeSpan.FromMilliseconds(50).Ticks, totalBudget.Ticks / 4);
+        var reserveTicks = Math.Min(TimeSpan.FromMilliseconds(100).Ticks, totalBudget.Ticks / 2);
         return totalBudget - TimeSpan.FromTicks(reserveTicks);
     }
 

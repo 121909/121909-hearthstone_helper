@@ -37,10 +37,13 @@ also enforce these invariants:
 1. Friendly hand and board entity IDs are unique and their positions are
    contiguous.
 2. Original deck counts total 30 and its hash matches the active profile.
-3. Branch probabilities for one action total 1 within `1e-9`.
-4. Event sequence values are contiguous and events are resolved in order.
-5. Route step indexes start at zero and are contiguous.
-6. Every route action passes the legality validator against the state produced
+3. `knownRemainingDeck` is a complete CardId multiset, not an ordered deck. Its
+   total plus derived Shreds of Time not already present must equal `deckCount`;
+   otherwise the Snapshot is unsupported rather than treated as fatigue.
+4. Branch probabilities for one action total 1 within `1e-9`.
+5. Event sequence values are contiguous and events are resolved in order.
+6. Route step indexes start at zero and are contiguous.
+7. Every route action passes the legality validator against the state produced
    by the preceding step.
 7. `selectedRouteId` and `alternativeRouteId` identify routes in the same
    result; the alternative is absent or different from the selected route.

@@ -48,7 +48,8 @@ public static class RuleStateKey
     {
         canonical.Append(player.Hero).Append('|').Append(player.HeroPower).Append('|')
             .Append(player.Mana).Append('|').Append(player.Weapon).Append('|')
-            .Append(player.Fatigue).Append('|').Append(player.DiscardCount).Append('|');
+            .Append(player.Fatigue).Append('|').Append(player.DiscardCount).Append('|')
+            .Append(player.DeckOrderKnown).Append('|');
         AppendSequence(canonical, "hand", player.Hand.OrderBy(card => card.EntityId));
         AppendSequence(canonical, "board", player.Board.OrderBy(minion => minion.BoardPosition));
         AppendSequence(canonical, "locations", player.Locations.OrderBy(location => location.BoardPosition));
@@ -64,4 +65,3 @@ public static class RuleStateKey
         canonical.Append("]|");
     }
 }
-

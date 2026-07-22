@@ -160,6 +160,66 @@ public sealed class RandomOutcomeSamplerTests
     }
 
     [Fact]
+    public void UnknownDeckLifeTapBranchesUniformlyThenDealsSelfDamage()
+    {
+        var first = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.BonewebEgg, 30);
+        var second = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.WalkingDead, 31);
+        var transition = _rules.Apply(
+            CreateState(
+                Array.Empty<HandCardState>(),
+                deck: new[] { first, second },
+                deckOrderKnown: false,
+                heroPowerCardId: DiscardWarlockCardIds.LifeTap),
+            new UseHeroPowerAction(PlayerSide.Friendly));
+
+        var outcomes = new RandomOutcomeSampler().Resolve(
+            transition,
+            new RandomSamplingOptions(ExactOutcomeLimit: 8));
+
+        Assert.Equal(2, outcomes.Length);
+        Assert.All(outcomes, outcome =>
+        {
+            Assert.Equal(0.5d, outcome.Probability, 10);
+            Assert.Equal(28, outcome.State.Friendly.Hero.Health);
+            Assert.Single(outcome.State.Friendly.Hand);
+            Assert.Single(outcome.State.Friendly.Deck);
+            var drawIndex = outcome.Events.Select((ruleEvent, index) => (ruleEvent, index))
+                .First(value => value.ruleEvent.Type == "draw").index;
+            var damageIndex = outcome.Events.Select((ruleEvent, index) => (ruleEvent, index))
+                .First(value => value.ruleEvent.Type == "damage").index;
+            Assert.True(drawIndex < damageIndex);
+            Assert.DoesNotContain(outcome.Events, ruleEvent => ruleEvent.Type.EndsWith("_pending", StringComparison.Ordinal));
+        });
+        Assert.Equal(
+            new[] { first.CardId, second.CardId }.OrderBy(cardId => cardId, StringComparer.Ordinal),
+            outcomes.Select(outcome => outcome.State.Friendly.Hand[0].CardId).OrderBy(cardId => cardId, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void UnknownDeckPlatysaurBindsTheEntityDrawnInEachBranch()
+    {
+        var platysaur = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.Platysaur, 10);
+        var first = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.BonewebEgg, 30);
+        var second = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.WalkingDead, 31);
+        var transition = _rules.Apply(
+            CreateState(new[] { platysaur }, deck: new[] { first, second }, deckOrderKnown: false),
+            new PlayCardAction(PlayerSide.Friendly, platysaur.EntityId));
+
+        var outcomes = new RandomOutcomeSampler().Resolve(
+            transition,
+            new RandomSamplingOptions(ExactOutcomeLimit: 8));
+
+        Assert.Equal(2, outcomes.Length);
+        Assert.All(outcomes, outcome =>
+        {
+            var drawn = Assert.Single(outcome.State.Friendly.Hand);
+            Assert.Equal(drawn.EntityId, outcome.State.Bindings[platysaur.EntityId]);
+            Assert.Contains(outcome.Events, ruleEvent =>
+                ruleEvent.Type == "platysaur_bind" && ruleEvent.TargetEntityId == drawn.EntityId);
+        });
+    }
+
+    [Fact]
     public void MonteCarloSummonsAreRepeatableForTheSameSeed()
     {
         var acolytes = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.DisposableAcolytes, 10);
@@ -293,16 +353,19 @@ public sealed class RandomOutcomeSamplerTests
         LocationState[]? locations = null,
         HandCardState[]? deck = null,
         int heroHealth = 30,
-        int opponentHealth = 30)
+        int opponentHealth = 30,
+        bool deckOrderKnown = true,
+        string heroPowerCardId = "POWER")
     {
         var friendly = PlayerState.Create(
             new HeroState(100, "HERO", heroHealth, 30),
-            new HeroPowerState(101, "POWER", 2),
+            new HeroPowerState(101, heroPowerCardId, 2),
             new ManaState(10, 0, 0, 10, 0, 0),
             hand,
             board,
             locations,
-            deck);
+            deck,
+            deckOrderKnown: deckOrderKnown);
         var opponent = PlayerState.Create(
             new HeroState(200, "OPPONENT_HERO", opponentHealth, 30),
             new HeroPowerState(201, "OPPONENT_POWER", 2),

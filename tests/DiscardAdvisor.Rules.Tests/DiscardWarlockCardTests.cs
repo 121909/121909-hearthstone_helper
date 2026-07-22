@@ -59,6 +59,7 @@ public sealed class DiscardWarlockCardTests
         Assert.True(result.IsLegal);
         Assert.Equal((3, 4, 4), (result.State.Friendly.Board[0].Attack, result.State.Friendly.Board[0].Health, result.State.Friendly.Board[0].MaxHealth));
         Assert.Equal(2, result.State.Friendly.Deck.Count(card => card.CardId == DiscardWarlockCardIds.ShredOfTime));
+        Assert.False(result.State.Friendly.DeckOrderKnown);
     }
 
     [Fact]
@@ -280,7 +281,8 @@ public sealed class DiscardWarlockCardTests
     public void CursedCatacombsUsesOnlyActualChoiceCandidates()
     {
         var candidate = new ChoiceCandidateState(50, DiscardWarlockCardIds.HandOfGuldan);
-        var state = CreateState() with
+        var deckCard = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.HandOfGuldan, 30);
+        var state = CreateState(deck: new[] { deckCard }) with
         {
             PendingChoice = new PendingChoiceState(
                 7,
@@ -296,6 +298,7 @@ public sealed class DiscardWarlockCardTests
         var generated = Assert.Single(selected.State.Friendly.Hand);
         Assert.True(generated.Temporary);
         Assert.Equal(DiscardWarlockCardIds.HandOfGuldan, generated.CardId);
+        Assert.Empty(selected.State.Friendly.Deck);
     }
 
     private static RuleGameState CreateState(

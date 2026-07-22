@@ -22,6 +22,7 @@ public sealed class SnapshotRuleStateMapperTests
         Assert.Equal(3, state.Friendly.DiscardCount);
         Assert.Equal(30, state.Bindings[20]);
         Assert.Equal(2, state.Friendly.Deck.Count(card => card.CardId == DiscardWarlockCardIds.ShredOfTime));
+        Assert.False(state.Friendly.DeckOrderKnown);
         Assert.Equal((2, 0), (state.Friendly.Locations[0].Durability, state.Friendly.Locations[0].Cooldown));
         Assert.NotNull(state.PendingChoice);
         Assert.Equal(10, state.PendingChoice!.Candidates[0].EntityId);
@@ -37,6 +38,49 @@ public sealed class SnapshotRuleStateMapperTests
         Assert.Contains("unknown_hand_card:UNKNOWN_CARD", result.UnsupportedInteractions);
     }
 
+    [Fact]
+    public void RejectsIncompleteKnownDeckWithoutInventingDrawOrder()
+    {
+        var snapshot = CreateSnapshot(DiscardWarlockCardIds.Soulfire);
+        var friendly = new FriendlyPlayerSnapshot(
+            snapshot.Friendly.Hero,
+            snapshot.Friendly.HeroPower,
+            snapshot.Friendly.Mana,
+            snapshot.Friendly.Hand,
+            snapshot.Friendly.Board,
+            snapshot.Friendly.Locations,
+            snapshot.Friendly.OriginalDeck,
+            Array.Empty<DeckEntrySnapshot>(),
+            5,
+            snapshot.Friendly.Fatigue,
+            snapshot.Friendly.Graveyard,
+            snapshot.Friendly.Discarded,
+            snapshot.Friendly.DiscardCount,
+            snapshot.Friendly.Weapon);
+        snapshot = new GameSnapshot(
+            snapshot.RuleSetVersion,
+            snapshot.HearthstoneBuild,
+            snapshot.HdtVersion,
+            snapshot.CardDefsHash,
+            snapshot.GameId,
+            snapshot.StateId,
+            snapshot.TurnNumber,
+            snapshot.Step,
+            snapshot.ActivePlayer,
+            snapshot.RemainingTurnTimeMs,
+            snapshot.IsStable,
+            friendly,
+            snapshot.Opponent,
+            snapshot.ActionsThisTurn,
+            snapshot.Derived,
+            snapshot.CurrentChoice);
+
+        var result = new SnapshotRuleStateMapper().Map(snapshot);
+
+        Assert.False(result.IsSupported);
+        Assert.Contains("incomplete_known_deck:2/5", result.UnsupportedInteractions);
+    }
+
     private static GameSnapshot CreateSnapshot(string handCardId)
     {
         var friendly = new FriendlyPlayerSnapshot(
@@ -48,7 +92,7 @@ public sealed class SnapshotRuleStateMapperTests
             new[] { new LocationSnapshot(40, DiscardWarlockCardIds.ChamberOfViscidus, 2, 2, 0, true) },
             new[] { new DeckEntrySnapshot(DiscardWarlockCardIds.Soulfire, 1) },
             new[] { new DeckEntrySnapshot(DiscardWarlockCardIds.ShredOfTime, 1) },
-            1,
+            2,
             0,
             new[] { new ZoneCardSnapshot(50, DiscardWarlockCardIds.CursedCatacombs) },
             Array.Empty<ZoneCardSnapshot>(),
@@ -66,7 +110,7 @@ public sealed class SnapshotRuleStateMapperTests
             0,
             Array.Empty<string>());
         return new GameSnapshot(
-            "0.1.0",
+            "0.2.0",
             246003,
             "1.53.11",
             new string('a', 64),

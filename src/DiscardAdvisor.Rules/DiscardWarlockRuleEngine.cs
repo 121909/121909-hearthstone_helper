@@ -11,6 +11,10 @@ public sealed class DiscardWarlockRuleEngine
     public const string ContinueWickedWhispersPending = "continue_wicked_whispers_pending";
     public const string ContinueChamberDrawPending = "continue_chamber_draw_pending";
     public const string ContinueEndTurnPending = "continue_end_turn_pending";
+    public const string ContinueLifeTapDamagePending = "continue_life_tap_damage_pending";
+    public const string RandomDrawPending = "random_draw_pending";
+    public const string RandomTemporaryDrawPending = "random_temporary_draw_pending";
+    public const string RandomBoundDrawPending = "random_bound_draw_pending";
 
     private readonly CommonRuleEngine _common = new();
 
@@ -89,7 +93,11 @@ public sealed class DiscardWarlockRuleEngine
         {
             state = state.AllocateEntity(out var entityId);
             player = state.Player(side);
-            player = player with { Deck = player.Deck.Add(DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.ShredOfTime, entityId)) };
+            player = player with
+            {
+                Deck = player.Deck.Add(DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.ShredOfTime, entityId)),
+                DeckOrderKnown = false
+            };
             state = state.WithPlayer(side, player);
             events = events.Add(new RuleEvent("shuffle_into_deck", sourceEntityId, entityId, 0, DiscardWarlockCardIds.ShredOfTime));
         }
@@ -163,6 +171,14 @@ public sealed class DiscardWarlockRuleEngine
     {
         var sourceEntityId = result.State.Player(side).HeroPower.EntityId;
         result = Draw(result, side, 1, false, sourceEntityId);
+        return ApplyAfterRandomEffects(
+            result,
+            new RuleEvent(ContinueLifeTapDamagePending, sourceEntityId, (int)side),
+            value => ApplyLifeTapDamage(value, side, sourceEntityId));
+    }
+
+    private static TransitionResult ApplyLifeTapDamage(TransitionResult result, PlayerSide side, int sourceEntityId)
+    {
         if (IsTerminal(result.State))
             return result;
         var player = result.State.Player(side);
@@ -175,25 +191,7 @@ public sealed class DiscardWarlockRuleEngine
     }
 
     private TransitionResult Platysaur(TransitionResult result, PlayerSide side, int sourceEntityId)
-    {
-        var eventCount = result.Events.Length;
-        result = Draw(result, side, 1, false, sourceEntityId);
-        var hand = result.State.Player(side).Hand;
-        var drawn = result.Events.Skip(eventCount).LastOrDefault(ruleEvent =>
-            ruleEvent.Type == "draw" &&
-            ruleEvent.SourceEntityId is int entityId &&
-            hand.Any(card => card.EntityId == entityId));
-        if (drawn?.SourceEntityId is not int drawnEntityId)
-            return result;
-        return result with
-        {
-            State = result.State with
-            {
-                PlatysaurBindings = result.State.Bindings.SetItem(sourceEntityId, drawnEntityId)
-            },
-            Events = result.Events.Add(new RuleEvent("platysaur_bind", sourceEntityId, drawnEntityId))
-        };
-    }
+        => Draw(result, side, 1, false, sourceEntityId, sourceEntityId);
 
     private static TransitionResult OcularOccultist(TransitionResult result, PlayerSide side, int sourceEntityId) =>
         result.State.Player(side).Hand.IsEmpty
@@ -219,51 +217,141 @@ public sealed class DiscardWarlockRuleEngine
             value => ApplyBoardBuff(value, side, sourceEntityId));
     }
 
-    private TransitionResult Draw(TransitionResult result, PlayerSide side, int count, bool temporary, int sourceEntityId)
+    private TransitionResult Draw(
+        TransitionResult result,
+        PlayerSide side,
+        int count,
+        bool temporary,
+        int sourceEntityId,
+        int? bindToEntityId = null)
     {
-        var state = result.State;
-        var events = result.Events;
-        for (var index = 0; index < count; index++)
+        while (count > 0 && !IsTerminal(result.State))
         {
-            if (IsTerminal(state))
-                break;
-            while (true)
+            var player = result.State.Player(side);
+            if (player.Deck.IsEmpty)
             {
-                var player = state.Player(side);
-                if (!player.Deck.IsEmpty && player.Deck[0].CardId == DiscardWarlockCardIds.ShredOfTime)
+                var fatigue = _common.DrawCard(result.State, side);
+                result = result with
                 {
-                    var shred = player.Deck[0];
-                    player = player with
-                    {
-                        Deck = player.Deck.RemoveAt(0),
-                        Graveyard = player.Graveyard.Add(new ZoneCardState(shred.EntityId, shred.CardId)),
-                        Hero = DamageHero(player.Hero, 3)
-                    };
-                    state = state.WithPlayer(side, player);
-                    events = events
-                        .Add(new RuleEvent("draw", shred.EntityId, null, 0, shred.CardId))
-                        .Add(new RuleEvent("casts_when_drawn", shred.EntityId, player.Hero.EntityId, 3, shred.CardId));
-                    if (IsTerminal(state))
-                        break;
-                    continue;
-                }
-
-                var draw = _common.DrawCard(state, side);
-                state = draw.State;
-                events = events.AddRange(draw.Events);
-                var drawn = draw.Events.LastOrDefault(ruleEvent => ruleEvent.Type == "draw");
-                if (drawn?.SourceEntityId is int entityId && temporary)
-                {
-                    player = state.Player(side);
-                    var handCard = player.Hand.First(card => card.EntityId == entityId);
-                    player = player with { Hand = player.Hand.Replace(handCard, handCard with { Temporary = true }) };
-                    state = state.WithPlayer(side, player);
-                    events = events.Add(new RuleEvent("mark_temporary", sourceEntityId, handCard.EntityId, 0, handCard.CardId));
-                }
-                break;
+                    State = fatigue.State,
+                    Events = result.Events.AddRange(fatigue.Events)
+                };
+                count--;
+                continue;
             }
+            if (!player.DeckOrderKnown && player.Deck.Length > 1)
+                return Append(result, CreateRandomDrawPending(side, count, temporary, sourceEntityId, bindToEntityId));
+
+            var resolved = ResolveDrawnEntity(
+                result,
+                side,
+                player.Deck[0].EntityId,
+                temporary,
+                sourceEntityId,
+                bindToEntityId);
+            result = resolved.Result;
+            if (resolved.RequestConsumed)
+                count--;
         }
-        return result with { State = state, Events = events };
+        return result;
+    }
+
+    public TransitionResult ResolveRandomDraw(RuleGameState state, RuleEvent pending, int selectedEntityId)
+    {
+        if (state is null)
+            throw new ArgumentNullException(nameof(state));
+        if (pending is null)
+            throw new ArgumentNullException(nameof(pending));
+        if (pending.TargetEntityId is not int sideValue || !Enum.IsDefined(typeof(PlayerSide), sideValue) || pending.Amount < 1)
+            return TransitionResult.Illegal(state, RuleError.UnsupportedAction);
+        if (pending.Type is not (RandomDrawPending or RandomTemporaryDrawPending or RandomBoundDrawPending))
+            return TransitionResult.Illegal(state, RuleError.UnsupportedAction);
+        var side = (PlayerSide)sideValue;
+        if (state.Player(side).Deck.All(card => card.EntityId != selectedEntityId))
+            return TransitionResult.Illegal(state, RuleError.SourceNotFound);
+
+        var temporary = pending.Type == RandomTemporaryDrawPending;
+        var bindToEntityId = pending.Type == RandomBoundDrawPending ? pending.SourceEntityId : null;
+        var result = TransitionResult.Legal(state, Array.Empty<RuleEvent>());
+        var resolved = ResolveDrawnEntity(
+            result,
+            side,
+            selectedEntityId,
+            temporary,
+            pending.SourceEntityId ?? 0,
+            bindToEntityId);
+        var remaining = pending.Amount - (resolved.RequestConsumed ? 1 : 0);
+        return Draw(
+            resolved.Result,
+            side,
+            remaining,
+            temporary,
+            pending.SourceEntityId ?? 0,
+            bindToEntityId);
+    }
+
+    private static (TransitionResult Result, bool RequestConsumed) ResolveDrawnEntity(
+        TransitionResult result,
+        PlayerSide side,
+        int selectedEntityId,
+        bool temporary,
+        int sourceEntityId,
+        int? bindToEntityId)
+    {
+        var player = result.State.Player(side);
+        var card = player.Deck.First(candidate => candidate.EntityId == selectedEntityId);
+        player = player with { Deck = player.Deck.Remove(card) };
+        if (card.CardId == DiscardWarlockCardIds.ShredOfTime)
+        {
+            player = player with
+            {
+                Graveyard = player.Graveyard.Add(new ZoneCardState(card.EntityId, card.CardId)),
+                Hero = DamageHero(player.Hero, 3)
+            };
+            return (result with
+            {
+                State = result.State.WithPlayer(side, player),
+                Events = result.Events
+                    .Add(new RuleEvent("draw", card.EntityId, null, 0, card.CardId))
+                    .Add(new RuleEvent("casts_when_drawn", card.EntityId, player.Hero.EntityId, 3, card.CardId))
+            }, false);
+        }
+
+        if (player.Hand.Length >= CommonRuleEngine.MaximumHandSize)
+        {
+            player = player with { Graveyard = player.Graveyard.Add(new ZoneCardState(card.EntityId, card.CardId)) };
+            return (result with
+            {
+                State = result.State.WithPlayer(side, player),
+                Events = result.Events.Add(new RuleEvent("burn", card.EntityId, null, 0, card.CardId))
+            }, true);
+        }
+
+        var handCard = temporary ? card with { Temporary = true } : card;
+        player = player with { Hand = player.Hand.Add(handCard) };
+        var next = result.State.WithPlayer(side, player);
+        var events = result.Events.Add(new RuleEvent("draw", card.EntityId, null, 0, card.CardId));
+        if (temporary)
+            events = events.Add(new RuleEvent("mark_temporary", sourceEntityId, card.EntityId, 0, card.CardId));
+        if (bindToEntityId is int bindingSource)
+        {
+            next = next with { PlatysaurBindings = next.Bindings.SetItem(bindingSource, card.EntityId) };
+            events = events.Add(new RuleEvent("platysaur_bind", bindingSource, card.EntityId));
+        }
+        return (result with { State = next, Events = events }, true);
+    }
+
+    private static RuleEvent CreateRandomDrawPending(
+        PlayerSide side,
+        int count,
+        bool temporary,
+        int sourceEntityId,
+        int? bindToEntityId)
+    {
+        var type = bindToEntityId.HasValue
+            ? RandomBoundDrawPending
+            : temporary ? RandomTemporaryDrawPending : RandomDrawPending;
+        return new RuleEvent(type, sourceEntityId, (int)side, count);
     }
 
     private TransitionResult SelectChoice(RuleGameState state, SelectChoiceAction action)
@@ -298,8 +386,12 @@ public sealed class DiscardWarlockRuleEngine
         var player = state.Player(action.Side);
         if (!DiscardWarlockCardCatalog.TryCreate(candidate.CardId, candidate.EntityId, out var generatedCard) || generatedCard is null)
             return TransitionResult.Illegal(state, RuleError.UnsupportedAction);
+        var deckCard = player.Deck.FirstOrDefault(card => card.CardId == candidate.CardId);
+        if (deckCard is null)
+            return TransitionResult.Illegal(state, RuleError.InvalidTarget);
         var generated = generatedCard with { Temporary = true };
         var events = ImmutableArray.Create(new RuleEvent("choice_selected", choice.SourceEntityId, candidate.EntityId, 0, candidate.CardId));
+        player = player with { Deck = player.Deck.Remove(deckCard) };
         if (player.Hand.Length >= CommonRuleEngine.MaximumHandSize)
         {
             player = player with { Graveyard = player.Graveyard.Add(new ZoneCardState(generated.EntityId, generated.CardId)) };
@@ -485,6 +577,7 @@ public sealed class DiscardWarlockRuleEngine
             ContinueWickedWhispersPending => ApplyBoardBuff(result, side, pending.SourceEntityId ?? 0),
             ContinueChamberDrawPending => Draw(result, side, pending.Amount, false, pending.SourceEntityId ?? 0),
             ContinueEndTurnPending => ResolveTemporaryCardsAndEndTurn(result, side),
+            ContinueLifeTapDamagePending => ApplyLifeTapDamage(result, side, pending.SourceEntityId ?? 0),
             _ => TransitionResult.Illegal(state, RuleError.UnsupportedAction)
         };
     }
@@ -535,7 +628,8 @@ public sealed class DiscardWarlockRuleEngine
     }
 
     private static bool HasPendingRandomEffect(IEnumerable<RuleEvent> events) => events.Any(ruleEvent =>
-        ruleEvent.Type is "random_damage_pending" or "random_one_cost_summon_pending");
+        ruleEvent.Type is "random_damage_pending" or "random_one_cost_summon_pending" or
+            RandomDrawPending or RandomTemporaryDrawPending or RandomBoundDrawPending);
 
     private static bool IsTerminal(RuleGameState state) =>
         state.Friendly.Hero.Health <= 0 || state.Opponent.Hero.Health <= 0;
