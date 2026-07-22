@@ -72,3 +72,8 @@ The release cohort is recorded in `profiles\release.json`. Do not switch a live 
 ```
 
 The gate requires the report's single plugin/rule version cohort to match the release manifest, then atomically writes `mode: experimental`. Any missing evidence, mixed cohort, malformed report, or write failure leaves the existing settings unchanged.
+
+Build the version-checked Windows release candidate with
+`.\scripts\build-release-candidate.ps1`. It defaults to Shadow mode; see
+`docs\release-candidate.md` for the package contents and the evidence-gated
+experimental command.
