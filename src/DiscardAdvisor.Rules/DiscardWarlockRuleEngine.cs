@@ -20,6 +20,14 @@ public sealed class DiscardWarlockRuleEngine
             return ActivateChamber(state, useLocation);
         if (action is not PlayCardAction play)
         {
+            if (action is EndTurnAction endTurn)
+            {
+                var expired = ResolveTemporaryCards(TransitionResult.Legal(state, Array.Empty<RuleEvent>()), endTurn.Side);
+                var ended = _common.Apply(expired.State, action);
+                return ended.IsLegal
+                    ? ended with { Events = expired.Events.AddRange(ended.Events) }
+                    : ended;
+            }
             var chronoclawsAttack = action is AttackAction attack &&
                 state.Player(attack.Side).Hero.EntityId == attack.SourceEntityId &&
                 state.Player(attack.Side).Weapon?.CardId == DiscardWarlockCardIds.Chronoclaws;
@@ -49,9 +57,7 @@ public sealed class DiscardWarlockRuleEngine
             DiscardWarlockCardIds.Soulfire => Soulfire(result, side, card.EntityId, targetEntityId!.Value),
             DiscardWarlockCardIds.Soularium => Draw(result, side, 3, true, card.EntityId),
             DiscardWarlockCardIds.WickedWhispers => WickedWhispers(result, side, card.EntityId),
-            DiscardWarlockCardIds.DisposableAcolytes => Append(
-                result,
-                new RuleEvent("random_one_cost_summon_pending", card.EntityId, null, 2, card.CardId)),
+            DiscardWarlockCardIds.DisposableAcolytes => RequestRandomOneCostSummons(result, side, card.EntityId),
             DiscardWarlockCardIds.OcularOccultist => Append(
                 result,
                 new RuleEvent("hand_discard_choice_pending", card.EntityId, null, 0, card.CardId)),
@@ -268,7 +274,7 @@ public sealed class DiscardWarlockRuleEngine
         return Draw(result, action.Side, 2, false, location.EntityId);
     }
 
-    private static TransitionResult ResolveHighestCostDiscard(TransitionResult result, PlayerSide side, string source)
+    private TransitionResult ResolveHighestCostDiscard(TransitionResult result, PlayerSide side, string source)
     {
         var hand = result.State.Player(side).Hand;
         if (hand.IsEmpty)
@@ -277,7 +283,7 @@ public sealed class DiscardWarlockRuleEngine
         return ResolveRandomDiscard(result, side, hand.Where(card => card.Cost == highestCost), source);
     }
 
-    private static TransitionResult ResolveRandomDiscard(
+    private TransitionResult ResolveRandomDiscard(
         TransitionResult result,
         PlayerSide side,
         IEnumerable<HandCardState> candidates,
@@ -302,7 +308,7 @@ public sealed class DiscardWarlockRuleEngine
         };
     }
 
-    private static TransitionResult DiscardSpecific(TransitionResult result, PlayerSide side, int entityId, string source)
+    private TransitionResult DiscardSpecific(TransitionResult result, PlayerSide side, int entityId, string source)
     {
         var player = result.State.Player(side);
         var card = player.Hand.FirstOrDefault(candidate => candidate.EntityId == entityId);
@@ -314,12 +320,14 @@ public sealed class DiscardWarlockRuleEngine
             Graveyard = player.Graveyard.Add(new ZoneCardState(card.EntityId, card.CardId)),
             DiscardCount = player.DiscardCount + 1
         };
-        return result with
+        result = result with
         {
             State = result.State.WithPlayer(side, player),
             Events = result.Events.Add(new RuleEvent("discard", null, card.EntityId, 1, card.CardId))
                 .Add(new RuleEvent("discard_source", null, card.EntityId, 0, source))
         };
+        result = ApplyDukeGrowth(result, side);
+        return ResolveDiscardBenefit(result, side, card);
     }
 
     private static TransitionResult ApplyBoardBuff(TransitionResult result, PlayerSide side, int sourceEntityId)
@@ -357,7 +365,7 @@ public sealed class DiscardWarlockRuleEngine
         };
     }
 
-    private static TransitionResult ResolvePlatysaurDeaths(TransitionResult result)
+    private TransitionResult ResolvePlatysaurDeaths(TransitionResult result)
     {
         var state = result.State;
         var events = result.Events;
@@ -381,6 +389,143 @@ public sealed class DiscardWarlockRuleEngine
             events = discarded.Events;
         }
         return result with { State = state, Events = events };
+    }
+
+    private TransitionResult ResolveTemporaryCards(TransitionResult result, PlayerSide side)
+    {
+        var temporaryEntityIds = result.State.Player(side).Hand
+            .Where(card => card.Temporary)
+            .Select(card => card.EntityId)
+            .ToArray();
+        foreach (var entityId in temporaryEntityIds)
+            result = DiscardSpecific(result, side, entityId, "temporary_expired");
+        return result;
+    }
+
+    private TransitionResult ResolveDiscardBenefit(TransitionResult result, PlayerSide side, HandCardState card)
+    {
+        return card.CardId switch
+        {
+            DiscardWarlockCardIds.HandOfGuldan => Draw(result, side, 3, false, card.EntityId),
+            DiscardWarlockCardIds.BonewebEgg => SummonTokens(
+                result,
+                side,
+                card.EntityId,
+                DiscardWarlockCardIds.BonewebSpider,
+                2),
+            DiscardWarlockCardIds.SilverwareGolem or DiscardWarlockCardIds.WalkingDead =>
+                SummonDiscardedMinion(result, side, card),
+            DiscardWarlockCardIds.DisposableAcolytes => RequestRandomOneCostSummons(result, side, card.EntityId),
+            DiscardWarlockCardIds.SoulBarrage => Append(
+                result,
+                new RuleEvent("random_damage_pending", card.EntityId, null, 5, card.CardId)),
+            _ => result
+        };
+    }
+
+    private static TransitionResult ApplyDukeGrowth(TransitionResult result, PlayerSide side)
+    {
+        var player = result.State.Player(side);
+        player = player with
+        {
+            Hand = player.Hand.Select(GrowDuke).ToImmutableArray(),
+            Deck = player.Deck.Select(GrowDuke).ToImmutableArray(),
+            Board = player.Board.Select(minion => minion.CardId == DiscardWarlockCardIds.DukeOfBelow
+                ? minion with
+                {
+                    Attack = minion.Attack + 2,
+                    Health = minion.Health + 2,
+                    MaxHealth = minion.MaxHealth + 2
+                }
+                : minion).ToImmutableArray()
+        };
+        return result with
+        {
+            State = result.State.WithPlayer(side, player),
+            Events = result.Events.Add(new RuleEvent("duke_growth", null, null, 2, DiscardWarlockCardIds.DukeOfBelow))
+        };
+
+        HandCardState GrowDuke(HandCardState candidate) => candidate.CardId == DiscardWarlockCardIds.DukeOfBelow
+            ? candidate with { Attack = candidate.Attack + 2, Health = candidate.Health + 2 }
+            : candidate;
+    }
+
+    private static TransitionResult SummonTokens(
+        TransitionResult result,
+        PlayerSide side,
+        int sourceEntityId,
+        string tokenCardId,
+        int count)
+    {
+        var state = result.State;
+        var events = result.Events;
+        for (var index = 0; index < count; index++)
+        {
+            var player = state.Player(side);
+            if (player.BoardCount >= CommonRuleEngine.MaximumBoardSize)
+            {
+                events = events.Add(new RuleEvent("summon_failed_board_full", sourceEntityId, null, 0, tokenCardId));
+                continue;
+            }
+            state = state.AllocateEntity(out var entityId);
+            player = state.Player(side);
+            var token = DiscardWarlockCardCatalog.Create(tokenCardId, entityId);
+            player = player with
+            {
+                Board = player.Board.Add(new MinionState(
+                    token.EntityId,
+                    token.CardId,
+                    player.Board.Length + 1,
+                    token.Attack,
+                    token.Health,
+                    token.Health,
+                    SummonedThisTurn: true))
+            };
+            state = state.WithPlayer(side, player);
+            events = events.Add(new RuleEvent("summon", sourceEntityId, entityId, 0, tokenCardId));
+        }
+        return result with { State = state, Events = events };
+    }
+
+    private static TransitionResult SummonDiscardedMinion(
+        TransitionResult result,
+        PlayerSide side,
+        HandCardState card)
+    {
+        var player = result.State.Player(side);
+        if (player.BoardCount >= CommonRuleEngine.MaximumBoardSize)
+            return Append(result, new RuleEvent("summon_failed_board_full", card.EntityId, null, 0, card.CardId));
+
+        var graveyardCard = player.Graveyard.FirstOrDefault(candidate => candidate.EntityId == card.EntityId);
+        player = player with
+        {
+            Graveyard = graveyardCard is null ? player.Graveyard : player.Graveyard.Remove(graveyardCard),
+            Board = player.Board.Add(new MinionState(
+                card.EntityId,
+                card.CardId,
+                player.Board.Length + 1,
+                card.Attack,
+                Math.Max(1, card.Health),
+                Math.Max(1, card.Health),
+                Taunt: card.Taunt,
+                Rush: card.Rush,
+                Charge: card.Charge,
+                SummonedThisTurn: true))
+        };
+        return result with
+        {
+            State = result.State.WithPlayer(side, player),
+            Events = result.Events.Add(new RuleEvent("summon", card.EntityId, card.EntityId, 0, card.CardId))
+        };
+    }
+
+    private static TransitionResult RequestRandomOneCostSummons(TransitionResult result, PlayerSide side, int sourceEntityId)
+    {
+        var availableSlots = Math.Max(0, CommonRuleEngine.MaximumBoardSize - result.State.Player(side).BoardCount);
+        var summonCount = Math.Min(2, availableSlots);
+        return Append(
+            result,
+            new RuleEvent("random_one_cost_summon_pending", sourceEntityId, null, summonCount, DiscardWarlockCardIds.DisposableAcolytes));
     }
 
     private static TransitionResult DealDamage(TransitionResult result, int targetEntityId, int amount, int sourceEntityId)

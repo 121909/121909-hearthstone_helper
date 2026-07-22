@@ -13,10 +13,12 @@ public static class RuleStateValidator
         ValidatePlayer("opponent", state.Opponent, errors);
 
         var entityIds = state.Friendly.Hand.Select(card => card.EntityId)
+            .Concat(state.Friendly.Deck.Select(card => card.EntityId))
             .Concat(state.Friendly.Board.Select(minion => minion.EntityId))
             .Concat(state.Friendly.Locations.Select(location => location.EntityId))
             .Concat(state.Friendly.Graveyard.Select(card => card.EntityId))
             .Concat(state.Opponent.Hand.Select(card => card.EntityId))
+            .Concat(state.Opponent.Deck.Select(card => card.EntityId))
             .Concat(state.Opponent.Board.Select(minion => minion.EntityId))
             .Concat(state.Opponent.Locations.Select(location => location.EntityId))
             .Concat(state.Opponent.Graveyard.Select(card => card.EntityId))
