@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/DiscardAdvisor.Plugin/DiscardAdvisor.Plugin.csproj" />
     <ProjectReference Include="../../src/DiscardAdvisor.Domain/DiscardAdvisor.Domain.csproj" />
+    <ProjectReference Include="../../src/DiscardAdvisor.Rules/DiscardAdvisor.Rules.csproj" />
   </ItemGroup>
 
   <ItemGroup>

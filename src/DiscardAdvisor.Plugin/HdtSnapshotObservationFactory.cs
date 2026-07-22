@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DiscardAdvisor.Domain;
 using DiscardAdvisor.Domain.Snapshots;
+using DiscardAdvisor.Rules;
 using HearthDb.Enums;
 using Hearthstone_Deck_Tracker;
 using Hearthstone_Deck_Tracker.Hearthstone;
@@ -13,6 +14,13 @@ namespace DiscardAdvisor.Plugin;
 
 internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
 {
+    private readonly SpecialMechanicsTracker _mechanics;
+
+    public HdtSnapshotObservationFactory(SpecialMechanicsTracker mechanics)
+    {
+        _mechanics = mechanics;
+    }
+
     public bool TryCapture(Guid gameId, bool isStable, out GameObservation? observation)
     {
         var game = HdtApiCore.Game;
@@ -36,7 +44,17 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
             : game.OpponentEntity?.HasTag(GameTag.CURRENT_PLAYER) == true ? "OPPONENT" : "NONE";
         var compatibility = HdtGameContextProvider.CaptureCompatibility();
         var remainingTurnTimeMs = CaptureRemainingTurnTimeMs(game);
-        var friendly = CaptureFriendly(game, friendlyHero, friendlyHeroPower);
+        foreach (var location in game.Player.Board.Where(entity => entity.IsLocation && HasPublicCard(entity)))
+        {
+            var captured = CaptureLocation(location);
+            _mechanics.RecordLocation(captured.EntityId, captured.Durability, captured.Cooldown, captured.Available);
+        }
+        var mechanics = _mechanics.Capture(
+            game.Player.Hand.Select(entity => entity.Id),
+            game.Player.Minions.Where(entity => entity.CardId == DiscardWarlockCardIds.Platysaur).Select(entity => entity.Id),
+            game.Player.EntitiesDiscardedFromHand.Count,
+            game.Player.Deck.Count(entity => entity.CardId == DiscardWarlockCardIds.ShredOfTime));
+        var friendly = CaptureFriendly(game, friendlyHero, friendlyHeroPower, mechanics);
         var opponent = CaptureOpponent(game, opponentHero, opponentHeroPower);
         var sensitive = new SensitiveGameMetadata(null, null, null, null);
 
@@ -53,15 +71,19 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
             friendly,
             opponent,
             new DerivedStateSnapshot(
-                Array.Empty<PlatysaurBindingSnapshot>(),
-                Array.Empty<int>(),
-                0,
+                mechanics.PlatysaurBindings.Select(binding => new PlatysaurBindingSnapshot(binding.Key, binding.Value)),
+                mechanics.TemporaryEntityIds,
+                mechanics.ShredsOfTimeInDeck,
                 Array.Empty<string>()),
             sensitive);
         return true;
     }
 
-    private static FriendlyPlayerSnapshot CaptureFriendly(GameV2 game, Entity hero, Entity heroPower)
+    private static FriendlyPlayerSnapshot CaptureFriendly(
+        GameV2 game,
+        Entity hero,
+        Entity heroPower,
+        SpecialMechanicsState mechanics)
     {
         var playerEntity = game.PlayerEntity!;
         var originalDeck = DeckList.Instance.ActiveDeckVersion?.Cards
@@ -80,7 +102,8 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
             CaptureHero(hero),
             CaptureHeroPower(heroPower),
             CaptureMana(playerEntity),
-            game.Player.Hand.Where(HasPublicCard).OrderBy(entity => entity.ZonePosition).Select(CaptureHandCard),
+            game.Player.Hand.Where(HasPublicCard).OrderBy(entity => entity.ZonePosition)
+                .Select(entity => CaptureHandCard(entity, mechanics.TemporaryEntityIds.Contains(entity.Id))),
             game.Player.Minions.Where(HasPublicCard).OrderBy(entity => entity.ZonePosition).Select(CaptureMinion),
             game.Player.Board.Where(entity => entity.IsLocation && HasPublicCard(entity)).OrderBy(entity => entity.ZonePosition).Select(CaptureLocation),
             originalDeck,
@@ -89,7 +112,7 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
             game.Player.Fatigue,
             game.Player.Graveyard.Where(HasPublicCard).Select(CaptureZoneCard),
             game.Player.EntitiesDiscardedFromHand.Where(HasPublicCard).Select(CaptureZoneCard),
-            game.Player.EntitiesDiscardedFromHand.Count,
+            mechanics.DiscardCount,
             CaptureWeapon(game.Player));
     }
 
@@ -158,9 +181,8 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
             Math.Max(0, playerEntity.GetTag(GameTag.OVERLOAD_OWED)));
     }
 
-    private static HandCardSnapshot CaptureHandCard(Entity entity)
+    private static HandCardSnapshot CaptureHandCard(Entity entity, bool temporary)
     {
-        const bool temporary = false;
         return new HandCardSnapshot(
             entity.Id,
             entity.CardId!,

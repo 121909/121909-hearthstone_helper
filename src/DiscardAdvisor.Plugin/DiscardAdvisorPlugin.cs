@@ -9,11 +9,7 @@ public sealed class DiscardAdvisorPlugin : IPlugin
     private readonly IPluginRuntime _runtime;
 
     public DiscardAdvisorPlugin()
-        : this(new PluginRuntime(
-            new HdtGameContextProvider(),
-            new HdtGameEventSource(),
-            new HdtSnapshotObservationFactory(),
-            HdtPluginDiagnostics.Create()))
+        : this(CreateRuntime())
     {
     }
 
@@ -44,4 +40,14 @@ public sealed class DiscardAdvisorPlugin : IPlugin
     }
 
     public void OnUpdate() => _runtime.Update();
+
+    private static IPluginRuntime CreateRuntime()
+    {
+        var mechanics = new SpecialMechanicsTracker();
+        return new PluginRuntime(
+            new HdtGameContextProvider(),
+            new HdtGameEventSource(mechanics),
+            new HdtSnapshotObservationFactory(mechanics),
+            HdtPluginDiagnostics.Create());
+    }
 }
