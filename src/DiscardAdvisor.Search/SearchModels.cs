@@ -10,9 +10,12 @@ public sealed record BeamSearchOptions(
     int BeamWidth = 64,
     int MaximumActions = 12,
     int TopK = 5,
-    TimeSpan? TimeBudget = null)
+    TimeSpan? TimeBudget = null,
+    RandomSamplingOptions? RandomSampling = null)
 {
     public TimeSpan EffectiveTimeBudget => TimeBudget ?? TimeSpan.FromMilliseconds(250);
+
+    public RandomSamplingOptions EffectiveRandomSampling => RandomSampling ?? new RandomSamplingOptions();
 }
 
 public sealed record SearchRoute(
@@ -20,7 +23,8 @@ public sealed record SearchRoute(
     ImmutableArray<RuleAction> Actions,
     ImmutableArray<RuleEvent> Events,
     double Probability,
-    double Score);
+    double Score,
+    bool UsesMonteCarlo = false);
 
 public sealed record BeamSearchMetrics(
     int ExpandedNodes,

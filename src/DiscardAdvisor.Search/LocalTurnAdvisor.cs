@@ -29,6 +29,11 @@ public sealed class LocalTurnAdvisor
     {
     }
 
+    public LocalTurnAdvisor(IRandomOneCostMinionPool oneCostMinions)
+        : this(new DeterministicLethalSearch(), new BeamSearch(oneCostMinions))
+    {
+    }
+
     public LocalTurnAdvisor(DeterministicLethalSearch lethalSearch, BeamSearch beamSearch)
     {
         _lethalSearch = lethalSearch ?? throw new ArgumentNullException(nameof(lethalSearch));

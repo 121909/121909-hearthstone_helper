@@ -40,6 +40,7 @@
     <Compile Remove="HdtSnapshotObservationFactory.cs" />
     <Compile Remove="HdtGameEventSource.cs" />
     <Compile Remove="HdtPluginDiagnostics.cs" />
+    <Compile Remove="HdtRandomOneCostMinionPool.cs" />
   </ItemGroup>
 
   <Target Name="ValidateHdtReference" BeforeTargets="ResolveReferences" Condition="'$(TargetFramework)' == 'net472' and !Exists('$(HdtExecutable)')">

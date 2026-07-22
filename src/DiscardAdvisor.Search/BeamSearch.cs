@@ -15,13 +15,25 @@ public sealed class BeamSearch
     private readonly DiscardWarlockRuleEngine _rules;
     private readonly IStateEvaluator _evaluator;
     private readonly DominancePruner _dominancePruner;
+    private readonly RandomOutcomeSampler _randomOutcomes;
 
     public BeamSearch()
         : this(
             new LegalActionEnumerator(),
             new DiscardWarlockRuleEngine(),
             new FastStateEvaluator(),
-            new DominancePruner())
+            new DominancePruner(),
+            new RandomOutcomeSampler())
+    {
+    }
+
+    public BeamSearch(IRandomOneCostMinionPool oneCostMinions)
+        : this(
+            new LegalActionEnumerator(),
+            new DiscardWarlockRuleEngine(),
+            new FastStateEvaluator(),
+            new DominancePruner(),
+            new RandomOutcomeSampler(oneCostMinions))
     {
     }
 
@@ -30,11 +42,22 @@ public sealed class BeamSearch
         DiscardWarlockRuleEngine rules,
         IStateEvaluator evaluator,
         DominancePruner dominancePruner)
+        : this(actions, rules, evaluator, dominancePruner, new RandomOutcomeSampler())
+    {
+    }
+
+    public BeamSearch(
+        LegalActionEnumerator actions,
+        DiscardWarlockRuleEngine rules,
+        IStateEvaluator evaluator,
+        DominancePruner dominancePruner,
+        RandomOutcomeSampler randomOutcomes)
     {
         _actions = actions ?? throw new ArgumentNullException(nameof(actions));
         _rules = rules ?? throw new ArgumentNullException(nameof(rules));
         _evaluator = evaluator ?? throw new ArgumentNullException(nameof(evaluator));
         _dominancePruner = dominancePruner ?? throw new ArgumentNullException(nameof(dominancePruner));
+        _randomOutcomes = randomOutcomes ?? throw new ArgumentNullException(nameof(randomOutcomes));
     }
 
     public BeamSearchResult Search(
@@ -65,6 +88,7 @@ public sealed class BeamSearch
         var dominancePruned = 0;
         var timedOut = false;
         var cancelled = false;
+        var random = new Random(options.EffectiveRandomSampling.Seed);
 
         for (var depth = 0; depth < options.MaximumActions && !frontier.IsEmpty; depth++)
         {
@@ -99,9 +123,7 @@ public sealed class BeamSearch
                     var transition = _rules.Apply(route.State, action);
                     if (!transition.IsLegal)
                         continue;
-                    var outcomes = transition.Branches.IsEmpty
-                        ? new[] { new Outcome(transition.State, transition.Events, 1d) }
-                        : transition.Branches.Select(branch => new Outcome(branch.State, branch.Events, branch.Probability));
+                    var outcomes = _randomOutcomes.Resolve(transition, options.EffectiveRandomSampling, random);
                     foreach (var outcome in outcomes)
                     {
                         generated++;
@@ -110,7 +132,8 @@ public sealed class BeamSearch
                             route.Actions.Add(action),
                             route.Events.AddRange(outcome.Events),
                             route.Probability * outcome.Probability,
-                            _evaluator.Evaluate(outcome.State));
+                            _evaluator.Evaluate(outcome.State),
+                            route.UsesMonteCarlo || outcome.UsesMonteCarlo);
                         var terminal = action is EndTurnAction ||
                                        outcome.State.Opponent.Hero.Health <= 0 ||
                                        outcome.State.Friendly.Hero.Health <= 0;
@@ -179,7 +202,6 @@ public sealed class BeamSearch
             throw new ArgumentOutOfRangeException(nameof(options.TopK));
         if (options.EffectiveTimeBudget <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(options.TimeBudget));
+        options.EffectiveRandomSampling.Validate();
     }
-
-    private sealed record Outcome(RuleGameState State, ImmutableArray<RuleEvent> Events, double Probability);
 }
