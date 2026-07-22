@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net472</TargetFrameworks>
+    <AssemblyName>DiscardAdvisor.Plugin</AssemblyName>
+    <RootNamespace>DiscardAdvisor.Plugin</RootNamespace>
+    <Platforms>AnyCPU;x64</Platforms>
+    <PlatformTarget Condition="'$(TargetFramework)' == 'net472'">x64</PlatformTarget>
+    <HdtReferenceDir Condition="'$(HdtReferenceDir)' == ''">$(HDT_INSTALL_DIR)</HdtReferenceDir>
+    <HdtReferenceDir Condition="'$(HdtReferenceDir)' == ''">$(MSBuildThisFileDirectory)..\..\.artifacts\hdt\1.53.11\Hearthstone Deck Tracker</HdtReferenceDir>
+    <HdtExecutable>$(HdtReferenceDir)\Hearthstone Deck Tracker.exe</HdtExecutable>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net472" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="HearthstoneDeckTracker">
+      <HintPath>$(HdtExecutable)</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="PresentationFramework" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net472'">
+    <Compile Remove="DiscardAdvisorPlugin.cs" />
+  </ItemGroup>
+
+  <Target Name="ValidateHdtReference" BeforeTargets="ResolveReferences" Condition="'$(TargetFramework)' == 'net472' and !Exists('$(HdtExecutable)')">
+    <Error Text="HDT v1.53.11 reference not found at '$(HdtExecutable)'. Run scripts/bootstrap-hdt-reference.ps1 or set HDT_INSTALL_DIR." />
+  </Target>
+</Project>
+
