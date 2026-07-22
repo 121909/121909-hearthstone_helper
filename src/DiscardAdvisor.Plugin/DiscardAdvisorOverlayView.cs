@@ -13,8 +13,6 @@ namespace DiscardAdvisor.Plugin;
 
 internal sealed class DiscardAdvisorOverlayView : UserControl
 {
-    public const double PanelWidth = 344;
-    public const double PanelHeight = 460;
     private static readonly Brush Surface = Brush(22, 26, 30);
     private static readonly Brush RaisedSurface = Brush(31, 36, 41);
     private static readonly Brush Border = Brush(76, 84, 92);
@@ -31,8 +29,8 @@ internal sealed class DiscardAdvisorOverlayView : UserControl
 
     public DiscardAdvisorOverlayView()
     {
-        Width = PanelWidth;
-        Height = PanelHeight;
+        Width = AdvisorOverlayLayout.PanelWidth;
+        Height = AdvisorOverlayLayout.PanelHeight;
         Focusable = true;
         AutomationProperties.SetName(this, "Discard Advisor recommendations");
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
@@ -45,8 +43,8 @@ internal sealed class DiscardAdvisorOverlayView : UserControl
 
         var root = new Border
         {
-            Width = PanelWidth,
-            Height = PanelHeight,
+            Width = AdvisorOverlayLayout.PanelWidth,
+            Height = AdvisorOverlayLayout.PanelHeight,
             Background = Surface,
             BorderBrush = Border,
             BorderThickness = new Thickness(1),
@@ -87,7 +85,7 @@ internal sealed class DiscardAdvisorOverlayView : UserControl
     private UIElement BuildLayout()
     {
         var layout = new Grid();
-        layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(52) });
+        layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(AdvisorOverlayLayout.HeaderHeight) });
         layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         layout.Children.Add(BuildHeader());
         var scroll = new ScrollViewer
@@ -224,23 +222,24 @@ internal sealed class DiscardAdvisorOverlayView : UserControl
     private static UIElement BuildSteps(IReadOnlyList<OverlayStep> steps)
     {
         var stack = new StackPanel();
-        foreach (var step in steps.Take(5))
+        foreach (var step in steps.Take(AdvisorOverlayLayout.DefaultVisibleSteps))
             stack.Children.Add(BuildStep(step));
-        if (steps.Count > 5)
+        if (steps.Count > AdvisorOverlayLayout.DefaultVisibleSteps)
         {
             var remainder = new StackPanel();
-            foreach (var step in steps.Skip(5))
+            foreach (var step in steps.Skip(AdvisorOverlayLayout.DefaultVisibleSteps))
                 remainder.Children.Add(BuildStep(step));
+            var hiddenStepCount = steps.Count - AdvisorOverlayLayout.DefaultVisibleSteps;
             var more = new Expander
             {
-                Header = (steps.Count - 5) + " more steps",
+                Header = hiddenStepCount + " more steps",
                 Content = remainder,
                 Foreground = SecondaryText,
                 FontSize = 11,
                 Margin = new Thickness(32, 2, 0, 2),
                 FocusVisualStyle = FocusStyle()
             };
-            AutomationProperties.SetName(more, (steps.Count - 5) + " more route steps");
+            AutomationProperties.SetName(more, hiddenStepCount + " more route steps");
             stack.Children.Add(more);
         }
         return stack;
@@ -248,7 +247,7 @@ internal sealed class DiscardAdvisorOverlayView : UserControl
 
     private static UIElement BuildStep(OverlayStep step)
     {
-        var row = new Grid { Height = 44 };
+        var row = new Grid { Height = AdvisorOverlayLayout.StepHeight };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var number = new Border

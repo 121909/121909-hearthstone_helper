@@ -11,6 +11,16 @@ namespace DiscardAdvisor.Plugin.Tests;
 public sealed class AdvisorOverlayPresenterTests
 {
     [Fact]
+    public void OverlayLayoutMetricsRemainFixedAcrossStates()
+    {
+        Assert.Equal(344, AdvisorOverlayLayout.PanelWidth);
+        Assert.Equal(460, AdvisorOverlayLayout.PanelHeight);
+        Assert.Equal(52, AdvisorOverlayLayout.HeaderHeight);
+        Assert.Equal(44, AdvisorOverlayLayout.StepHeight);
+        Assert.Equal(5, AdvisorOverlayLayout.DefaultVisibleSteps);
+    }
+
+    [Fact]
     public void ReadyStateShowsPrimaryAlternativeRiskAndResolvedNames()
     {
         var initial = State(opponentHealth: 4);

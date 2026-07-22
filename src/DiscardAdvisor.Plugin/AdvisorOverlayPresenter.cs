@@ -7,6 +7,15 @@ using DiscardAdvisor.Search;
 
 namespace DiscardAdvisor.Plugin;
 
+public static class AdvisorOverlayLayout
+{
+    public const double PanelWidth = 344;
+    public const double PanelHeight = 460;
+    public const double HeaderHeight = 52;
+    public const double StepHeight = 44;
+    public const int DefaultVisibleSteps = 5;
+}
+
 public enum OverlayRiskTone
 {
     Neutral,

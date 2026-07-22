@@ -132,6 +132,35 @@ public sealed class AdvisorModelOrchestratorTests
     }
 
     [Fact]
+    public async Task ResponseIsRejectedWhenStateChangesWhileProviderIsRunning()
+    {
+        var prompt = Prompt();
+        var provider = new ScriptedProvider();
+        var entered = new TaskCompletionSource<ModelProviderRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        provider.Enqueue(async (request, cancellationToken) =>
+        {
+            entered.TrySetResult(request);
+            await release.Task;
+            return await ValidSelection(request, cancellationToken);
+        });
+        var isCurrent = true;
+
+        var rerank = Orchestrator(provider).RerankAsync(
+            "request-1",
+            prompt,
+            TimeSpan.FromSeconds(1),
+            isStateCurrent: _ => isCurrent);
+        await entered.Task;
+        isCurrent = false;
+        release.TrySetResult(true);
+        var result = await rerank;
+
+        Assert.Equal(AdvisorRerankStatus.Stale, result.Status);
+        Assert.Null(result.SelectedCandidateId);
+    }
+
+    [Fact]
     public async Task MalformedResponsesRetryThenUseLocalFallback()
     {
         var prompt = Prompt();

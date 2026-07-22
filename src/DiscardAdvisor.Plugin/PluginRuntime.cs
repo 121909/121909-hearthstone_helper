@@ -196,7 +196,9 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
     {
         try
         {
-            var update = await _advisorService!.AnalyzeAsync(workItem.Snapshot, workItem.CancellationToken)
+            var update = await Task.Run(
+                    () => _advisorService!.AnalyzeAsync(workItem.Snapshot, workItem.CancellationToken),
+                    workItem.CancellationToken)
                 .ConfigureAwait(false);
             if (workItem.CancellationToken.IsCancellationRequested || !_snapshotCoordinator.CanAcceptResult(workItem.StateId))
                 return;
