@@ -89,6 +89,56 @@ public sealed record ShadowRunReport(
     double LatencyP95Ms,
     double LatencyMaximumMs)
 {
+    public ShadowRunReport(
+        int logFileCount,
+        int startedGameCount,
+        int completedGameCount,
+        int requestCount,
+        int analysisCount,
+        int publishedCount,
+        int supersededCount,
+        int cancelledCount,
+        int failedCount,
+        int duplicateRequestCount,
+        int missingRequestCount,
+        int unfinishedRequestCount,
+        int visibleSuggestionCount,
+        int unsupportedAnalysisCount,
+        int unsupportedInteractionOccurrenceCount,
+        int runCount,
+        int versionCohortCount,
+        int missingVersionMetadataGameCount,
+        ImmutableArray<ShadowVersionCohort> versionCohorts,
+        double latencyP50Ms,
+        double latencyP95Ms,
+        double latencyMaximumMs)
+        : this(
+            logFileCount,
+            startedGameCount,
+            completedGameCount,
+            completedGameCount,
+            requestCount,
+            analysisCount,
+            publishedCount,
+            supersededCount,
+            cancelledCount,
+            failedCount,
+            duplicateRequestCount,
+            missingRequestCount,
+            unfinishedRequestCount,
+            visibleSuggestionCount,
+            unsupportedAnalysisCount,
+            unsupportedInteractionOccurrenceCount,
+            runCount,
+            versionCohortCount,
+            missingVersionMetadataGameCount,
+            versionCohorts,
+            latencyP50Ms,
+            latencyP95Ms,
+            latencyMaximumMs)
+    {
+    }
+
     public double SupersededRate => AnalysisCount == 0 ? 0 : (double)SupersededCount / AnalysisCount;
 
     public int CompletedGameWithoutPublishedAnalysisCount =>

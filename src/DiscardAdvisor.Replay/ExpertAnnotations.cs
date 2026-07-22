@@ -8,11 +8,21 @@ namespace DiscardAdvisor.Replay;
 
 public sealed class ExpertAnnotation
 {
-    public ExpertAnnotation(string protocolVersion, string stateId, IEnumerable<AnnotatedRoute> expertTop3)
+    public const string LegacyProtocolVersion = "1.0.0";
+    public const string CurrentProtocolVersion = "1.1.0";
+
+    public ExpertAnnotation(
+        string protocolVersion,
+        string stateId,
+        IEnumerable<AnnotatedRoute> expertTop3,
+        string? reviewerId = null,
+        DateTimeOffset? reviewedAtUtc = null)
     {
         ProtocolVersion = protocolVersion;
         StateId = stateId;
         ExpertTop3 = expertTop3?.ToImmutableArray() ?? ImmutableArray<AnnotatedRoute>.Empty;
+        ReviewerId = reviewerId;
+        ReviewedAtUtc = reviewedAtUtc;
     }
 
     public string ProtocolVersion { get; }
@@ -21,9 +31,19 @@ public sealed class ExpertAnnotation
 
     public ImmutableArray<AnnotatedRoute> ExpertTop3 { get; }
 
+    public string? ReviewerId { get; }
+
+    public DateTimeOffset? ReviewedAtUtc { get; }
+
+    public bool IsQualifiedForExpertTarget =>
+        string.Equals(ProtocolVersion, CurrentProtocolVersion, StringComparison.Ordinal) &&
+        !string.IsNullOrWhiteSpace(ReviewerId) &&
+        ReviewedAtUtc.HasValue;
+
     public void Validate()
     {
-        if (!string.Equals(ProtocolVersion, "1.0.0", StringComparison.Ordinal))
+        if (!string.Equals(ProtocolVersion, LegacyProtocolVersion, StringComparison.Ordinal) &&
+            !string.Equals(ProtocolVersion, CurrentProtocolVersion, StringComparison.Ordinal))
             throw new InvalidOperationException($"Unsupported annotation protocol '{ProtocolVersion}'.");
         if (string.IsNullOrWhiteSpace(StateId))
             throw new InvalidOperationException("Annotation state_id is required.");
@@ -35,7 +55,26 @@ public sealed class ExpertAnnotation
             throw new InvalidOperationException("Every annotated route must contain at least one action.");
         foreach (var action in ExpertTop3.SelectMany(route => route.Actions))
             action.Validate();
+        if (string.Equals(ProtocolVersion, CurrentProtocolVersion, StringComparison.Ordinal))
+            ValidateReviewerProvenance();
+        else if (!string.IsNullOrWhiteSpace(ReviewerId) || ReviewedAtUtc.HasValue)
+            throw new InvalidOperationException("Annotation protocol 1.0.0 cannot include reviewer provenance.");
     }
+
+    private void ValidateReviewerProvenance()
+    {
+        if (string.IsNullOrWhiteSpace(ReviewerId))
+            throw new InvalidOperationException("Annotation reviewerId is required for protocol 1.1.0.");
+        if (ReviewerId.Length > 64 || ReviewerId.Any(character => !IsReviewerIdCharacter(character)))
+        {
+            throw new InvalidOperationException("Annotation reviewerId must be 1-64 ASCII letters, digits, '.', '_', or '-'.");
+        }
+        if (!ReviewedAtUtc.HasValue || ReviewedAtUtc.Value.Offset != TimeSpan.Zero)
+            throw new InvalidOperationException("Annotation reviewedAtUtc is required and must use the UTC offset.");
+    }
+
+    private static bool IsReviewerIdCharacter(char value) =>
+        value is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '-' or '_' or '.';
 }
 
 public sealed class AnnotatedRoute

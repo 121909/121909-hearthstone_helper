@@ -42,8 +42,40 @@ public sealed record SnapshotEvaluation(
     double ElapsedMs,
     bool DeadlineExpired,
     bool? ExpertTop3Matched,
+    bool AnnotationQualified,
     ImmutableArray<ExpertReviewCandidate> ReviewCandidates,
-    ImmutableArray<string> UnsupportedInteractions);
+    ImmutableArray<string> UnsupportedInteractions)
+{
+    public SnapshotEvaluation(
+        string source,
+        string stateId,
+        int turnNumber,
+        bool mappingSupported,
+        int candidateCount,
+        int routeCount,
+        int legalRouteCount,
+        double elapsedMs,
+        bool deadlineExpired,
+        bool? expertTop3Matched,
+        ImmutableArray<ExpertReviewCandidate> reviewCandidates,
+        ImmutableArray<string> unsupportedInteractions)
+        : this(
+            source,
+            stateId,
+            turnNumber,
+            mappingSupported,
+            candidateCount,
+            routeCount,
+            legalRouteCount,
+            elapsedMs,
+            deadlineExpired,
+            expertTop3Matched,
+            false,
+            reviewCandidates,
+            unsupportedInteractions)
+    {
+    }
+}
 
 public sealed record ExpertReviewAction(
     AnnotatedAction Annotation,
@@ -85,12 +117,25 @@ public sealed record OfflineRegressionReport(
         ? null
         : (double)ExpertTop3MatchCount / AnnotatedSnapshotCount;
 
+    public int QualifiedAnnotatedSnapshotCount => Snapshots.Count(snapshot =>
+        snapshot.AnnotationQualified && snapshot.ExpertTop3Matched.HasValue);
+
+    public int QualifiedExpertTop3MatchCount => Snapshots.Count(snapshot =>
+        snapshot.AnnotationQualified && snapshot.ExpertTop3Matched == true);
+
+    public int UnqualifiedAnnotatedSnapshotCount => Snapshots.Count(snapshot =>
+        !snapshot.AnnotationQualified && snapshot.ExpertTop3Matched.HasValue);
+
+    public double? QualifiedExpertTop3ConsistencyRate => QualifiedAnnotatedSnapshotCount == 0
+        ? null
+        : (double)QualifiedExpertTop3MatchCount / QualifiedAnnotatedSnapshotCount;
+
     public double DeadlineExpirationRate => EvaluatedSnapshotCount == 0
         ? 0
         : (double)DeadlineExpiredCount / EvaluatedSnapshotCount;
 
-    public bool MeetsExpertAnnotationTarget => AnnotatedSnapshotCount >= 200 &&
-                                               ExpertTop3ConsistencyRate >= 0.8d;
+    public bool MeetsExpertAnnotationTarget => QualifiedAnnotatedSnapshotCount >= 200 &&
+                                               QualifiedExpertTop3ConsistencyRate >= 0.8d;
 
     public bool MeetsVisibleSuggestionPrerequisites => Passed &&
                                                        EvaluatedSnapshotCount == SnapshotCount &&
@@ -178,6 +223,7 @@ public sealed class OfflineRegressionRunner
                     0,
                     false,
                     null,
+                    false,
                     ImmutableArray<ExpertReviewCandidate>.Empty,
                     snapshotUnsupported.Distinct(StringComparer.Ordinal).ToImmutableArray()));
                 continue;
@@ -195,11 +241,12 @@ public sealed class OfflineRegressionRunner
             var routes = result.Candidates.Select(candidate => candidate.Actions).ToArray();
             var legalRouteCount = routes.Count(actions =>
                 _legalityVerifier.IsLegal(mapping.State, actions, options.Seed));
-            var top3Matched = input.Annotations.TryGetValue(fixture.Snapshot.StateId, out var annotation)
-                ? ExpertPrimaryMatchesAdvisorTop3(
+            input.Annotations.TryGetValue(fixture.Snapshot.StateId, out var annotation);
+            var top3Matched = annotation is null
+                ? (bool?)null
+                : ExpertPrimaryMatchesAdvisorTop3(
                     result.Candidates.Select(candidate => candidate.Actions.AsEnumerable()),
-                    annotation)
-                : (bool?)null;
+                    annotation);
             var elapsedMs = Math.Max(result.Elapsed.TotalMilliseconds, stopwatch.Elapsed.TotalMilliseconds);
             evaluations.Add(new SnapshotEvaluation(
                 DisplaySource(fixture.Source),
@@ -212,6 +259,7 @@ public sealed class OfflineRegressionRunner
                 elapsedMs,
                 fixture.Snapshot.RemainingTurnTimeMs > 0 && elapsedMs >= fixture.Snapshot.RemainingTurnTimeMs,
                 top3Matched,
+                annotation?.IsQualifiedForExpertTarget ?? false,
                 BuildReviewCandidates(mapping.State, result.Candidates),
                 snapshotUnsupported.Distinct(StringComparer.Ordinal).ToImmutableArray()));
         }

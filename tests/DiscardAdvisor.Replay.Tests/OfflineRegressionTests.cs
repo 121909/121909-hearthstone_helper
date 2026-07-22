@@ -135,6 +135,9 @@ public sealed class OfflineRegressionTests
         Assert.True(report.RouteCount > 0);
         Assert.Equal(1, report.ExpertTop3MatchCount);
         Assert.Equal(1d, report.ExpertTop3ConsistencyRate);
+        Assert.Equal(1, report.QualifiedAnnotatedSnapshotCount);
+        Assert.Equal(1, report.QualifiedExpertTop3MatchCount);
+        Assert.Equal(1d, report.QualifiedExpertTop3ConsistencyRate);
         Assert.False(report.MeetsVisibleSuggestionPrerequisites);
         Assert.Empty(report.UnsupportedInteractions);
     }
@@ -166,6 +169,59 @@ public sealed class OfflineRegressionTests
                 new AnnotatedRoute("alternative", new[] { new AnnotatedAction("PLAY_CARD", 1) })
             });
         Assert.True(OfflineRegressionRunner.ExpertPrimaryMatchesAdvisorTop3(advisorTop3, primarySuggested));
+    }
+
+    [Fact]
+    public void QualifiedExpertAnnotationRequiresReviewerProvenance()
+    {
+        var routes = new[] { new AnnotatedRoute("primary", new[] { new AnnotatedAction("END_TURN") }) };
+        var legacy = new ExpertAnnotation(ExpertAnnotation.LegacyProtocolVersion, "turn-1:legacy", routes);
+        var qualified = new ExpertAnnotation(
+            ExpertAnnotation.CurrentProtocolVersion,
+            "turn-1:qualified",
+            routes,
+            "expert-a",
+            DateTimeOffset.Parse("2026-07-22T00:00:00Z"));
+        var missingProvenance = new ExpertAnnotation(ExpertAnnotation.CurrentProtocolVersion, "turn-1:missing", routes);
+        var invalidReviewer = new ExpertAnnotation(
+            ExpertAnnotation.CurrentProtocolVersion,
+            "turn-1:invalid-reviewer",
+            routes,
+            "expert reviewer",
+            DateTimeOffset.Parse("2026-07-22T00:00:00Z"));
+
+        legacy.Validate();
+        qualified.Validate();
+        Assert.False(legacy.IsQualifiedForExpertTarget);
+        Assert.True(qualified.IsQualifiedForExpertTarget);
+        Assert.Throws<InvalidOperationException>(missingProvenance.Validate);
+        Assert.Throws<InvalidOperationException>(invalidReviewer.Validate);
+    }
+
+    [Fact]
+    public void Run_ReportsLegacyAnnotationsSeparatelyFromQualifiedEvidence()
+    {
+        using var directory = new TemporaryDirectory();
+        var snapshotPath = Path.Combine(directory.Path, "snapshot.snapshot.json");
+        var annotationPath = Path.Combine(directory.Path, "legacy.annotation.json");
+        File.Copy(FixturePath("minimal-snapshot.json"), snapshotPath);
+        var legacy = JObject.Parse(File.ReadAllText(FixturePath("minimal-snapshot.annotation.json")));
+        legacy["protocolVersion"] = ExpertAnnotation.LegacyProtocolVersion;
+        legacy.Remove("reviewerId");
+        legacy.Remove("reviewedAtUtc");
+        File.WriteAllText(annotationPath, legacy.ToString());
+
+        var input = new RegressionInputLoader().Load(new[] { snapshotPath, annotationPath });
+        var report = new OfflineRegressionRunner().Run(input, new OfflineRegressionOptions(MaximumActions: 1, TimeBudgetMs: 500));
+
+        Assert.Empty(input.Errors);
+        Assert.Equal(1, report.AnnotatedSnapshotCount);
+        Assert.Equal(0, report.QualifiedAnnotatedSnapshotCount);
+        Assert.Equal(1, report.UnqualifiedAnnotatedSnapshotCount);
+        Assert.False(report.MeetsExpertAnnotationTarget);
+        var paths = new RegressionReportWriter().Write(report, directory.Path);
+        var review = JObject.Parse(File.ReadAllText(paths.ExpertReviewPath));
+        Assert.Single(Assert.IsType<JArray>(review["pending"]));
     }
 
     [Fact]
@@ -268,6 +324,7 @@ public sealed class OfflineRegressionTests
     [Fact]
     public void VisibleSuggestionGateRequiresCompleteOfflineAndShadowEvidence()
     {
+        var qualifiedSnapshots = BuildQualifiedEvaluations(200, 160);
         var shadow = new ShadowRunReport(
             LogFileCount: 1,
             StartedGameCount: 50,
@@ -310,10 +367,13 @@ public sealed class OfflineRegressionTests
             UnsupportedInteractions: ImmutableDictionary<string, int>.Empty,
             InputErrors: ImmutableArray<string>.Empty,
             Replays: ImmutableArray<ReplayArchiveSummary>.Empty,
-            Snapshots: ImmutableArray<SnapshotEvaluation>.Empty);
+            Snapshots: qualifiedSnapshots);
 
         Assert.True(report.MeetsVisibleSuggestionPrerequisites);
-        Assert.False((report with { ExpertTop3MatchCount = 159 }).MeetsVisibleSuggestionPrerequisites);
+        Assert.False((report with
+        {
+            Snapshots = qualifiedSnapshots.SetItem(0, qualifiedSnapshots[0] with { ExpertTop3Matched = false })
+        }).MeetsVisibleSuggestionPrerequisites);
         Assert.False((report with { LatencyP95Ms = 300 }).MeetsVisibleSuggestionPrerequisites);
         Assert.False((report with
         {
@@ -371,13 +431,19 @@ public sealed class OfflineRegressionTests
         var action = Assert.IsType<JObject>(Assert.Single(actions));
         Assert.Equal("END_TURN", action["annotation"]?.Value<string>("kind"));
 
-        var annotationPath = new ExpertAnnotationDraftWriter().Write(
+        var annotationPath = new ExpertAnnotationDraftWriter(() => DateTimeOffset.Parse("2026-07-22T00:00:00Z")).Write(
             paths.ExpertReviewPath,
             item.Value<string>("stateId")!,
             new[] { candidate.Value<string>("reviewOptionId")! },
+            "fixture-reviewer",
             Path.Combine(directory.Path, "annotations"));
         var annotation = JObject.Parse(File.ReadAllText(annotationPath));
         Assert.Equal(item.Value<string>("stateId"), annotation.Value<string>("stateId"));
+        Assert.Equal(ExpertAnnotation.CurrentProtocolVersion, annotation.Value<string>("protocolVersion"));
+        Assert.Equal("fixture-reviewer", annotation.Value<string>("reviewerId"));
+        Assert.Equal(
+            DateTime.Parse("2026-07-22T00:00:00Z", null, System.Globalization.DateTimeStyles.AdjustToUniversal),
+            annotation.Value<DateTime>("reviewedAtUtc").ToUniversalTime());
         Assert.Equal(
             "END_TURN",
             annotation["expertTop3"]?[0]?["actions"]?[0]?.Value<string>("kind"));
@@ -385,7 +451,17 @@ public sealed class OfflineRegressionTests
             paths.ExpertReviewPath,
             item.Value<string>("stateId")!,
             new[] { candidate.Value<string>("reviewOptionId")! },
+            "fixture-reviewer",
             Path.Combine(directory.Path, "annotations")));
+
+        var legacyPath = new ExpertAnnotationDraftWriter().Write(
+            paths.ExpertReviewPath,
+            item.Value<string>("stateId")!,
+            new[] { candidate.Value<string>("reviewOptionId")! },
+            Path.Combine(directory.Path, "legacy-annotations"));
+        var legacyAnnotation = JObject.Parse(File.ReadAllText(legacyPath));
+        Assert.Equal(ExpertAnnotation.LegacyProtocolVersion, legacyAnnotation.Value<string>("protocolVersion"));
+        Assert.Equal(JTokenType.Null, legacyAnnotation["reviewerId"]?.Type);
     }
 
     [Fact]
@@ -460,6 +536,24 @@ public sealed class OfflineRegressionTests
             analyses.ToImmutable(),
             ImmutableArray<string>.Empty);
     }
+
+    private static ImmutableArray<SnapshotEvaluation> BuildQualifiedEvaluations(int count, int matchedCount) =>
+        Enumerable.Range(0, count)
+            .Select(index => new SnapshotEvaluation(
+                "fixture",
+                $"turn-1:qualified-{index}",
+                1,
+                true,
+                1,
+                1,
+                1,
+                100,
+                false,
+                index < matchedCount,
+                true,
+                ImmutableArray<ExpertReviewCandidate>.Empty,
+                ImmutableArray<string>.Empty))
+            .ToImmutableArray();
 
     private static string CalculateStateId(JObject json)
     {

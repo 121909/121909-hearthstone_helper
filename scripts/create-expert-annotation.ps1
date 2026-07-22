@@ -6,6 +6,9 @@ param(
     [string]$StateId,
 
     [Parameter(Mandatory = $true)]
+    [string]$ReviewerId,
+
+    [Parameter(Mandatory = $true)]
     [ValidateCount(1, 3)]
     [string[]]$RankedOption,
 
@@ -32,6 +35,7 @@ $arguments = @(
     "annotate",
     "--review-pack", $ReviewPack,
     "--state-id", $StateId,
+    "--reviewer-id", $ReviewerId,
     "--output", $OutputPath
 )
 foreach($option in $RankedOption)

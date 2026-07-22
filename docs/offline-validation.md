@@ -59,7 +59,7 @@ a newer build instead of mixing version cohorts.
 
 ## Expert annotations
 
-An optional `*.annotation.json` identifies one to three acceptable expert routes for a `state_id`. Actions use the stable protocol kinds `PLAY_CARD`, `ATTACK`, `USE_HERO_POWER`, `USE_LOCATION`, `SELECT_CHOICE`, and `END_TURN`, plus the relevant entity IDs, target, board position, or choice ID. A Snapshot is Top-3 consistent when at least one of the advisor's first three complete action sequences exactly matches one of the expert routes.
+An optional `*.annotation.json` identifies one to three acceptable expert routes for a `state_id`. Actions use the stable protocol kinds `PLAY_CARD`, `ATTACK`, `USE_HERO_POWER`, `USE_LOCATION`, `SELECT_CHOICE`, and `END_TURN`, plus the relevant entity IDs, target, board position, or choice ID. A Snapshot is Top-3 consistent when at least one of the advisor's first three complete action sequences exactly matches one of the expert routes. Protocol `1.1.0` also records an anonymous `reviewerId` and UTC `reviewedAtUtc`; only annotations carrying that provenance count toward the 200-annotation gate. Legacy `1.0.0` annotations remain usable for regression comparison but are reported separately and do not count toward the target.
 
 `expert-review-pack.json` is a blind route-ranking pack. It contains deterministically shuffled `option-*` routes and their display CardIds, but no candidate IDs, scores, confidence, or original Advisor rank. Reviewers rank one to three complete routes, putting the strongest route first, may author a custom route when none is correct, copy the action objects into `expertTop3`, add independent labels/reasons, and save the result as `<state_id>.annotation.json`. The report's Top-3 metric checks whether the expert's primary route (`expertTop3[0]`) appears in the Advisor's first three; alternatives do not make an otherwise missed primary route count. The report tracks progress toward 200 annotations and the 80% target.
 
@@ -70,12 +70,14 @@ copying entity IDs:
 .\scripts\create-expert-annotation.ps1 `
   -ReviewPack .\.artifacts\offline-regression\expert-review-pack.json `
   -StateId "turn-8:<hash>" `
+  -ReviewerId "expert-a" `
   -RankedOption option-4, option-1
 ```
 
 The first option is the expert primary route. The command validates every
-action, writes atomically under an `annotations` directory, and refuses to
-replace an existing review unless `-Force` is supplied. Use the pack's
+action, writes the anonymous reviewer ID and UTC review time atomically under
+an `annotations` directory, and refuses to replace an existing review unless
+`-Force` is supplied. Use the pack's
 `customRouteTemplate` when no offered route is correct, then rerun the offline
 regression with the annotation directory as an input.
 
@@ -83,7 +85,7 @@ Offline reports include legal-route rate, p50/p95/maximum latency, deadline expi
 
 ## Visible-test gate
 
-The report exposes `meetsVisibleSuggestionPrerequisites`. It remains false until the offline routes are fully evaluated and legal, p95 latency is below 300 ms with no deadline expirations or unsupported interactions, the expert target is met (200 annotations and at least 80% primary-route Top-3 consistency), and one complete 50-game shadow cohort passes the automated thresholds. This gate intentionally requires real evidence; fixture-only or synthetic telemetry cannot enable visible suggestions.
+The report exposes `meetsVisibleSuggestionPrerequisites`. It remains false until the offline routes are fully evaluated and legal, p95 latency is below 300 ms with no deadline expirations or unsupported interactions, the expert target is met (200 provenance-qualified annotations and at least 80% primary-route Top-3 consistency), and one complete 50-game shadow cohort passes the automated thresholds. The automated fields make the evidence auditable but do not independently prove that a named human or an HDT session produced every input; review the collected source data before enabling a visible cohort.
 
 Keep `profiles\release.json` aligned with the plugin and rule versions used for the shadow run. Once the final report is ready, enable the small visible-test cohort with:
 

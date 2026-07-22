@@ -52,8 +52,8 @@ public sealed class RegressionReportWriter
         builder.AppendLine($"- Legal routes: {report.LegalRouteCount}/{report.RouteCount} ({FormatPercent(report.LegalRouteRate)})");
         builder.AppendLine($"- Latency p50/p95/max: {report.LatencyP50Ms:F2}/{report.LatencyP95Ms:F2}/{report.LatencyMaximumMs:F2} ms");
         builder.AppendLine($"- Deadline expiration: {report.DeadlineExpiredCount}/{report.EvaluatedSnapshotCount} ({FormatPercent(report.DeadlineExpirationRate)})");
-        builder.AppendLine($"- Expert annotations: {report.AnnotatedSnapshotCount}/200");
-        builder.AppendLine($"- Expert primary route in Advisor Top-3: {FormatOptionalPercent(report.ExpertTop3ConsistencyRate)} ({report.ExpertTop3MatchCount}/{report.AnnotatedSnapshotCount}, target 80%)");
+        builder.AppendLine($"- Expert annotations: {report.QualifiedAnnotatedSnapshotCount}/200 qualified ({report.AnnotatedSnapshotCount} total, {report.UnqualifiedAnnotatedSnapshotCount} legacy or unqualified)");
+        builder.AppendLine($"- Qualified expert primary route in Advisor Top-3: {FormatOptionalPercent(report.QualifiedExpertTop3ConsistencyRate)} ({report.QualifiedExpertTop3MatchCount}/{report.QualifiedAnnotatedSnapshotCount}, target 80%)");
         builder.AppendLine($"- Expert thresholds: **{(report.MeetsExpertAnnotationTarget ? "MET" : "NOT MET")}**");
         builder.AppendLine($"- Visible-suggestion prerequisites: **{(report.MeetsVisibleSuggestionPrerequisites ? "MET" : "NOT MET")}**");
         builder.AppendLine();
@@ -119,12 +119,13 @@ public sealed class RegressionReportWriter
     {
         ProtocolVersion = "1.0.0",
         ReviewMethod = "BLIND_ROUTE_RANKING",
-        Instructions = "Rank routes without opening offline-regression.json. Put the strongest route first in expertTop3; only that primary route is used for the Advisor Top-3 metric. Author a custom route when none of the blinded options is correct.",
+        Instructions = "Rank routes without opening offline-regression.json. Put the strongest route first in expertTop3; only that primary route is used for the Advisor Top-3 metric. Author a custom route when none of the blinded options is correct. Use the annotate command with an anonymous reviewer id; protocol 1.1.0 provenance is required for the 200-annotation target.",
         TargetAnnotationCount = 200,
-        AnnotatedSnapshotCount = report.AnnotatedSnapshotCount,
-        RemainingToTarget = Math.Max(0, 200 - report.AnnotatedSnapshotCount),
+        QualifiedAnnotatedSnapshotCount = report.QualifiedAnnotatedSnapshotCount,
+        LegacyOrUnqualifiedAnnotationCount = report.UnqualifiedAnnotatedSnapshotCount,
+        RemainingToTarget = Math.Max(0, 200 - report.QualifiedAnnotatedSnapshotCount),
         Pending = report.Snapshots
-            .Where(snapshot => snapshot.MappingSupported && !snapshot.ExpertTop3Matched.HasValue)
+            .Where(snapshot => snapshot.MappingSupported && !snapshot.AnnotationQualified)
             .Select(snapshot => new
             {
                 snapshot.StateId,
@@ -145,8 +146,10 @@ public sealed class RegressionReportWriter
                 },
                 AnnotationTemplate = new
                 {
-                    ProtocolVersion = "1.0.0",
+                    ProtocolVersion = ExpertAnnotation.CurrentProtocolVersion,
                     snapshot.StateId,
+                    ReviewerId = "",
+                    ReviewedAtUtc = (DateTimeOffset?)null,
                     ExpertTop3 = Array.Empty<object>()
                 }
             })

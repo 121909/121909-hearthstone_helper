@@ -19,13 +19,37 @@ public sealed class ExpertAnnotationDraftWriter
         Formatting = Formatting.Indented,
         NullValueHandling = NullValueHandling.Include
     };
+    private readonly Func<DateTimeOffset> _utcNow;
+
+    public ExpertAnnotationDraftWriter(Func<DateTimeOffset>? utcNow = null)
+    {
+        _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
+    }
 
     public string Write(
         string reviewPackPath,
         string stateId,
         IEnumerable<string> rankedOptionIds,
         string outputDirectory,
+        bool overwrite = false) =>
+        WriteCore(reviewPackPath, stateId, rankedOptionIds, null, outputDirectory, overwrite);
+
+    public string Write(
+        string reviewPackPath,
+        string stateId,
+        IEnumerable<string> rankedOptionIds,
+        string reviewerId,
+        string outputDirectory,
         bool overwrite = false)
+        => WriteCore(reviewPackPath, stateId, rankedOptionIds, reviewerId, outputDirectory, overwrite);
+
+    private string WriteCore(
+        string reviewPackPath,
+        string stateId,
+        IEnumerable<string> rankedOptionIds,
+        string? reviewerId,
+        string outputDirectory,
+        bool overwrite)
     {
         if (string.IsNullOrWhiteSpace(reviewPackPath))
             throw new ArgumentException("A review pack path is required.", nameof(reviewPackPath));
@@ -33,6 +57,8 @@ public sealed class ExpertAnnotationDraftWriter
             throw new ArgumentException("A state id is required.", nameof(stateId));
         if (rankedOptionIds is null)
             throw new ArgumentNullException(nameof(rankedOptionIds));
+        if (reviewerId is not null && string.IsNullOrWhiteSpace(reviewerId))
+            throw new ArgumentException("An annotation reviewer id is required.", nameof(reviewerId));
         if (string.IsNullOrWhiteSpace(outputDirectory))
             throw new ArgumentException("An annotation output directory is required.", nameof(outputDirectory));
 
@@ -80,10 +106,17 @@ public sealed class ExpertAnnotationDraftWriter
 
         var document = new JObject
         {
-            ["protocolVersion"] = "1.0.0",
+            ["protocolVersion"] = reviewerId is null
+                ? ExpertAnnotation.LegacyProtocolVersion
+                : ExpertAnnotation.CurrentProtocolVersion,
             ["stateId"] = stateId,
             ["expertTop3"] = routes
         };
+        if (reviewerId is not null)
+        {
+            document["reviewerId"] = reviewerId;
+            document["reviewedAtUtc"] = _utcNow();
+        }
         var annotation = document.ToObject<ExpertAnnotation>() ??
                          throw new JsonSerializationException("Generated annotation JSON produced null.");
         annotation.Validate();

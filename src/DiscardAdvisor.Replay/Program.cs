@@ -21,6 +21,7 @@ public static class Program
                     annotationCommand.ReviewPack,
                     annotationCommand.StateId,
                     annotationCommand.RankedOptions,
+                    annotationCommand.ReviewerId,
                     annotationCommand.OutputDirectory,
                     annotationCommand.Overwrite);
                 Console.WriteLine($"Expert annotation: {annotationPath}");
@@ -69,17 +70,20 @@ public static class Program
         string ReviewPack,
         string StateId,
         IReadOnlyList<string> RankedOptions,
+        string ReviewerId,
         string OutputDirectory,
         bool Overwrite)
     {
         public const string Usage =
             "Usage: DiscardAdvisor.Replay annotate --review-pack <path> --state-id <id> " +
-            "--rank <option-id> [--rank <option-id>] [--rank <option-id>] [--output <directory>] [--force]";
+            "--reviewer-id <anonymous-id> --rank <option-id> [--rank <option-id>] [--rank <option-id>] " +
+            "[--output <directory>] [--force]";
 
         public static AnnotationCommand Parse(IReadOnlyList<string> args)
         {
             string? reviewPack = null;
             string? stateId = null;
+            string? reviewerId = null;
             string? output = null;
             var ranks = new List<string>();
             var overwrite = false;
@@ -102,6 +106,9 @@ public static class Program
                     case "--state-id":
                         stateId = value;
                         break;
+                    case "--reviewer-id":
+                        reviewerId = value;
+                        break;
                     case "--rank":
                         ranks.Add(value);
                         break;
@@ -116,12 +123,14 @@ public static class Program
                 throw new ArgumentException("--review-pack is required.");
             if (string.IsNullOrWhiteSpace(stateId))
                 throw new ArgumentException("--state-id is required.");
+            if (string.IsNullOrWhiteSpace(reviewerId))
+                throw new ArgumentException("--reviewer-id is required.");
             if (ranks.Count is < 1 or > 3)
                 throw new ArgumentException("Provide one to three --rank options.");
             output ??= Path.Combine(
                 Path.GetDirectoryName(Path.GetFullPath(reviewPack)) ?? Environment.CurrentDirectory,
                 "annotations");
-            return new AnnotationCommand(reviewPack, stateId, ranks, output, overwrite);
+            return new AnnotationCommand(reviewPack, stateId, ranks, reviewerId, output, overwrite);
         }
     }
 
