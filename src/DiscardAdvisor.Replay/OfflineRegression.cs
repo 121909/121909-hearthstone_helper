@@ -92,6 +92,19 @@ public sealed record OfflineRegressionReport(
     public bool MeetsExpertAnnotationTarget => AnnotatedSnapshotCount >= 200 &&
                                                ExpertTop3ConsistencyRate >= 0.8d;
 
+    public bool MeetsVisibleSuggestionPrerequisites => Passed &&
+                                                       EvaluatedSnapshotCount == SnapshotCount &&
+                                                       RouteCount > 0 &&
+                                                       LegalRouteCount == RouteCount &&
+                                                       DeadlineExpiredCount == 0 &&
+                                                       LatencyP95Ms < 300 &&
+                                                       MeetsExpertAnnotationTarget &&
+                                                       ShadowRun.MeetsAutomatedAcceptanceThresholds &&
+                                                       ShadowRun.UnsupportedAnalysisCount == 0 &&
+                                                       ShadowRun.UnsupportedInteractionOccurrenceCount == 0 &&
+                                                       UnsupportedInteractions.IsEmpty &&
+                                                       InputErrors.IsEmpty;
+
     public bool Passed
     {
         get

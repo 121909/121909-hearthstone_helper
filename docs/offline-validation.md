@@ -80,3 +80,16 @@ replace an existing review unless `-Force` is supplied. Use the pack's
 regression with the annotation directory as an input.
 
 Offline reports include legal-route rate, p50/p95/maximum latency, deadline expiration, Top-3 consistency, and unsupported-interaction counts. Deadline expiration compares compute time with the Snapshot's remaining turn time. State supersession and whether an expired result became visible require shadow-run telemetry and are not inferred from Power.log.
+
+## Visible-test gate
+
+The report exposes `meetsVisibleSuggestionPrerequisites`. It remains false until the offline routes are fully evaluated and legal, p95 latency is below 300 ms with no deadline expirations or unsupported interactions, the expert target is met (200 annotations and at least 80% primary-route Top-3 consistency), and one complete 50-game shadow cohort passes the automated thresholds. This gate intentionally requires real evidence; fixture-only or synthetic telemetry cannot enable visible suggestions.
+
+Keep `profiles\release.json` aligned with the plugin and rule versions used for the shadow run. Once the final report is ready, enable the small visible-test cohort with:
+
+```powershell
+.\scripts\enable-visible-test.ps1 `
+  -RegressionReportPath .\.artifacts\offline-regression\offline-regression.json
+```
+
+The script verifies the prerequisite flag and exact version cohort before atomically writing `mode: experimental`; a failed check never changes the settings file.

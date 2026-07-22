@@ -36,7 +36,7 @@ worker; Snapshot fixture I/O does not run on HDT's update thread.
 
 ## Presentation mode
 
-The plugin defaults to `experimental`, which attaches the recommendation Overlay. For a no-display shadow run, create `DiscardAdvisor\settings.json` under HDT's data directory before loading the plugin:
+The plugin defaults to `shadow`, including when `DiscardAdvisor\settings.json` does not exist. Shadow mode is the safe starting point and does not attach the recommendation Overlay. Explicitly opt into shadow mode by creating `DiscardAdvisor\settings.json` under HDT's data directory:
 
 ```json
 {
@@ -44,7 +44,7 @@ The plugin defaults to `experimental`, which attaches the recommendation Overlay
 }
 ```
 
-Shadow mode still captures privacy-filtered fixtures and runs the local advisor, but it never attaches the Overlay. Diagnostics record game boundaries and one terminal disposition for each analysis (`Published`, `Superseded`, `Cancelled`, or `Failed`). Invalid settings fail closed to shadow mode.
+Shadow mode still captures privacy-filtered fixtures and runs the local advisor, but it never attaches the Overlay. Diagnostics record game boundaries and one terminal disposition for each analysis (`Published`, `Superseded`, `Cancelled`, or `Failed`). Invalid settings and a missing settings file both fail closed to shadow mode. The `experimental` value is only for the small visible-test cohort after the final evidence gate passes.
 
 To build and install the complete dependency set for a shadow run, close HDT and run:
 
@@ -63,3 +63,12 @@ After the run, aggregate all evidence in one report:
     "$env:APPDATA\HearthstoneDeckTracker\DiscardAdvisor\Fixtures", `
     "$env:APPDATA\HearthstoneDeckTracker\DiscardAdvisor\Diagnostics"
 ```
+
+The release cohort is recorded in `profiles\release.json`. Do not switch a live settings file to `experimental` manually. After the final report contains at least 200 real expert annotations, at least 50 completed real shadow games, and all automated thresholds, run the Windows gate:
+
+```powershell
+.\scripts\enable-visible-test.ps1 `
+  -RegressionReportPath .\.artifacts\offline-regression\offline-regression.json
+```
+
+The gate requires the report's single plugin/rule version cohort to match the release manifest, then atomically writes `mode: experimental`. Any missing evidence, mixed cohort, malformed report, or write failure leaves the existing settings unchanged.

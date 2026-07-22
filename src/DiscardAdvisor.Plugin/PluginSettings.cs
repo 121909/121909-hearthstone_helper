@@ -32,7 +32,7 @@ public sealed class PluginSettings
         if (string.IsNullOrWhiteSpace(path))
             throw new ArgumentException("A settings path is required.", nameof(path));
         if (!File.Exists(path))
-            return Experimental;
+            return Shadow;
         try
         {
             var document = JsonConvert.DeserializeObject<SettingsDocument>(File.ReadAllText(path));

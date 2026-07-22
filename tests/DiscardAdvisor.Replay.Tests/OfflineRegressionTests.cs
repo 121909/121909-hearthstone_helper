@@ -135,6 +135,7 @@ public sealed class OfflineRegressionTests
         Assert.True(report.RouteCount > 0);
         Assert.Equal(1, report.ExpertTop3MatchCount);
         Assert.Equal(1d, report.ExpertTop3ConsistencyRate);
+        Assert.False(report.MeetsVisibleSuggestionPrerequisites);
         Assert.Empty(report.UnsupportedInteractions);
     }
 
@@ -246,6 +247,65 @@ public sealed class OfflineRegressionTests
     }
 
     [Fact]
+    public void VisibleSuggestionGateRequiresCompleteOfflineAndShadowEvidence()
+    {
+        var shadow = new ShadowRunReport(
+            LogFileCount: 1,
+            StartedGameCount: 50,
+            CompletedGameCount: 50,
+            RequestCount: 200,
+            AnalysisCount: 200,
+            PublishedCount: 200,
+            SupersededCount: 0,
+            CancelledCount: 0,
+            FailedCount: 0,
+            DuplicateRequestCount: 0,
+            MissingRequestCount: 0,
+            UnfinishedRequestCount: 0,
+            VisibleSuggestionCount: 0,
+            UnsupportedAnalysisCount: 0,
+            UnsupportedInteractionOccurrenceCount: 0,
+            RunCount: 1,
+            VersionCohortCount: 1,
+            MissingVersionMetadataGameCount: 0,
+            VersionCohorts: ImmutableArray.Create(new ShadowVersionCohort("0.4.4", "0.3.1", 50, 50, 200, 200)),
+            LatencyP50Ms: 100,
+            LatencyP95Ms: 200,
+            LatencyMaximumMs: 250);
+        var report = new OfflineRegressionReport(
+            DateTimeOffset.Parse("2026-07-22T00:00:00Z"),
+            new OfflineRegressionOptions(),
+            ReplayCount: 50,
+            SnapshotCount: 200,
+            EvaluatedSnapshotCount: 200,
+            AnnotatedSnapshotCount: 200,
+            ExpertTop3MatchCount: 160,
+            RouteCount: 600,
+            LegalRouteCount: 600,
+            DeadlineExpiredCount: 0,
+            LatencyP50Ms: 100,
+            LatencyP95Ms: 200,
+            LatencyMaximumMs: 250,
+            ShadowRun: shadow,
+            UnsupportedInteractions: ImmutableDictionary<string, int>.Empty,
+            InputErrors: ImmutableArray<string>.Empty,
+            Replays: ImmutableArray<ReplayArchiveSummary>.Empty,
+            Snapshots: ImmutableArray<SnapshotEvaluation>.Empty);
+
+        Assert.True(report.MeetsVisibleSuggestionPrerequisites);
+        Assert.False((report with { ExpertTop3MatchCount = 159 }).MeetsVisibleSuggestionPrerequisites);
+        Assert.False((report with { LatencyP95Ms = 300 }).MeetsVisibleSuggestionPrerequisites);
+        Assert.False((report with
+        {
+            ShadowRun = shadow with { CompletedGameCount = 49 }
+        }).MeetsVisibleSuggestionPrerequisites);
+        Assert.False((report with
+        {
+            ShadowRun = shadow with { UnsupportedAnalysisCount = 1 }
+        }).MeetsVisibleSuggestionPrerequisites);
+    }
+
+    [Fact]
     public void RouteLegalityVerifier_RejectsInvalidAction()
     {
         var input = new RegressionInputLoader().Load(new[] { FixturePath("minimal-snapshot.json") });
@@ -274,6 +334,9 @@ public sealed class OfflineRegressionTests
         Assert.True(File.Exists(paths.MarkdownPath));
         Assert.True(File.Exists(paths.ExpertReviewPath));
         Assert.Contains("Legal routes", File.ReadAllText(paths.MarkdownPath), StringComparison.Ordinal);
+        Assert.Contains("Visible-suggestion prerequisites", File.ReadAllText(paths.MarkdownPath), StringComparison.Ordinal);
+        var reportJson = JObject.Parse(File.ReadAllText(paths.JsonPath));
+        Assert.False(reportJson.Value<bool>("meetsVisibleSuggestionPrerequisites"));
         var review = JObject.Parse(File.ReadAllText(paths.ExpertReviewPath));
         Assert.Equal("BLIND_ROUTE_RANKING", review.Value<string>("reviewMethod"));
         var pending = Assert.IsType<JArray>(review["pending"]);

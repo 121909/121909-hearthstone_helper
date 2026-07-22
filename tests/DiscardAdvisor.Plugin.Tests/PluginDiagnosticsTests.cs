@@ -14,12 +14,15 @@ namespace DiscardAdvisor.Plugin.Tests;
 public sealed class PluginDiagnosticsTests
 {
     [Fact]
-    public void SettingsUseExperimentalByDefaultAndFailClosedToShadow()
+    public void SettingsDefaultAndFailClosedToShadow()
     {
         var directory = CreateTemporaryDirectory();
         try
         {
             var path = Path.Combine(directory, "settings.json");
+            Assert.Equal(PluginPresentationMode.Shadow, PluginSettings.Load(path).PresentationMode);
+
+            File.WriteAllText(path, "{ \"mode\": \"experimental\" }");
             Assert.Equal(PluginPresentationMode.Experimental, PluginSettings.Load(path).PresentationMode);
 
             File.WriteAllText(path, "{ \"mode\": \"shadow\" }");

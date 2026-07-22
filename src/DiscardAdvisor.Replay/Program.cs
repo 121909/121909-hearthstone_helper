@@ -45,6 +45,7 @@ public static class Program
             Console.WriteLine($"Shadow requests/analyses: {report.ShadowRun.RequestCount}/{report.ShadowRun.AnalysisCount}");
             Console.WriteLine($"Shadow superseded: {report.ShadowRun.SupersededCount}/{report.ShadowRun.AnalysisCount}");
             Console.WriteLine($"Shadow thresholds: {(report.ShadowRun.MeetsAutomatedAcceptanceThresholds ? "MET" : "NOT MET")}");
+            Console.WriteLine($"Visible-test prerequisites: {(report.MeetsVisibleSuggestionPrerequisites ? "MET" : "NOT MET")}");
             Console.WriteLine($"JSON report: {paths.JsonPath}");
             Console.WriteLine($"Markdown report: {paths.MarkdownPath}");
             Console.WriteLine($"Expert review pack: {paths.ExpertReviewPath}");

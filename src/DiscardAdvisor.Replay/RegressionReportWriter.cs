@@ -55,6 +55,7 @@ public sealed class RegressionReportWriter
         builder.AppendLine($"- Expert annotations: {report.AnnotatedSnapshotCount}/200");
         builder.AppendLine($"- Expert primary route in Advisor Top-3: {FormatOptionalPercent(report.ExpertTop3ConsistencyRate)} ({report.ExpertTop3MatchCount}/{report.AnnotatedSnapshotCount}, target 80%)");
         builder.AppendLine($"- Expert thresholds: **{(report.MeetsExpertAnnotationTarget ? "MET" : "NOT MET")}**");
+        builder.AppendLine($"- Visible-suggestion prerequisites: **{(report.MeetsVisibleSuggestionPrerequisites ? "MET" : "NOT MET")}**");
         builder.AppendLine();
         builder.AppendLine("## Shadow run");
         builder.AppendLine();
