@@ -1,0 +1,14 @@
+{
+  "protocolVersion": "1.0.0",
+  "stateId": "turn-1:fixture",
+  "expertTop3": [
+    {
+      "label": "End the empty opening turn",
+      "actions": [
+        {
+          "kind": "END_TURN"
+        }
+      ]
+    }
+  ]
+}

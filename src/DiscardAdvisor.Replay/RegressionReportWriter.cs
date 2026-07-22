@@ -1,0 +1,82 @@
+using System;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Text;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
+
+namespace DiscardAdvisor.Replay;
+
+public sealed record RegressionReportPaths(string JsonPath, string MarkdownPath);
+
+public sealed class RegressionReportWriter
+{
+    private static readonly JsonSerializerSettings JsonSettings = new()
+    {
+        ContractResolver = new CamelCasePropertyNamesContractResolver(),
+        Formatting = Formatting.Indented,
+        NullValueHandling = NullValueHandling.Include
+    };
+
+    public RegressionReportPaths Write(OfflineRegressionReport report, string outputDirectory)
+    {
+        if (report is null)
+            throw new ArgumentNullException(nameof(report));
+        if (string.IsNullOrWhiteSpace(outputDirectory))
+            throw new ArgumentException("An output directory is required.", nameof(outputDirectory));
+        var directory = Path.GetFullPath(outputDirectory);
+        Directory.CreateDirectory(directory);
+        var jsonPath = Path.Combine(directory, "offline-regression.json");
+        var markdownPath = Path.Combine(directory, "offline-regression.md");
+        File.WriteAllText(jsonPath, JsonConvert.SerializeObject(report, JsonSettings) + Environment.NewLine, new UTF8Encoding(false));
+        File.WriteAllText(markdownPath, BuildMarkdown(report), new UTF8Encoding(false));
+        return new RegressionReportPaths(jsonPath, markdownPath);
+    }
+
+    private static string BuildMarkdown(OfflineRegressionReport report)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("# Offline regression report");
+        builder.AppendLine();
+        builder.AppendLine($"- Generated (UTC): `{report.GeneratedAtUtc:O}`");
+        builder.AppendLine($"- Result: **{(report.Passed ? "PASS" : "FAIL")}**");
+        builder.AppendLine($"- Replays: {report.ReplayCount}");
+        builder.AppendLine($"- Snapshots: {report.EvaluatedSnapshotCount}/{report.SnapshotCount} evaluated");
+        builder.AppendLine($"- Legal routes: {report.LegalRouteCount}/{report.RouteCount} ({FormatPercent(report.LegalRouteRate)})");
+        builder.AppendLine($"- Latency p50/p95/max: {report.LatencyP50Ms:F2}/{report.LatencyP95Ms:F2}/{report.LatencyMaximumMs:F2} ms");
+        builder.AppendLine($"- Deadline expiration: {report.DeadlineExpiredCount}/{report.EvaluatedSnapshotCount} ({FormatPercent(report.DeadlineExpirationRate)})");
+        builder.AppendLine($"- Expert Top-3 consistency: {FormatOptionalPercent(report.ExpertTop3ConsistencyRate)} ({report.ExpertTop3MatchCount}/{report.AnnotatedSnapshotCount})");
+        builder.AppendLine();
+        builder.AppendLine("## Unsupported interactions");
+        builder.AppendLine();
+        if (report.UnsupportedInteractions.IsEmpty)
+            builder.AppendLine("None.");
+        else
+        {
+            builder.AppendLine("| Interaction | Snapshots |");
+            builder.AppendLine("| --- | ---: |");
+            foreach (var item in report.UnsupportedInteractions.OrderBy(item => item.Key, StringComparer.Ordinal))
+                builder.AppendLine($"| `{EscapeCell(item.Key)}` | {item.Value} |");
+        }
+        builder.AppendLine();
+        builder.AppendLine("## Input errors");
+        builder.AppendLine();
+        if (report.InputErrors.IsEmpty)
+            builder.AppendLine("None.");
+        else
+        {
+            foreach (var error in report.InputErrors)
+                builder.AppendLine($"- {error}");
+        }
+        builder.AppendLine();
+        builder.AppendLine("Deadline expiration is an offline deadline check. State supersession and visible stale-result rate require shadow-run telemetry.");
+        return builder.ToString();
+    }
+
+    private static string FormatPercent(double value) => value.ToString("P2", CultureInfo.InvariantCulture);
+
+    private static string FormatOptionalPercent(double? value) => value.HasValue ? FormatPercent(value.Value) : "N/A";
+
+    private static string EscapeCell(string value) => value.Replace("|", "\\|", StringComparison.Ordinal);
+}
