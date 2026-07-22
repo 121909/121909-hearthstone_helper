@@ -110,6 +110,14 @@ public sealed record LocationState(
 
 public sealed record ZoneCardState(int EntityId, string CardId);
 
+public sealed record ChoiceCandidateState(int EntityId, string CardId);
+
+public sealed record PendingChoiceState(
+    int ChoiceId,
+    string ChoiceType,
+    string SourceCardId,
+    ImmutableArray<ChoiceCandidateState> Candidates);
+
 public sealed record PlayerState(
     HeroState Hero,
     HeroPowerState HeroPower,
@@ -163,7 +171,13 @@ public sealed record PlayerState(
         .ToImmutableArray();
 }
 
-public sealed record RuleGameState(int TurnNumber, PlayerSide ActiveSide, PlayerState Friendly, PlayerState Opponent)
+public sealed record RuleGameState(
+    int TurnNumber,
+    PlayerSide ActiveSide,
+    PlayerState Friendly,
+    PlayerState Opponent,
+    int NextEntityId = 10000,
+    PendingChoiceState? PendingChoice = null)
 {
     public PlayerState Player(PlayerSide side) => side == PlayerSide.Friendly ? Friendly : Opponent;
 
@@ -172,5 +186,10 @@ public sealed record RuleGameState(int TurnNumber, PlayerSide ActiveSide, Player
         : this with { Opponent = player };
 
     public static PlayerSide Other(PlayerSide side) => side == PlayerSide.Friendly ? PlayerSide.Opponent : PlayerSide.Friendly;
-}
 
+    public RuleGameState AllocateEntity(out int entityId)
+    {
+        entityId = NextEntityId;
+        return this with { NextEntityId = NextEntityId + 1 };
+    }
+}

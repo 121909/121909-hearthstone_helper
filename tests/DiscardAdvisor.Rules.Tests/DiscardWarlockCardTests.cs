@@ -1,0 +1,187 @@
+using System;
+using System.Collections.Immutable;
+using System.Linq;
+using DiscardAdvisor.Domain;
+using DiscardAdvisor.Rules.Model;
+using Xunit;
+
+namespace DiscardAdvisor.Rules.Tests;
+
+public sealed class DiscardWarlockCardTests
+{
+    private readonly DiscardWarlockRuleEngine _engine = new();
+
+    public static TheoryData<string> TargetCards
+    {
+        get
+        {
+            var data = new TheoryData<string>();
+            foreach (var cardId in DiscardWarlockCardCatalog.TargetCardIds)
+                data.Add(cardId);
+            return data;
+        }
+    }
+
+    [Fact]
+    public void CatalogCoversAllSeventeenProfileEntries()
+    {
+        Assert.Equal(17, DiscardWarlockCardCatalog.TargetCardIds.Count);
+        Assert.Equal(
+            TargetDeckProfile.Cards.Select(card => card.CardId).OrderBy(id => id, StringComparer.Ordinal),
+            DiscardWarlockCardCatalog.TargetCardIds.OrderBy(id => id, StringComparer.Ordinal));
+        foreach (var cardId in DiscardWarlockCardCatalog.TargetCardIds)
+            Assert.Equal(cardId, DiscardWarlockCardCatalog.Create(cardId, 1).CardId);
+    }
+
+    [Theory]
+    [MemberData(nameof(TargetCards))]
+    public void EveryTargetCardHasALegalPlayPath(string cardId)
+    {
+        var card = DiscardWarlockCardCatalog.Create(cardId, 10);
+        var state = CreateState(hand: new[] { card });
+        var target = card.TargetKind == TargetKind.None ? null : (int?)200;
+
+        var result = _engine.Apply(state, new PlayCardAction(PlayerSide.Friendly, 10, target));
+
+        Assert.True(result.IsLegal);
+        Assert.Contains(result.Events, ruleEvent => ruleEvent.Type == "play_card" && ruleEvent.CardId == cardId);
+    }
+
+    [Fact]
+    public void EntropicContinuityBuffsExistingBoardThenAddsTwoShreds()
+    {
+        var spell = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.EntropicContinuity, 10);
+        var minion = new MinionState(20, "MINION", 1, 2, 3, 3);
+        var state = CreateState(hand: new[] { spell }, board: new[] { minion });
+
+        var result = _engine.Apply(state, new PlayCardAction(PlayerSide.Friendly, 10));
+
+        Assert.True(result.IsLegal);
+        Assert.Equal((3, 4, 4), (result.State.Friendly.Board[0].Attack, result.State.Friendly.Board[0].Health, result.State.Friendly.Board[0].MaxHealth));
+        Assert.Equal(2, result.State.Friendly.Deck.Count(card => card.CardId == DiscardWarlockCardIds.ShredOfTime));
+    }
+
+    [Fact]
+    public void PartyFiendSummonsTwoFelbeastsBeforeSelfDamage()
+    {
+        var card = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.PartyFiend, 10);
+        var state = CreateState(hand: new[] { card }, heroHealth: 10);
+
+        var result = _engine.Apply(state, new PlayCardAction(PlayerSide.Friendly, 10));
+
+        Assert.Equal(3, result.State.Friendly.Board.Length);
+        Assert.Equal(7, result.State.Friendly.Hero.Health);
+        Assert.Equal(2, result.State.Friendly.Board.Count(minion => minion.CardId == DiscardWarlockCardIds.Felbeast));
+        Assert.Equal("damage", result.Events.Last().Type);
+    }
+
+    [Fact]
+    public void PlatysaurDrawsOneCard()
+    {
+        var platysaur = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.Platysaur, 10);
+        var deckCard = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.BonewebEgg, 30);
+        var state = CreateState(hand: new[] { platysaur }, deck: new[] { deckCard });
+
+        var result = _engine.Apply(state, new PlayCardAction(PlayerSide.Friendly, 10));
+
+        Assert.Contains(result.State.Friendly.Hand, card => card.EntityId == 30);
+        Assert.Contains(result.Events, ruleEvent => ruleEvent.Type == "draw");
+    }
+
+    [Fact]
+    public void SoulfireDealsDamageBeforeRequestingRandomDiscard()
+    {
+        var soulfire = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.Soulfire, 10);
+        var state = CreateState(hand: new[] { soulfire }, opponentHealth: 10);
+
+        var result = _engine.Apply(state, new PlayCardAction(PlayerSide.Friendly, 10, 200));
+
+        Assert.Equal(6, result.State.Opponent.Hero.Health);
+        Assert.Equal("damage", result.Events[^2].Type);
+        Assert.Equal("random_discard_pending", result.Events[^1].Type);
+    }
+
+    [Fact]
+    public void SoulariumDrawsThreeTemporaryCardsAndCastsShred()
+    {
+        var soularium = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.Soularium, 10);
+        var deck = new[]
+        {
+            DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.BonewebEgg, 30),
+            DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.ShredOfTime, 31),
+            DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.HandOfGuldan, 32)
+        };
+        var state = CreateState(hand: new[] { soularium }, deck: deck, heroHealth: 10);
+
+        var result = _engine.Apply(state, new PlayCardAction(PlayerSide.Friendly, 10));
+
+        Assert.Equal(2, result.State.Friendly.Hand.Length);
+        Assert.All(result.State.Friendly.Hand, card => Assert.True(card.Temporary));
+        Assert.Equal(7, result.State.Friendly.Hero.Health);
+        Assert.Contains(result.Events, ruleEvent => ruleEvent.Type == "casts_when_drawn");
+    }
+
+    [Fact]
+    public void ChamberAndChronoclawsUseLockedStats()
+    {
+        var chamber = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.ChamberOfViscidus, 10);
+        var claws = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.Chronoclaws, 11);
+
+        var chamberResult = _engine.Apply(CreateState(hand: new[] { chamber }), new PlayCardAction(PlayerSide.Friendly, 10));
+        var clawsResult = _engine.Apply(CreateState(hand: new[] { claws }), new PlayCardAction(PlayerSide.Friendly, 11));
+
+        Assert.Equal(2, chamberResult.State.Friendly.Locations[0].Durability);
+        Assert.Equal((4, 3), (clawsResult.State.Friendly.Weapon!.Attack, clawsResult.State.Friendly.Weapon.Durability));
+    }
+
+    [Fact]
+    public void DukeStatsUseDiscardCountAtCardCreation()
+    {
+        var duke = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.DukeOfBelow, 10, discardCount: 3);
+
+        Assert.Equal((8, 8, true), (duke.Attack, duke.Health, duke.Rush));
+    }
+
+    [Fact]
+    public void CursedCatacombsUsesOnlyActualChoiceCandidates()
+    {
+        var candidate = new ChoiceCandidateState(50, DiscardWarlockCardIds.HandOfGuldan);
+        var state = CreateState() with
+        {
+            PendingChoice = new PendingChoiceState(
+                7,
+                "DISCOVER",
+                DiscardWarlockCardIds.CursedCatacombs,
+                ImmutableArray.Create(candidate))
+        };
+
+        var invalid = _engine.Apply(state, new SelectChoiceAction(PlayerSide.Friendly, 7, 51));
+        var selected = _engine.Apply(state, new SelectChoiceAction(PlayerSide.Friendly, 7, 50));
+
+        Assert.Equal(RuleError.InvalidTarget, invalid.Error);
+        var generated = Assert.Single(selected.State.Friendly.Hand);
+        Assert.True(generated.Temporary);
+        Assert.Equal(DiscardWarlockCardIds.HandOfGuldan, generated.CardId);
+    }
+
+    private static RuleGameState CreateState(
+        HandCardState[]? hand = null,
+        HandCardState[]? deck = null,
+        MinionState[]? board = null,
+        int heroHealth = 30,
+        int opponentHealth = 30)
+    {
+        var friendly = PlayerState.Create(
+            new HeroState(100, "HERO", heroHealth, 30),
+            new HeroPowerState(101, "HERO_POWER", 2),
+            new ManaState(10, 0, 0, 10, 0, 0),
+            hand,
+            board,
+            deck: deck);
+        var opponent = PlayerState.Create(
+            new HeroState(200, "OPPONENT_HERO", opponentHealth, 30),
+            new HeroPowerState(201, "OPPONENT_POWER", 2),
+            new ManaState(10, 0, 0, 10, 0, 0));
+        return new RuleGameState(1, PlayerSide.Friendly, friendly, opponent);
+    }
+}
