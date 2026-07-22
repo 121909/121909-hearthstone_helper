@@ -8,6 +8,10 @@ namespace DiscardAdvisor.Rules;
 
 public sealed class DiscardWarlockRuleEngine
 {
+    public const string ContinueWickedWhispersPending = "continue_wicked_whispers_pending";
+    public const string ContinueChamberDrawPending = "continue_chamber_draw_pending";
+    public const string ContinueEndTurnPending = "continue_end_turn_pending";
+
     private readonly CommonRuleEngine _common = new();
 
     public TransitionResult Apply(RuleGameState state, RuleAction action)
@@ -21,13 +25,11 @@ public sealed class DiscardWarlockRuleEngine
         if (action is not PlayCardAction play)
         {
             if (action is EndTurnAction endTurn)
-            {
-                var expired = ResolveTemporaryCards(TransitionResult.Legal(state, Array.Empty<RuleEvent>()), endTurn.Side);
-                var ended = _common.Apply(expired.State, action);
-                return ended.IsLegal
-                    ? ended with { Events = expired.Events.AddRange(ended.Events) }
-                    : ended;
-            }
+                return ResolveTemporaryCardsAndEndTurn(
+                    TransitionResult.Legal(state, Array.Empty<RuleEvent>()),
+                    endTurn.Side);
+            var lifeTap = action is UseHeroPowerAction heroPower &&
+                          state.Player(heroPower.Side).HeroPower.CardId == DiscardWarlockCardIds.LifeTap;
             var chronoclawsAttack = action is AttackAction attack &&
                 state.Player(attack.Side).Hero.EntityId == attack.SourceEntityId &&
                 state.Player(attack.Side).Weapon?.CardId == DiscardWarlockCardIds.Chronoclaws;
@@ -35,6 +37,8 @@ public sealed class DiscardWarlockRuleEngine
             if (!commonResult.IsLegal)
                 return commonResult;
             commonResult = ResolvePlatysaurDeaths(commonResult);
+            if (lifeTap)
+                return ResolveLifeTap(commonResult, action.Side);
             return chronoclawsAttack ? ResolveHighestCostDiscard(commonResult, action.Side, "chronoclaws") : commonResult;
         }
 
@@ -58,9 +62,7 @@ public sealed class DiscardWarlockRuleEngine
             DiscardWarlockCardIds.Soularium => Draw(result, side, 3, true, card.EntityId),
             DiscardWarlockCardIds.WickedWhispers => WickedWhispers(result, side, card.EntityId),
             DiscardWarlockCardIds.DisposableAcolytes => RequestRandomOneCostSummons(result, side, card.EntityId),
-            DiscardWarlockCardIds.OcularOccultist => Append(
-                result,
-                new RuleEvent("hand_discard_choice_pending", card.EntityId, null, 0, card.CardId)),
+            DiscardWarlockCardIds.OcularOccultist => OcularOccultist(result, side, card.EntityId),
             DiscardWarlockCardIds.SoulBarrage => Append(
                 result,
                 new RuleEvent("random_damage_pending", card.EntityId, null, 5, card.CardId)),
@@ -98,24 +100,47 @@ public sealed class DiscardWarlockRuleEngine
     {
         var state = result.State;
         var events = result.Events;
-        for (var index = 0; index < 2 && state.Player(side).BoardCount < CommonRuleEngine.MaximumBoardSize; index++)
+        var sourcePosition = state.Player(side).Board
+            .First(minion => minion.EntityId == sourceEntityId).BoardPosition;
+        var insertionPosition = sourcePosition + 1;
+        for (var index = 0; index < 2; index++)
         {
-            state = state.AllocateEntity(out var entityId);
             var player = state.Player(side);
+            if (player.BoardCount >= CommonRuleEngine.MaximumBoardSize)
+            {
+                events = events.Add(new RuleEvent(
+                    "summon_failed_board_full",
+                    sourceEntityId,
+                    null,
+                    0,
+                    DiscardWarlockCardIds.Felbeast));
+                continue;
+            }
+            state = state.AllocateEntity(out var entityId);
+            player = state.Player(side);
             var token = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.Felbeast, entityId);
             player = player with
             {
-                Board = player.Board.Add(new MinionState(
-                    token.EntityId,
-                    token.CardId,
-                    player.BoardCount + 1,
-                    token.Attack,
-                    token.Health,
-                    token.Health,
-                    SummonedThisTurn: true))
+                Board = player.Board.Select(minion => minion.BoardPosition >= insertionPosition
+                        ? minion with { BoardPosition = minion.BoardPosition + 1 }
+                        : minion)
+                    .Append(new MinionState(
+                        token.EntityId,
+                        token.CardId,
+                        insertionPosition,
+                        token.Attack,
+                        token.Health,
+                        token.Health,
+                        SummonedThisTurn: true))
+                    .OrderBy(minion => minion.BoardPosition)
+                    .ToImmutableArray(),
+                Locations = player.Locations.Select(location => location.BoardPosition >= insertionPosition
+                    ? location with { BoardPosition = location.BoardPosition + 1 }
+                    : location).ToImmutableArray()
             };
             state = state.WithPlayer(side, player);
             events = events.Add(new RuleEvent("summon", sourceEntityId, entityId, 0, token.CardId));
+            insertionPosition++;
         }
 
         var damagedPlayer = state.Player(side);
@@ -129,14 +154,35 @@ public sealed class DiscardWarlockRuleEngine
     {
         result = DealDamage(result, targetEntityId, 4, sourceEntityId);
         result = ResolvePlatysaurDeaths(result);
+        if (IsTerminal(result.State))
+            return result;
         return ResolveRandomDiscard(result, side, result.State.Player(side).Hand, "soulfire");
+    }
+
+    private TransitionResult ResolveLifeTap(TransitionResult result, PlayerSide side)
+    {
+        var sourceEntityId = result.State.Player(side).HeroPower.EntityId;
+        result = Draw(result, side, 1, false, sourceEntityId);
+        if (IsTerminal(result.State))
+            return result;
+        var player = result.State.Player(side);
+        player = player with { Hero = DamageHero(player.Hero, 2) };
+        return result with
+        {
+            State = result.State.WithPlayer(side, player),
+            Events = result.Events.Add(new RuleEvent("damage", sourceEntityId, player.Hero.EntityId, 2))
+        };
     }
 
     private TransitionResult Platysaur(TransitionResult result, PlayerSide side, int sourceEntityId)
     {
         var eventCount = result.Events.Length;
         result = Draw(result, side, 1, false, sourceEntityId);
-        var drawn = result.Events.Skip(eventCount).FirstOrDefault(ruleEvent => ruleEvent.Type == "draw");
+        var hand = result.State.Player(side).Hand;
+        var drawn = result.Events.Skip(eventCount).LastOrDefault(ruleEvent =>
+            ruleEvent.Type == "draw" &&
+            ruleEvent.SourceEntityId is int entityId &&
+            hand.Any(card => card.EntityId == entityId));
         if (drawn?.SourceEntityId is not int drawnEntityId)
             return result;
         return result with
@@ -149,6 +195,16 @@ public sealed class DiscardWarlockRuleEngine
         };
     }
 
+    private static TransitionResult OcularOccultist(TransitionResult result, PlayerSide side, int sourceEntityId) =>
+        result.State.Player(side).Hand.IsEmpty
+            ? result
+            : Append(result, new RuleEvent(
+                "hand_discard_choice_pending",
+                sourceEntityId,
+                null,
+                0,
+                DiscardWarlockCardIds.OcularOccultist));
+
     private TransitionResult WickedWhispers(TransitionResult result, PlayerSide side, int sourceEntityId)
     {
         var hand = result.State.Player(side).Hand;
@@ -156,7 +212,11 @@ public sealed class DiscardWarlockRuleEngine
             return ApplyBoardBuff(result, side, sourceEntityId);
         var lowestCost = hand.Min(card => card.Cost);
         var candidates = hand.Where(card => card.Cost == lowestCost).ToArray();
-        return ApplyBoardBuff(ResolveRandomDiscard(result, side, candidates, "wicked_whispers"), side, sourceEntityId);
+        var discarded = ResolveRandomDiscard(result, side, candidates, "wicked_whispers");
+        return ApplyAfterRandomEffects(
+            discarded,
+            new RuleEvent(ContinueWickedWhispersPending, sourceEntityId, (int)side),
+            value => ApplyBoardBuff(value, side, sourceEntityId));
     }
 
     private TransitionResult Draw(TransitionResult result, PlayerSide side, int count, bool temporary, int sourceEntityId)
@@ -165,31 +225,42 @@ public sealed class DiscardWarlockRuleEngine
         var events = result.Events;
         for (var index = 0; index < count; index++)
         {
-            var draw = _common.DrawCard(state, side);
-            state = draw.State;
-            events = events.AddRange(draw.Events);
-            var drawn = draw.Events.LastOrDefault(ruleEvent => ruleEvent.Type == "draw");
-            if (drawn?.SourceEntityId is not int entityId)
-                continue;
-
-            var player = state.Player(side);
-            var handCard = player.Hand.First(card => card.EntityId == entityId);
-            if (handCard.CardId == DiscardWarlockCardIds.ShredOfTime)
+            if (IsTerminal(state))
+                break;
+            while (true)
             {
-                player = player with
+                var player = state.Player(side);
+                if (!player.Deck.IsEmpty && player.Deck[0].CardId == DiscardWarlockCardIds.ShredOfTime)
                 {
-                    Hand = player.Hand.Remove(handCard),
-                    Graveyard = player.Graveyard.Add(new ZoneCardState(handCard.EntityId, handCard.CardId)),
-                    Hero = DamageHero(player.Hero, 3)
-                };
-                state = state.WithPlayer(side, player);
-                events = events.Add(new RuleEvent("casts_when_drawn", handCard.EntityId, player.Hero.EntityId, 3, handCard.CardId));
-            }
-            else if (temporary)
-            {
-                player = player with { Hand = player.Hand.Replace(handCard, handCard with { Temporary = true }) };
-                state = state.WithPlayer(side, player);
-                events = events.Add(new RuleEvent("mark_temporary", sourceEntityId, handCard.EntityId, 0, handCard.CardId));
+                    var shred = player.Deck[0];
+                    player = player with
+                    {
+                        Deck = player.Deck.RemoveAt(0),
+                        Graveyard = player.Graveyard.Add(new ZoneCardState(shred.EntityId, shred.CardId)),
+                        Hero = DamageHero(player.Hero, 3)
+                    };
+                    state = state.WithPlayer(side, player);
+                    events = events
+                        .Add(new RuleEvent("draw", shred.EntityId, null, 0, shred.CardId))
+                        .Add(new RuleEvent("casts_when_drawn", shred.EntityId, player.Hero.EntityId, 3, shred.CardId));
+                    if (IsTerminal(state))
+                        break;
+                    continue;
+                }
+
+                var draw = _common.DrawCard(state, side);
+                state = draw.State;
+                events = events.AddRange(draw.Events);
+                var drawn = draw.Events.LastOrDefault(ruleEvent => ruleEvent.Type == "draw");
+                if (drawn?.SourceEntityId is int entityId && temporary)
+                {
+                    player = state.Player(side);
+                    var handCard = player.Hand.First(card => card.EntityId == entityId);
+                    player = player with { Hand = player.Hand.Replace(handCard, handCard with { Temporary = true }) };
+                    state = state.WithPlayer(side, player);
+                    events = events.Add(new RuleEvent("mark_temporary", sourceEntityId, handCard.EntityId, 0, handCard.CardId));
+                }
+                break;
             }
         }
         return result with { State = state, Events = events };
@@ -274,7 +345,10 @@ public sealed class DiscardWarlockRuleEngine
             state.WithPlayer(action.Side, player) with { PendingChoice = null },
             new[] { new RuleEvent("use_location", location.EntityId, selected.EntityId, 0, location.CardId) });
         result = DiscardSpecific(result, action.Side, selected.EntityId, "chamber_of_viscidus");
-        return Draw(result, action.Side, 2, false, location.EntityId);
+        return ApplyAfterRandomEffects(
+            result,
+            new RuleEvent(ContinueChamberDrawPending, location.EntityId, (int)action.Side, 2),
+            value => Draw(value, action.Side, 2, false, location.EntityId));
     }
 
     private TransitionResult ResolveHighestCostDiscard(TransitionResult result, PlayerSide side, string source)
@@ -394,16 +468,77 @@ public sealed class DiscardWarlockRuleEngine
         return result with { State = state, Events = events };
     }
 
-    private TransitionResult ResolveTemporaryCards(TransitionResult result, PlayerSide side)
+    public TransitionResult ResolvePendingContinuation(RuleGameState state, RuleEvent pending)
     {
-        var temporaryEntityIds = result.State.Player(side).Hand
-            .Where(card => card.Temporary)
-            .Select(card => card.EntityId)
-            .ToArray();
-        foreach (var entityId in temporaryEntityIds)
-            result = DiscardSpecific(result, side, entityId, "temporary_expired");
-        return result;
+        if (state is null)
+            throw new ArgumentNullException(nameof(state));
+        if (pending is null)
+            throw new ArgumentNullException(nameof(pending));
+        if (pending.TargetEntityId is not int sideValue || !Enum.IsDefined(typeof(PlayerSide), sideValue))
+            return TransitionResult.Illegal(state, RuleError.UnsupportedAction);
+        var side = (PlayerSide)sideValue;
+        var result = TransitionResult.Legal(state, Array.Empty<RuleEvent>());
+        if (IsTerminal(state))
+            return result;
+        return pending.Type switch
+        {
+            ContinueWickedWhispersPending => ApplyBoardBuff(result, side, pending.SourceEntityId ?? 0),
+            ContinueChamberDrawPending => Draw(result, side, pending.Amount, false, pending.SourceEntityId ?? 0),
+            ContinueEndTurnPending => ResolveTemporaryCardsAndEndTurn(result, side),
+            _ => TransitionResult.Illegal(state, RuleError.UnsupportedAction)
+        };
     }
+
+    private TransitionResult ResolveTemporaryCardsAndEndTurn(TransitionResult result, PlayerSide side)
+    {
+        while (!IsTerminal(result.State))
+        {
+            var temporary = result.State.Player(side).Hand.FirstOrDefault(card => card.Temporary);
+            if (temporary is null)
+                break;
+            result = DiscardSpecific(result, side, temporary.EntityId, "temporary_expired");
+            if (HasPendingRandomEffect(result.Events))
+            {
+                return Append(result, new RuleEvent(
+                    ContinueEndTurnPending,
+                    TargetEntityId: (int)side));
+            }
+        }
+        if (IsTerminal(result.State))
+            return result;
+        var ended = _common.Apply(result.State, new EndTurnAction(side));
+        return ended.IsLegal
+            ? ended with { Events = result.Events.AddRange(ended.Events) }
+            : ended;
+    }
+
+    private static TransitionResult ApplyAfterRandomEffects(
+        TransitionResult result,
+        RuleEvent continuation,
+        Func<TransitionResult, TransitionResult> apply)
+    {
+        if (!result.Branches.IsEmpty)
+        {
+            return result with
+            {
+                Branches = result.Branches.Select(branch =>
+                {
+                    var branchResult = TransitionResult.Legal(branch.State, branch.Events);
+                    var continued = HasPendingRandomEffect(branch.Events)
+                        ? Append(branchResult, continuation)
+                        : apply(branchResult);
+                    return branch with { State = continued.State, Events = continued.Events };
+                }).ToImmutableArray()
+            };
+        }
+        return HasPendingRandomEffect(result.Events) ? Append(result, continuation) : apply(result);
+    }
+
+    private static bool HasPendingRandomEffect(IEnumerable<RuleEvent> events) => events.Any(ruleEvent =>
+        ruleEvent.Type is "random_damage_pending" or "random_one_cost_summon_pending");
+
+    private static bool IsTerminal(RuleGameState state) =>
+        state.Friendly.Hero.Health <= 0 || state.Opponent.Hero.Health <= 0;
 
     private TransitionResult ResolveDiscardBenefit(TransitionResult result, PlayerSide side, HandCardState card)
     {

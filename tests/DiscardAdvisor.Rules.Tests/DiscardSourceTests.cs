@@ -49,10 +49,21 @@ public sealed class DiscardSourceTests
         {
             var discardIndex = branch.Events.Select((ruleEvent, index) => (ruleEvent, index))
                 .First(value => value.ruleEvent.Type == "discard").index;
-            var buffIndex = branch.Events.Select((ruleEvent, index) => (ruleEvent, index))
-                .First(value => value.ruleEvent.Type == "board_buff").index;
-            Assert.True(discardIndex < buffIndex);
-            Assert.Equal((3, 3), (branch.State.Friendly.Board[0].Attack, branch.State.Friendly.Board[0].Health));
+            var discardedEntityId = branch.Events.First(ruleEvent => ruleEvent.Type == "discard").TargetEntityId;
+            if (discardedEntityId == lowB.EntityId)
+            {
+                var continuationIndex = branch.Events.Select((ruleEvent, index) => (ruleEvent, index))
+                    .First(value => value.ruleEvent.Type == DiscardWarlockRuleEngine.ContinueWickedWhispersPending).index;
+                Assert.True(discardIndex < continuationIndex);
+                Assert.Equal((2, 2), (branch.State.Friendly.Board[0].Attack, branch.State.Friendly.Board[0].Health));
+            }
+            else
+            {
+                var buffIndex = branch.Events.Select((ruleEvent, index) => (ruleEvent, index))
+                    .First(value => value.ruleEvent.Type == "board_buff").index;
+                Assert.True(discardIndex < buffIndex);
+                Assert.Equal((3, 3), (branch.State.Friendly.Board[0].Attack, branch.State.Friendly.Board[0].Health));
+            }
         });
     }
 

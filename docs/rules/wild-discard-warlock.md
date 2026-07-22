@@ -309,17 +309,28 @@ discard triggers caused by other effects, and lethal self-damage before the next
 request. The source has already left hand, so the first normal draw can use the
 slot it vacated. Stop the sequence on terminal lethal.
 
+### `CS2_056` Life Tap / 生命分流
+
+Using the Warlock hero power spends its live dynamic cost and consumes its use
+for the turn. Resolve one draw request first, including burn, fatigue, Shred of
+Time replacement draws, and terminal self-damage. If the game continues, deal 2
+damage to the friendly hero. A lethal Shred or fatigue draw ends the sequence
+before the additional 2 damage.
+
 ## Cross-card order examples
 
 | Interaction | Required order |
 | --- | --- |
 | Wicked Whispers discards Boneweb Egg | Discard and count Egg; summon up to two spiders; then buff all surviving friendly minions, including those spiders. |
+| Wicked Whispers discards Disposable Acolytes | Resolve both random summons and unsupported markers; then buff the surviving summoned minions. |
 | Ocular Occultist discards Walking Dead on a six-minion board | Occultist takes the seventh slot; Walking Dead is discarded and counted; its summon fails. |
 | Chronoclaws highest-cost tie | Finish combat and deaths; read current dynamic costs; create random branches for tied entity IDs; resolve the chosen discard. |
 | Soulfire discards Hand of Gul'dan | Deal 4; if non-terminal choose the random discard; count it; resolve all three draws in order. |
 | Hand of Gul'dan draws Shred of Time | Shred casts for 3 self-damage and requests a replacement draw; only then continue the remaining Hand draws. |
 | Soul Barrage kills a minion | Deal one missile; remove the dead minion and resolve its Deathrattle; rebuild the target pool for the next missile. |
+| Chamber discards lethal Soul Barrage | Resolve missiles first; terminal lethal prevents the Chamber's following two draws. |
 | Temporary Soul Barrage expires | End-turn discard and count Barrage; resolve all five missiles before expiring the next Temporary entity. |
+| Playing Catacombs or Ocular starts a Choice | End the current route at the client interaction; resume only from a new Snapshot containing actual candidates. |
 | Multiple discards in one chain | Increment count and refresh Duke before each discarded entity's own benefit resolves. |
 
 ## Unsupported boundaries

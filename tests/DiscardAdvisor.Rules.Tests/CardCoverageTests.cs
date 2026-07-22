@@ -141,14 +141,15 @@ public sealed class CardCoverageTests
         {
             DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.ShredOfTime, 30),
             DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.BonewebEgg, 31),
-            DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.WalkingDead, 32)
+            DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.WalkingDead, 32),
+            DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.DukeOfBelow, 33)
         };
         var state = CreateState(new[] { soulfire, hand }, deck: deck, heroHealth: 10);
 
         var result = _engine.Apply(state, new PlayCardAction(PlayerSide.Friendly, 10, 200));
 
         Assert.Equal(7, result.State.Friendly.Hero.Health);
-        Assert.Equal(new[] { 31, 32 }, result.State.Friendly.Hand.Select(card => card.EntityId));
+        Assert.Equal(new[] { 31, 32, 33 }, result.State.Friendly.Hand.Select(card => card.EntityId));
         Assert.Contains(result.Events, ruleEvent => ruleEvent.Type == "casts_when_drawn");
         AssertValidOutcomes(result);
     }

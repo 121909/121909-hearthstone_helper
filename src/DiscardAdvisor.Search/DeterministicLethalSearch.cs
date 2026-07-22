@@ -97,7 +97,7 @@ public sealed class DeterministicLethalSearch
                             _evaluator.Evaluate(transition.State));
                         return Result(true, lethalRoute, explored, stopwatch, false, false);
                     }
-                    if (!transition.Branches.IsEmpty || HasUnresolvedRandomness(transition.Events) ||
+                    if (!transition.Branches.IsEmpty || HasUnresolvedInteraction(transition.Events) ||
                         transition.State.Friendly.Hero.Health <= 0)
                         continue;
 
@@ -134,7 +134,8 @@ public sealed class DeterministicLethalSearch
         return totalBudget - TimeSpan.FromTicks(reserveTicks);
     }
 
-    private static bool HasUnresolvedRandomness(IEnumerable<RuleEvent> events) => events.Any(ruleEvent =>
+    private static bool HasUnresolvedInteraction(IEnumerable<RuleEvent> events) => events.Any(ruleEvent =>
+        ruleEvent.Type is "choice_pending" or "hand_discard_choice_pending" ||
         ruleEvent.Type.StartsWith("random_", StringComparison.Ordinal) &&
         ruleEvent.Type.EndsWith("_pending", StringComparison.Ordinal));
 

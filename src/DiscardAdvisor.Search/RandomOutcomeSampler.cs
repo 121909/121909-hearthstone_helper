@@ -69,6 +69,7 @@ public sealed class RandomOutcomeSampler
     private const string RandomDamagePending = "random_damage_pending";
     private const string RandomSummonPending = "random_one_cost_summon_pending";
     private readonly IRandomOneCostMinionPool _oneCostMinions;
+    private readonly DiscardWarlockRuleEngine _continuations = new();
 
     public RandomOutcomeSampler()
         : this(new StaticRandomOneCostMinionPool("unavailable", Array.Empty<RandomOneCostMinion>()))
@@ -237,6 +238,9 @@ public sealed class RandomOutcomeSampler
         {
             RandomDamagePending => ExpandRandomDamageExactly(outcome, pendingIndex, pending),
             RandomSummonPending => ExpandRandomSummonsExactly(outcome, pendingIndex, pending),
+            DiscardWarlockRuleEngine.ContinueWickedWhispersPending or
+                DiscardWarlockRuleEngine.ContinueChamberDrawPending or
+                DiscardWarlockRuleEngine.ContinueEndTurnPending => ExpandContinuation(outcome, pendingIndex, pending),
             _ => new[] { outcome }
         };
     }
@@ -257,6 +261,11 @@ public sealed class RandomOutcomeSampler
             var next = new List<PartialOutcome>();
             foreach (var partial in partials)
             {
+                if (IsTerminal(partial.State))
+                {
+                    next.Add(partial);
+                    continue;
+                }
                 var targets = RandomDamageTargets(partial.State, sourceSide);
                 if (targets.IsEmpty)
                 {
@@ -346,6 +355,24 @@ public sealed class RandomOutcomeSampler
             outcome.UsesMonteCarlo));
     }
 
+    private IEnumerable<RandomOutcome> ExpandContinuation(
+        RandomOutcome outcome,
+        int pendingIndex,
+        RuleEvent pending)
+    {
+        var continuation = _continuations.ResolvePendingContinuation(outcome.State, pending);
+        if (!continuation.IsLegal)
+            return new[] { outcome };
+        return new[]
+        {
+            outcome with
+            {
+                State = continuation.State,
+                Events = ReplacePending(outcome.Events, pendingIndex, continuation.Events)
+            }
+        };
+    }
+
     private RandomOutcome ResolveSample(RandomOutcome root, IRandomSource random)
     {
         var current = root;
@@ -360,6 +387,9 @@ public sealed class RandomOutcomeSampler
             {
                 RandomDamagePending => SampleRandomDamage(current, pendingIndex, pending, random),
                 RandomSummonPending => SampleRandomSummons(current, pendingIndex, pending, random),
+                DiscardWarlockRuleEngine.ContinueWickedWhispersPending or
+                    DiscardWarlockRuleEngine.ContinueChamberDrawPending or
+                    DiscardWarlockRuleEngine.ContinueEndTurnPending => ResolveContinuation(current, pendingIndex, pending),
                 _ => current
             };
         }
@@ -378,6 +408,8 @@ public sealed class RandomOutcomeSampler
         var sourceSide = FindSourceSide(state, pending.SourceEntityId);
         for (var missile = 0; missile < Math.Max(0, pending.Amount); missile++)
         {
+            if (IsTerminal(state))
+                break;
             var targets = RandomDamageTargets(state, sourceSide);
             if (targets.IsEmpty)
             {
@@ -400,6 +432,18 @@ public sealed class RandomOutcomeSampler
             State = state,
             Events = ReplacePending(outcome.Events, pendingIndex, events),
             UsesMonteCarlo = true
+        };
+    }
+
+    private RandomOutcome ResolveContinuation(RandomOutcome outcome, int pendingIndex, RuleEvent pending)
+    {
+        var continuation = _continuations.ResolvePendingContinuation(outcome.State, pending);
+        if (!continuation.IsLegal)
+            return outcome;
+        return outcome with
+        {
+            State = continuation.State,
+            Events = ReplacePending(outcome.Events, pendingIndex, continuation.Events)
         };
     }
 
@@ -569,12 +613,18 @@ public sealed class RandomOutcomeSampler
     {
         for (var index = 0; index < events.Length; index++)
         {
-            if (events[index].Type is RandomDamagePending or RandomSummonPending)
+            if (events[index].Type is RandomDamagePending or RandomSummonPending or
+                DiscardWarlockRuleEngine.ContinueWickedWhispersPending or
+                DiscardWarlockRuleEngine.ContinueChamberDrawPending or
+                DiscardWarlockRuleEngine.ContinueEndTurnPending)
                 return index;
         }
 
         return -1;
     }
+
+    private static bool IsTerminal(RuleGameState state) =>
+        state.Friendly.Hero.Health <= 0 || state.Opponent.Hero.Health <= 0;
 
     private static ImmutableArray<RuleEvent> ReplacePending(
         ImmutableArray<RuleEvent> events,

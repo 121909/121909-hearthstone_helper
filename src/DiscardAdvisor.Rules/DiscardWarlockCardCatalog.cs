@@ -28,6 +28,7 @@ public static class DiscardWarlockCardIds
     public const string Felbeast = "VAC_940t";
     public const string BonewebSpider = "SCH_147t";
     public const string TheCoin = "GAME_005";
+    public const string LifeTap = "CS2_056";
 }
 
 public static class DiscardWarlockCardCatalog

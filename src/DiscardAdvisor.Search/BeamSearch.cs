@@ -165,6 +165,7 @@ public sealed class BeamSearch
                             Evaluate(outcome.State, opponentBelief),
                             route.UsesMonteCarlo || outcome.UsesMonteCarlo);
                         var terminal = action is EndTurnAction ||
+                                       RequiresClientChoice(outcome.Events) ||
                                        outcome.State.Opponent.Hero.Health <= 0 ||
                                        outcome.State.Friendly.Hero.Health <= 0;
                         if (terminal)
@@ -281,6 +282,9 @@ public sealed class BeamSearch
     }
 
     private static double RoutePriority(SearchRoute route) => route.Score + Math.Log(Math.Max(route.Probability, 1e-12));
+
+    private static bool RequiresClientChoice(IEnumerable<RuleEvent> events) => events.Any(ruleEvent =>
+        ruleEvent.Type is "choice_pending" or "hand_discard_choice_pending");
 
     private double Evaluate(RuleGameState state, OpponentBelief belief) => _evaluator is IDetailedStateEvaluator detailed
         ? detailed.EvaluateDetailed(state, belief).Total

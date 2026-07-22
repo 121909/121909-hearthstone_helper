@@ -115,6 +115,25 @@ public sealed class BeamSearchTests
         Assert.True(timedOut.Metrics.TimedOut);
     }
 
+    [Fact]
+    public void StopsRouteAtAClientChoiceBoundary()
+    {
+        var catacombs = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.CursedCatacombs, 10);
+
+        var result = new BeamSearch().Search(
+            CreateState(new[] { catacombs }),
+            new BeamSearchOptions(BeamWidth: 256, MaximumActions: 3, TopK: 20, TimeBudget: TimeSpan.FromSeconds(2)));
+        var routes = result.Routes.Where(route =>
+            route.Actions.FirstOrDefault() is PlayCardAction play && play.SourceEntityId == catacombs.EntityId).ToArray();
+
+        Assert.NotEmpty(routes);
+        Assert.All(routes, route =>
+        {
+            Assert.Single(route.Actions);
+            Assert.Contains(route.Events, ruleEvent => ruleEvent.Type == "choice_pending");
+        });
+    }
+
     private static SearchRoute Route(RuleGameState state, double score) => new(
         state,
         ImmutableArray<RuleAction>.Empty,

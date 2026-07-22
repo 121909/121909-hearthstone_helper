@@ -41,6 +41,104 @@ public sealed class RandomOutcomeSamplerTests
     }
 
     [Fact]
+    public void BarrageStopsFiringAfterLethalDamage()
+    {
+        var barrage = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.SoulBarrage, 10);
+        var transition = _rules.Apply(
+            CreateState(new[] { barrage }, opponentHealth: 2),
+            new PlayCardAction(PlayerSide.Friendly, barrage.EntityId));
+
+        var outcome = Assert.Single(new RandomOutcomeSampler().Resolve(transition, new RandomSamplingOptions()));
+
+        Assert.Equal(0, outcome.State.Opponent.Hero.Health);
+        Assert.Equal(2, outcome.Events.Count(ruleEvent => ruleEvent.Type == "damage"));
+    }
+
+    [Fact]
+    public void WickedWhispersBuffsRandomAcolyteSummonsAfterTheyResolve()
+    {
+        var whispers = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.WickedWhispers, 10);
+        var acolytes = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.DisposableAcolytes, 11);
+        var existing = new MinionState(20, "EXISTING", 1, 1, 1, 1);
+        var transition = _rules.Apply(
+            CreateState(new[] { whispers, acolytes }, board: new[] { existing }),
+            new PlayCardAction(PlayerSide.Friendly, whispers.EntityId));
+        var pool = new StaticRandomOneCostMinionPool("test", new[]
+        {
+            new RandomOneCostMinion("ONE", 1, 1)
+        });
+
+        var outcome = Assert.Single(new RandomOutcomeSampler(pool).Resolve(transition, new RandomSamplingOptions()));
+
+        Assert.Equal(3, outcome.State.Friendly.Board.Length);
+        Assert.All(outcome.State.Friendly.Board, minion => Assert.Equal((2, 2), (minion.Attack, minion.Health)));
+        var lastSummon = outcome.Events.Select((ruleEvent, index) => (ruleEvent, index))
+            .Where(value => value.ruleEvent.Type == "summon")
+            .Max(value => value.index);
+        var buff = outcome.Events.Select((ruleEvent, index) => (ruleEvent, index))
+            .Single(value => value.ruleEvent.Type == "board_buff").index;
+        Assert.True(lastSummon < buff);
+        Assert.DoesNotContain(outcome.Events, ruleEvent => ruleEvent.Type.EndsWith("_pending", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ChamberDoesNotDrawAfterDiscardedBarrageEndsTheGame()
+    {
+        var barrage = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.SoulBarrage, 11);
+        var deck = new[]
+        {
+            DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.BonewebEgg, 30),
+            DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.WalkingDead, 31)
+        };
+        var location = new LocationState(50, DiscardWarlockCardIds.ChamberOfViscidus, 1, 1, 0, 2, true);
+        var choice = new PendingChoiceState(
+            7,
+            "HAND_DISCARD",
+            DiscardWarlockCardIds.ChamberOfViscidus,
+            ImmutableArray.Create(new ChoiceCandidateState(barrage.EntityId, barrage.CardId)),
+            location.EntityId);
+        var state = CreateState(
+            new[] { barrage },
+            locations: new[] { location },
+            deck: deck,
+            opponentHealth: 2) with { PendingChoice = choice };
+        var transition = _rules.Apply(state, new SelectChoiceAction(PlayerSide.Friendly, 7, barrage.EntityId));
+
+        var outcome = Assert.Single(new RandomOutcomeSampler().Resolve(transition, new RandomSamplingOptions()));
+
+        Assert.Equal(0, outcome.State.Opponent.Hero.Health);
+        Assert.Equal(2, outcome.State.Friendly.Deck.Length);
+        Assert.Empty(outcome.State.Friendly.Hand);
+        Assert.DoesNotContain(outcome.Events, ruleEvent => ruleEvent.Type == "draw");
+    }
+
+    [Fact]
+    public void TemporaryBarrageResolvesBeforeTheNextTemporaryCardExpires()
+    {
+        var barrage = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.SoulBarrage, 10) with { Temporary = true };
+        var handOfGuldan = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.HandOfGuldan, 11) with { Temporary = true };
+        var deck = new[]
+        {
+            DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.BonewebEgg, 30),
+            DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.WalkingDead, 31),
+            DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.DukeOfBelow, 32)
+        };
+        var transition = _rules.Apply(
+            CreateState(new[] { barrage, handOfGuldan }, deck: deck, opponentHealth: 2),
+            new EndTurnAction(PlayerSide.Friendly));
+
+        var outcome = Assert.Single(new RandomOutcomeSampler().Resolve(transition, new RandomSamplingOptions()));
+
+        Assert.Equal(0, outcome.State.Opponent.Hero.Health);
+        Assert.Equal(PlayerSide.Friendly, outcome.State.ActiveSide);
+        var retained = Assert.Single(outcome.State.Friendly.Hand);
+        Assert.Equal(handOfGuldan.EntityId, retained.EntityId);
+        Assert.True(retained.Temporary);
+        Assert.Equal(1, outcome.State.Friendly.DiscardCount);
+        Assert.Equal(3, outcome.State.Friendly.Deck.Length);
+    }
+
+    [Fact]
     public void ExactDiscardBranchesResolveNestedBarrageEffects()
     {
         var soulfire = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.Soulfire, 10);
@@ -191,16 +289,22 @@ public sealed class RandomOutcomeSamplerTests
     private static RuleGameState CreateState(
         HandCardState[] hand,
         MinionState[]? board = null,
-        MinionState[]? opponentBoard = null)
+        MinionState[]? opponentBoard = null,
+        LocationState[]? locations = null,
+        HandCardState[]? deck = null,
+        int heroHealth = 30,
+        int opponentHealth = 30)
     {
         var friendly = PlayerState.Create(
-            new HeroState(100, "HERO", 30, 30),
+            new HeroState(100, "HERO", heroHealth, 30),
             new HeroPowerState(101, "POWER", 2),
             new ManaState(10, 0, 0, 10, 0, 0),
             hand,
-            board);
+            board,
+            locations,
+            deck);
         var opponent = PlayerState.Create(
-            new HeroState(200, "OPPONENT_HERO", 30, 30),
+            new HeroState(200, "OPPONENT_HERO", opponentHealth, 30),
             new HeroPowerState(201, "OPPONENT_POWER", 2),
             new ManaState(0, 0, 0, 0, 0, 0),
             board: opponentBoard);
