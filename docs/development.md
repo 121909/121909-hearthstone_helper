@@ -20,3 +20,14 @@ Unit tests target .NET 8 so domain and lifecycle behavior can also be verified o
 ```powershell
 dotnet test .\DiscardAdvisor.sln -c Release -p:Platform=x64
 ```
+
+## Local diagnostics
+
+While the plugin is enabled it writes redacted JSONL events and privacy-filtered Snapshot fixtures under HDT's data directory:
+
+```text
+DiscardAdvisor\Diagnostics\discard-advisor.jsonl
+DiscardAdvisor\Fixtures\<state_id>.snapshot.json
+```
+
+Diagnostics contain state identifiers, counts, gate status, and exception type only. They do not contain exception messages, account identifiers, server data, or local paths. Logs rotate at 5 MiB and retain three previous files.

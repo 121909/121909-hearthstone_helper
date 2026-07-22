@@ -13,23 +13,32 @@ public sealed class PluginRuntime : IPluginRuntime, IDisposable
     private readonly DeckSupportGate _supportGate = new();
     private readonly GameSnapshotBuilder _snapshotBuilder = new();
     private readonly SnapshotCoordinator _snapshotCoordinator;
+    private readonly IPluginDiagnostics _diagnostics;
+    private GateStatus? _lastRecordedGateStatus;
     private Guid _gameId;
 
     public PluginRuntime()
-        : this(new PluginLifetime(), null, null, null, new SnapshotCoordinator())
+        : this(new PluginLifetime(), null, null, null, new SnapshotCoordinator(), NullPluginDiagnostics.Instance)
     {
     }
 
     public PluginRuntime(IGameContextProvider gameContextProvider)
-        : this(new PluginLifetime(), gameContextProvider, null, null, new SnapshotCoordinator())
+        : this(new PluginLifetime(), gameContextProvider, null, null, new SnapshotCoordinator(), NullPluginDiagnostics.Instance)
     {
     }
 
     public PluginRuntime(
         IGameContextProvider gameContextProvider,
         IGameEventSource gameEventSource,
-        ISnapshotObservationSource snapshotSource)
-        : this(new PluginLifetime(), gameContextProvider, gameEventSource, snapshotSource, new SnapshotCoordinator())
+        ISnapshotObservationSource snapshotSource,
+        IPluginDiagnostics? diagnostics = null)
+        : this(
+            new PluginLifetime(),
+            gameContextProvider,
+            gameEventSource,
+            snapshotSource,
+            new SnapshotCoordinator(),
+            diagnostics ?? NullPluginDiagnostics.Instance)
     {
     }
 
@@ -38,13 +47,15 @@ public sealed class PluginRuntime : IPluginRuntime, IDisposable
         IGameContextProvider? gameContextProvider = null,
         IGameEventSource? gameEventSource = null,
         ISnapshotObservationSource? snapshotSource = null,
-        SnapshotCoordinator? snapshotCoordinator = null)
+        SnapshotCoordinator? snapshotCoordinator = null,
+        IPluginDiagnostics? diagnostics = null)
     {
         _lifetime = lifetime;
         _gameContextProvider = gameContextProvider;
         _gameEventSource = gameEventSource;
         _snapshotSource = snapshotSource;
         _snapshotCoordinator = snapshotCoordinator ?? new SnapshotCoordinator();
+        _diagnostics = diagnostics ?? NullPluginDiagnostics.Instance;
     }
 
     public PluginRunState State => _lifetime.State;
@@ -71,6 +82,7 @@ public sealed class PluginRuntime : IPluginRuntime, IDisposable
         _gameEventSource?.Stop();
         _snapshotCoordinator.Reset();
         CurrentGateDecision = null;
+        _lastRecordedGateStatus = null;
     }
 
     public void Update()
@@ -79,8 +91,19 @@ public sealed class PluginRuntime : IPluginRuntime, IDisposable
         if (!_lifetime.TryGetSession(out _) || _snapshotSource is null || CurrentGateDecision?.IsEnabled != true)
             return;
 
-        if (_snapshotCoordinator.TryCreateWork(CaptureSnapshot, out var workItem) && workItem is not null)
-            SnapshotReady?.Invoke(workItem);
+        try
+        {
+            if (_snapshotCoordinator.TryCreateWork(CaptureSnapshot, out var workItem) && workItem is not null)
+            {
+                _diagnostics.RecordSnapshot(workItem.Snapshot);
+                SnapshotReady?.Invoke(workItem);
+            }
+        }
+        catch (Exception exception)
+        {
+            _diagnostics.RecordError("snapshot_capture_failed", exception);
+            _snapshotCoordinator.MarkDirty();
+        }
     }
 
     public void RefreshEligibility()
@@ -90,6 +113,11 @@ public sealed class PluginRuntime : IPluginRuntime, IDisposable
 
         var context = _gameContextProvider.CaptureGateContext();
         CurrentGateDecision = _supportGate.Evaluate(context.GameMode, context.DeckCardIds, context.Compatibility);
+        if (_lastRecordedGateStatus != CurrentGateDecision.Status)
+        {
+            _diagnostics.RecordGateDecision(CurrentGateDecision);
+            _lastRecordedGateStatus = CurrentGateDecision.Status;
+        }
     }
 
     public void Dispose()
@@ -117,6 +145,7 @@ public sealed class PluginRuntime : IPluginRuntime, IDisposable
     {
         _snapshotCoordinator.Reset();
         CurrentGateDecision = null;
+        _lastRecordedGateStatus = null;
     }
 
     private void HandleStateChanged()

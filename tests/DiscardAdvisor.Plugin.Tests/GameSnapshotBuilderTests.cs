@@ -56,9 +56,10 @@ public sealed class GameSnapshotBuilderTests
         var snapshot = new GameSnapshotBuilder().Build(CreateObservation(CreateFriendly(Array.Empty<HandCardSnapshot>())));
         var json = JsonSerializer.Serialize(snapshot, SerializerOptions);
         var options = new EvaluationOptions { OutputFormat = OutputFormat.List };
-        SchemaRegistry.Global.Register(JsonSchema.FromText(File.ReadAllText(Path.Combine("schemas", "common.schema.json"))));
-        SchemaRegistry.Global.Register(JsonSchema.FromText(File.ReadAllText(Path.Combine("schemas", "action.schema.json"))));
-        var schema = JsonSchema.FromText(File.ReadAllText(Path.Combine("schemas", "snapshot.schema.json")));
+        var buildOptions = new BuildOptions { SchemaRegistry = new SchemaRegistry() };
+        JsonSchema.FromText(File.ReadAllText(Path.Combine("schemas", "common.schema.json")), buildOptions);
+        JsonSchema.FromText(File.ReadAllText(Path.Combine("schemas", "action.schema.json")), buildOptions);
+        var schema = JsonSchema.FromText(File.ReadAllText(Path.Combine("schemas", "snapshot.schema.json")), buildOptions);
 
         var result = schema.Evaluate(JsonDocument.Parse(json).RootElement, options);
 

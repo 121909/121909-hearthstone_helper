@@ -9,7 +9,11 @@ public sealed class DiscardAdvisorPlugin : IPlugin
     private readonly IPluginRuntime _runtime;
 
     public DiscardAdvisorPlugin()
-        : this(new PluginRuntime(new HdtGameContextProvider(), new HdtGameEventSource(), new HdtSnapshotObservationFactory()))
+        : this(new PluginRuntime(
+            new HdtGameContextProvider(),
+            new HdtGameEventSource(),
+            new HdtSnapshotObservationFactory(),
+            HdtPluginDiagnostics.Create()))
     {
     }
 

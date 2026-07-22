@@ -20,6 +20,10 @@
       <HintPath>$(HdtReferenceDir)\HearthDb.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(HdtReferenceDir)\Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="PresentationFramework" />
   </ItemGroup>
 
@@ -28,10 +32,12 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' != 'net472'">
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <Compile Remove="DiscardAdvisorPlugin.cs" />
     <Compile Remove="HdtGameContextProvider.cs" />
     <Compile Remove="HdtSnapshotObservationFactory.cs" />
     <Compile Remove="HdtGameEventSource.cs" />
+    <Compile Remove="HdtPluginDiagnostics.cs" />
   </ItemGroup>
 
   <Target Name="ValidateHdtReference" BeforeTargets="ResolveReferences" Condition="'$(TargetFramework)' == 'net472' and !Exists('$(HdtExecutable)')">

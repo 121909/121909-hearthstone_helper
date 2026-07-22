@@ -359,7 +359,7 @@ Overlay 是高频工具界面，应保持安静、紧凑并避免遮挡棋盘：
 - [x] 实现精确牌表识别与模式门禁。
 - [x] 实现不可变 Snapshot Builder 和可见性过滤。
 - [x] 实现 dirty/debounce/cancellation/state_id 流程。
-- [ ] 添加脱敏本地诊断和 fixture 导出。
+- [x] 添加脱敏本地诊断和 fixture 导出。
 
 交付物：能够稳定输出局面 JSON、不会阻塞 HDT 的插件原型。
 
