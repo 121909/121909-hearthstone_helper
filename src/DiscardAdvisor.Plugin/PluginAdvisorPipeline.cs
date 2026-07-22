@@ -106,6 +106,12 @@ public sealed class LocalAdvisorService : ILocalAdvisorService
     private PluginAdvisorUpdate Analyze(GameSnapshot snapshot, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (!snapshot.IsStable ||
+            !string.Equals(snapshot.ActivePlayer, "FRIENDLY", StringComparison.Ordinal) ||
+            !string.Equals(snapshot.Step, "MAIN_ACTION", StringComparison.Ordinal))
+        {
+            return PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Inactive, snapshot.StateId);
+        }
         var mapping = _mapper.Map(snapshot);
         if (!mapping.IsSupported || mapping.State is null)
             return PluginAdvisorUpdate.Unsupported(snapshot.StateId, mapping.UnsupportedInteractions);

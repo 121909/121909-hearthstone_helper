@@ -20,6 +20,12 @@ public sealed class SnapshotRuleStateMapper
         if (snapshot is null)
             throw new ArgumentNullException(nameof(snapshot));
         var unsupported = ImmutableArray.CreateBuilder<string>();
+        if (!snapshot.IsStable)
+            unsupported.Add("unstable_snapshot");
+        if (!string.Equals(snapshot.ActivePlayer, "FRIENDLY", StringComparison.Ordinal))
+            unsupported.Add($"inactive_player:{snapshot.ActivePlayer}");
+        if (!string.Equals(snapshot.Step, "MAIN_ACTION", StringComparison.Ordinal))
+            unsupported.Add($"inactive_step:{snapshot.Step}");
         unsupported.AddRange(snapshot.Derived.UnsupportedInteractions
             .Where(value => !string.IsNullOrWhiteSpace(value)));
         var nextEntityId = MaximumEntityId(snapshot) + 1;

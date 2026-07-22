@@ -36,6 +36,28 @@ public sealed class PluginAdvisorPipelineTests
     }
 
     [Fact]
+    public async Task LocalAdvisorServiceIsInactiveOutsideFriendlyMainAction()
+    {
+        var snapshot = new GameSnapshotBuilder().Build(GameSnapshotBuilderTests.CreateObservation(
+            GameSnapshotBuilderTests.CreateFriendly(Array.Empty<HandCardSnapshot>())));
+        var opponentTurn = WithTurnContext(snapshot, "OPPONENT", "MAIN_ACTION", true);
+        var wrongStep = WithTurnContext(snapshot, "FRIENDLY", "MAIN_END", true);
+        var unstable = WithTurnContext(snapshot, "FRIENDLY", "MAIN_ACTION", false);
+        var service = new LocalAdvisorService(new LocalTurnAdvisor());
+
+        var updates = await Task.WhenAll(
+            service.AnalyzeAsync(opponentTurn, CancellationToken.None),
+            service.AnalyzeAsync(wrongStep, CancellationToken.None),
+            service.AnalyzeAsync(unstable, CancellationToken.None));
+
+        Assert.All(updates, update =>
+        {
+            Assert.Equal(PluginAdvisorStatus.Inactive, update.Status);
+            Assert.Null(update.Result);
+        });
+    }
+
+    [Fact]
     public async Task RuntimePublishesAnalyzingThenAcceptsCurrentAdvisorResult()
     {
         var observation = GameSnapshotBuilderTests.CreateObservation(
@@ -318,6 +340,28 @@ public sealed class PluginAdvisorPipelineTests
         observation.SensitiveMetadata,
         observation.ActionsThisTurn,
         observation.CurrentChoice);
+
+    private static GameSnapshot WithTurnContext(
+        GameSnapshot snapshot,
+        string activePlayer,
+        string step,
+        bool isStable) => new(
+        snapshot.RuleSetVersion,
+        snapshot.HearthstoneBuild,
+        snapshot.HdtVersion,
+        snapshot.CardDefsHash,
+        snapshot.GameId,
+        snapshot.StateId,
+        snapshot.TurnNumber,
+        step,
+        activePlayer,
+        snapshot.RemainingTurnTimeMs,
+        isStable,
+        snapshot.Friendly,
+        snapshot.Opponent,
+        snapshot.ActionsThisTurn,
+        snapshot.Derived,
+        snapshot.CurrentChoice);
 
     private sealed class TriggerGameEventSource : IGameEventSource
     {

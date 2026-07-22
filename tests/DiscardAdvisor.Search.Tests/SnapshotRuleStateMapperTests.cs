@@ -106,10 +106,31 @@ public sealed class SnapshotRuleStateMapperTests
         Assert.Contains("unknown_visible_enchantment:77", result.UnsupportedInteractions);
     }
 
+    [Fact]
+    public void RejectsSnapshotsOutsideTheStableFriendlyMainActionStep()
+    {
+        var opponentTurn = new SnapshotRuleStateMapper().Map(CreateSnapshot(
+            DiscardWarlockCardIds.Soulfire,
+            activePlayer: "OPPONENT"));
+        var unstable = new SnapshotRuleStateMapper().Map(CreateSnapshot(
+            DiscardWarlockCardIds.Soulfire,
+            isStable: false));
+        var wrongStep = new SnapshotRuleStateMapper().Map(CreateSnapshot(
+            DiscardWarlockCardIds.Soulfire,
+            step: "MAIN_END"));
+
+        Assert.Contains("inactive_player:OPPONENT", opponentTurn.UnsupportedInteractions);
+        Assert.Contains("unstable_snapshot", unstable.UnsupportedInteractions);
+        Assert.Contains("inactive_step:MAIN_END", wrongStep.UnsupportedInteractions);
+    }
+
     private static GameSnapshot CreateSnapshot(
         string handCardId,
         bool reborn = false,
-        string[]? unsupportedInteractions = null)
+        string[]? unsupportedInteractions = null,
+        string activePlayer = "FRIENDLY",
+        string step = "MAIN_ACTION",
+        bool isStable = true)
     {
         var friendly = new FriendlyPlayerSnapshot(
             new HeroSnapshot(1, "HERO_07", 30, 30, 0, 0, false, false, 0, 1),
@@ -145,10 +166,10 @@ public sealed class SnapshotRuleStateMapperTests
             Guid.NewGuid(),
             "turn-3:test",
             3,
-            "MAIN_ACTION",
-            "FRIENDLY",
+            step,
+            activePlayer,
             60000,
-            true,
+            isStable,
             friendly,
             opponent,
             Array.Empty<SnapshotAction>(),
