@@ -49,6 +49,31 @@ public sealed class SpecialMechanicsTrackerTests
     }
 
     [Fact]
+    public void StableCaptureClearsUnresolvedOneShotExpectations()
+    {
+        var platysaur = new SpecialMechanicsTracker();
+        platysaur.RecordCardPlayed(DiscardWarlockCardIds.Platysaur, 10);
+        platysaur.Capture(Array.Empty<int>(), new[] { 10 }, 0, 0);
+        platysaur.RecordCardDrawn(DiscardWarlockCardIds.HandOfGuldan, 20);
+
+        var soularium = new SpecialMechanicsTracker();
+        soularium.RecordCardPlayed(DiscardWarlockCardIds.Soularium, 11);
+        soularium.RecordCardDrawn(DiscardWarlockCardIds.BonewebEgg, 21);
+        var soulariumStable = soularium.Capture(new[] { 21 }, Array.Empty<int>(), 0, 0);
+        soularium.RecordCardDrawn(DiscardWarlockCardIds.HandOfGuldan, 22);
+
+        var catacombs = new SpecialMechanicsTracker();
+        catacombs.RecordCardPlayed(DiscardWarlockCardIds.CursedCatacombs, 12);
+        catacombs.Capture(Array.Empty<int>(), Array.Empty<int>(), 0, 0);
+        catacombs.RecordCardCreatedInHand(23);
+
+        Assert.Empty(platysaur.Capture(new[] { 20 }, new[] { 10 }, 0, 0).PlatysaurBindings);
+        Assert.Equal(new[] { 21 }, soulariumStable.TemporaryEntityIds);
+        Assert.Equal(new[] { 21 }, soularium.Capture(new[] { 21, 22 }, Array.Empty<int>(), 0, 0).TemporaryEntityIds);
+        Assert.Empty(catacombs.Capture(new[] { 23 }, Array.Empty<int>(), 0, 0).TemporaryEntityIds);
+    }
+
+    [Fact]
     public void DiscardRemovesTemporaryEntityAndKeepsMonotonicCount()
     {
         var tracker = new SpecialMechanicsTracker();

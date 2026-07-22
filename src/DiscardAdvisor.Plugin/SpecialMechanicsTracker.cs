@@ -160,12 +160,19 @@ public sealed class SpecialMechanicsTracker
             if (observedShredsOfTime >= 0)
                 _shredsOfTimeInDeck = Math.Max(_shredsOfTimeInDeck, observedShredsOfTime);
 
-            return new SpecialMechanicsState(
+            var snapshot = new SpecialMechanicsState(
                 _discardCount,
                 new ReadOnlyDictionary<int, int>(new Dictionary<int, int>(_platysaurBindings)),
                 new ReadOnlyCollection<int>(_temporaryEntityIds.OrderBy(entityId => entityId).ToArray()),
                 _shredsOfTimeInDeck,
                 new ReadOnlyDictionary<int, TrackedLocationState>(new Dictionary<int, TrackedLocationState>(_locations)));
+
+            // A capture happens only after the event stream has been stable for the debounce window.
+            // Any unresolved one-shot expectation belongs to an effect that produced no entity.
+            _platysaursAwaitingDraw.Clear();
+            _soulariumDrawsRemaining = 0;
+            _cursedCatacombsGetsRemaining = 0;
+            return snapshot;
         }
     }
 }
