@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>DiscardAdvisor.Search</AssemblyName>
+    <RootNamespace>DiscardAdvisor.Search</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Collections.Immutable" Version="8.0.0" />
+    <ProjectReference Include="../DiscardAdvisor.Domain/DiscardAdvisor.Domain.csproj" />
+    <ProjectReference Include="../DiscardAdvisor.Rules/DiscardAdvisor.Rules.csproj" />
+  </ItemGroup>
+</Project>
+

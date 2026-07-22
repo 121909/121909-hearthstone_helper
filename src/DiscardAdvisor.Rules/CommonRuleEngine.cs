@@ -80,13 +80,13 @@ public sealed class CommonRuleEngine
         {
             case RuleCardType.Minion:
                 {
-                    var position = action.BoardPosition ?? nextPlayer.Board.Length + 1;
-                    if (position < 1 || position > nextPlayer.Board.Length + 1)
+                    var position = action.BoardPosition ?? nextPlayer.BoardCount + 1;
+                    if (position < 1 || position > nextPlayer.BoardCount + 1)
                         return TransitionResult.Illegal(state, RuleError.InvalidBoardPosition);
                     var shifted = nextPlayer.Board
                         .Select(minion => minion.BoardPosition >= position
                             ? minion with { BoardPosition = minion.BoardPosition + 1 }
-                            : minion)
+                        : minion)
                         .Append(new MinionState(
                             card.EntityId,
                             card.CardId,
@@ -98,9 +98,12 @@ public sealed class CommonRuleEngine
                             Rush: card.Rush,
                             Charge: card.Charge,
                             SummonedThisTurn: true))
-                        .OrderBy(minion => minion.BoardPosition)
-                        .ToImmutableArray();
-                    nextPlayer = nextPlayer with { Board = shifted };
+                    .OrderBy(minion => minion.BoardPosition)
+                    .ToImmutableArray();
+                    var shiftedLocations = nextPlayer.Locations.Select(location => location.BoardPosition >= position
+                        ? location with { BoardPosition = location.BoardPosition + 1 }
+                        : location).ToImmutableArray();
+                    nextPlayer = nextPlayer with { Board = shifted, Locations = shiftedLocations };
                     events.Add(new RuleEvent("summon", card.EntityId, null, 0, card.CardId));
                     break;
                 }
@@ -115,18 +118,26 @@ public sealed class CommonRuleEngine
                 break;
             case RuleCardType.Location:
                 {
-                    var position = action.BoardPosition ?? nextPlayer.Locations.Length + 1;
-                    if (position < 1 || position > nextPlayer.Locations.Length + 1)
+                    var position = action.BoardPosition ?? nextPlayer.BoardCount + 1;
+                    if (position < 1 || position > nextPlayer.BoardCount + 1)
                         return TransitionResult.Illegal(state, RuleError.InvalidBoardPosition);
+                    var shiftedBoard = nextPlayer.Board.Select(minion => minion.BoardPosition >= position
+                        ? minion with { BoardPosition = minion.BoardPosition + 1 }
+                        : minion).ToImmutableArray();
+                    var shiftedLocations = nextPlayer.Locations.Select(location => location.BoardPosition >= position
+                        ? location with { BoardPosition = location.BoardPosition + 1 }
+                        : location);
                     nextPlayer = nextPlayer with
                     {
-                        Locations = nextPlayer.Locations.Add(new LocationState(
+                        Board = shiftedBoard,
+                        Locations = shiftedLocations.Append(new LocationState(
                             card.EntityId,
                             card.CardId,
                             position,
                             Math.Max(1, card.LocationDurability),
                             1,
-                            Math.Max(1, card.LocationCooldown)))
+                            Math.Max(1, card.LocationCooldown),
+                            false)).OrderBy(location => location.BoardPosition).ToImmutableArray()
                     };
                     break;
                 }
@@ -267,7 +278,7 @@ public sealed class CommonRuleEngine
     {
         var player = state.Player(action.Side);
         var power = player.HeroPower;
-        if (power.UsesThisTurn >= power.MaxUsesThisTurn)
+        if (!power.Available || power.UsesThisTurn >= power.MaxUsesThisTurn)
             return TransitionResult.Illegal(state, RuleError.Exhausted);
         if (power.Cost > player.Mana.Available)
             return TransitionResult.Illegal(state, RuleError.InsufficientMana);
@@ -291,7 +302,7 @@ public sealed class CommonRuleEngine
         var location = player.Locations.FirstOrDefault(candidate => candidate.EntityId == action.SourceEntityId);
         if (location is null)
             return TransitionResult.Illegal(state, RuleError.SourceNotFound);
-        if (location.Cooldown > 0 || location.Durability <= 0)
+        if (!location.Available || location.Cooldown > 0 || location.Durability <= 0)
             return TransitionResult.Illegal(state, RuleError.LocationUnavailable);
         if (!IsCharacter(state, action.SelectedEntityId))
             return TransitionResult.Illegal(state, RuleError.InvalidTarget);
@@ -299,7 +310,8 @@ public sealed class CommonRuleEngine
         var updated = location with
         {
             Durability = location.Durability - 1,
-            Cooldown = location.ActivationCooldown
+            Cooldown = location.ActivationCooldown,
+            Available = false
         };
         var locations = updated.Durability <= 0
             ? player.Locations.Remove(location)
@@ -317,16 +329,17 @@ public sealed class CommonRuleEngine
         nextPlayer = nextPlayer with
         {
             Hero = nextPlayer.Hero with { AttacksThisTurn = 0 },
-            HeroPower = nextPlayer.HeroPower with { UsesThisTurn = 0 },
+            HeroPower = nextPlayer.HeroPower with { UsesThisTurn = 0, Available = true },
             Board = nextPlayer.Board.Select(minion => minion with
             {
                 AttacksThisTurn = 0,
                 SummonedThisTurn = false,
                 Frozen = false
             }).ToImmutableArray(),
-            Locations = nextPlayer.Locations.Select(location => location with
+            Locations = nextPlayer.Locations.Select(location =>
             {
-                Cooldown = Math.Max(0, location.Cooldown - 1)
+                var cooldown = Math.Max(0, location.Cooldown - 1);
+                return location with { Cooldown = cooldown, Available = cooldown == 0 };
             }).ToImmutableArray(),
             Mana = nextPlayer.Mana with
             {

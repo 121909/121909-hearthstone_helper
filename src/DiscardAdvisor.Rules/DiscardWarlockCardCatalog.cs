@@ -27,6 +27,7 @@ public static class DiscardWarlockCardIds
     public const string ShredOfTime = "TIME_025t";
     public const string Felbeast = "VAC_940t";
     public const string BonewebSpider = "SCH_147t";
+    public const string TheCoin = "GAME_005";
 }
 
 public static class DiscardWarlockCardCatalog
@@ -53,7 +54,8 @@ public static class DiscardWarlockCardCatalog
             [DiscardWarlockCardIds.HandOfGuldan] = new(6, RuleCardType.Spell),
             [DiscardWarlockCardIds.ShredOfTime] = new(0, RuleCardType.Spell),
             [DiscardWarlockCardIds.Felbeast] = new(1, RuleCardType.Minion, 1, 1),
-            [DiscardWarlockCardIds.BonewebSpider] = new(1, RuleCardType.Minion, 2, 1)
+            [DiscardWarlockCardIds.BonewebSpider] = new(1, RuleCardType.Minion, 2, 1),
+            [DiscardWarlockCardIds.TheCoin] = new(0, RuleCardType.Spell)
         };
 
     public static IReadOnlyCollection<string> TargetCardIds { get; } = new[]
@@ -97,6 +99,17 @@ public static class DiscardWarlockCardCatalog
             template.Charge);
     }
 
+    public static bool TryCreate(string cardId, int entityId, out HandCardState? card, int? dynamicCost = null, int discardCount = 0)
+    {
+        if (!Templates.ContainsKey(cardId))
+        {
+            card = null;
+            return false;
+        }
+        card = Create(cardId, entityId, dynamicCost, discardCount);
+        return true;
+    }
+
     private sealed record CardTemplate(
         int Cost,
         RuleCardType CardType,
@@ -109,4 +122,3 @@ public static class DiscardWarlockCardCatalog
         bool Rush = false,
         bool Charge = false);
 }
-

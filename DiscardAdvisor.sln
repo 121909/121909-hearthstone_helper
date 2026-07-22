@@ -13,6 +13,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiscardAdvisor.Rules", "src
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiscardAdvisor.Rules.Tests", "tests\DiscardAdvisor.Rules.Tests\DiscardAdvisor.Rules.Tests.csproj", "{36816908-69A0-4F11-8CB8-2104AA2734D1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiscardAdvisor.Search", "src\DiscardAdvisor.Search\DiscardAdvisor.Search.csproj", "{0FDC6CB1-AC47-405C-91A6-FB1466F26D56}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiscardAdvisor.Search.Tests", "tests\DiscardAdvisor.Search.Tests\DiscardAdvisor.Search.Tests.csproj", "{B73C0861-C7C1-4B17-B1AD-189631E718A9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -39,5 +43,13 @@ Global
 		{36816908-69A0-4F11-8CB8-2104AA2734D1}.Debug|x64.Build.0 = Debug|Any CPU
 		{36816908-69A0-4F11-8CB8-2104AA2734D1}.Release|x64.ActiveCfg = Release|Any CPU
 		{36816908-69A0-4F11-8CB8-2104AA2734D1}.Release|x64.Build.0 = Release|Any CPU
+		{0FDC6CB1-AC47-405C-91A6-FB1466F26D56}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0FDC6CB1-AC47-405C-91A6-FB1466F26D56}.Debug|x64.Build.0 = Debug|Any CPU
+		{0FDC6CB1-AC47-405C-91A6-FB1466F26D56}.Release|x64.ActiveCfg = Release|Any CPU
+		{0FDC6CB1-AC47-405C-91A6-FB1466F26D56}.Release|x64.Build.0 = Release|Any CPU
+		{B73C0861-C7C1-4B17-B1AD-189631E718A9}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B73C0861-C7C1-4B17-B1AD-189631E718A9}.Debug|x64.Build.0 = Debug|Any CPU
+		{B73C0861-C7C1-4B17-B1AD-189631E718A9}.Release|x64.ActiveCfg = Release|Any CPU
+		{B73C0861-C7C1-4B17-B1AD-189631E718A9}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

@@ -63,7 +63,8 @@ public sealed record HeroPowerState(
     int Cost,
     int UsesThisTurn = 0,
     int MaxUsesThisTurn = 1,
-    TargetKind TargetKind = TargetKind.None);
+    TargetKind TargetKind = TargetKind.None,
+    bool Available = true);
 
 public sealed record WeaponState(int EntityId, string CardId, int Attack, int Durability);
 
@@ -106,7 +107,8 @@ public sealed record LocationState(
     int BoardPosition,
     int Durability,
     int Cooldown,
-    int ActivationCooldown);
+    int ActivationCooldown,
+    bool Available = true);
 
 public sealed record ZoneCardState(int EntityId, string CardId);
 
@@ -145,34 +147,56 @@ public sealed record PlayerState(
         IEnumerable<ZoneCardState>? graveyard = null,
         int fatigue = 0,
         WeaponState? weapon = null,
-        int discardCount = 0) => new(
+        int discardCount = 0)
+    {
+        var normalized = NormalizeBoardSlots(
+            board ?? Enumerable.Empty<MinionState>(),
+            locations ?? Enumerable.Empty<LocationState>());
+        return new PlayerState(
             hero,
             heroPower,
             mana,
             (hand ?? Enumerable.Empty<HandCardState>()).ToImmutableArray(),
-            NormalizeBoard(board ?? Enumerable.Empty<MinionState>()),
-            NormalizeLocations(locations ?? Enumerable.Empty<LocationState>()),
+            normalized.Board,
+            normalized.Locations,
             (deck ?? Enumerable.Empty<HandCardState>()).ToImmutableArray(),
             (graveyard ?? Enumerable.Empty<ZoneCardState>()).ToImmutableArray(),
             fatigue,
             weapon,
             discardCount);
+    }
 
-    public PlayerState NormalizePositions() => this with
+    public PlayerState NormalizePositions()
     {
-        Board = NormalizeBoard(Board),
-        Locations = NormalizeLocations(Locations)
-    };
+        var normalized = NormalizeBoardSlots(Board, Locations);
+        return this with { Board = normalized.Board, Locations = normalized.Locations };
+    }
 
-    private static ImmutableArray<MinionState> NormalizeBoard(IEnumerable<MinionState> board) => board
-        .OrderBy(minion => minion.BoardPosition)
-        .Select((minion, index) => minion with { BoardPosition = index + 1 })
-        .ToImmutableArray();
+    private static (ImmutableArray<MinionState> Board, ImmutableArray<LocationState> Locations) NormalizeBoardSlots(
+        IEnumerable<MinionState> board,
+        IEnumerable<LocationState> locations)
+    {
+        var slots = board.Select(minion => new BoardSlot(minion.BoardPosition, minion, null))
+            .Concat(locations.Select(location => new BoardSlot(location.BoardPosition, null, location)))
+            .OrderBy(slot => slot.Position)
+            .ThenBy(slot => slot.Minion is null ? 1 : 0)
+            .ToArray();
+        var normalizedBoard = slots.Select((slot, index) => slot.Minion is null
+                ? null
+                : slot.Minion with { BoardPosition = index + 1 })
+            .Where(minion => minion is not null)
+            .Cast<MinionState>()
+            .ToImmutableArray();
+        var normalizedLocations = slots.Select((slot, index) => slot.Location is null
+                ? null
+                : slot.Location with { BoardPosition = index + 1 })
+            .Where(location => location is not null)
+            .Cast<LocationState>()
+            .ToImmutableArray();
+        return (normalizedBoard, normalizedLocations);
+    }
 
-    private static ImmutableArray<LocationState> NormalizeLocations(IEnumerable<LocationState> locations) => locations
-        .OrderBy(location => location.BoardPosition)
-        .Select((location, index) => location with { BoardPosition = index + 1 })
-        .ToImmutableArray();
+    private sealed record BoardSlot(int Position, MinionState? Minion, LocationState? Location);
 }
 
 public sealed record RuleGameState(

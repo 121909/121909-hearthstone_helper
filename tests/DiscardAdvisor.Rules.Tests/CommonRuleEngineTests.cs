@@ -212,6 +212,25 @@ public sealed class CommonRuleEngineTests
         Assert.False(cleared.SummonedThisTurn);
     }
 
+    [Fact]
+    public void MinionsAndLocationsShareOneStableBoardPositionSequence()
+    {
+        var existingMinion = Minion(20, 1);
+        var location = new LocationState(30, "LOCATION", 2, 2, 0, 2);
+        var playedMinion = new HandCardState(10, "NEW_MINION", 1, RuleCardType.Minion, 1, 1);
+        var state = CreateState(friendly: CreatePlayer(
+            hand: new[] { playedMinion },
+            board: new[] { existingMinion },
+            locations: new[] { location },
+            mana: 1));
+
+        var result = _engine.Apply(state, new PlayCardAction(PlayerSide.Friendly, 10, BoardPosition: 2));
+
+        Assert.Equal(new[] { 1, 2 }, result.State.Friendly.Board.Select(minion => minion.BoardPosition));
+        Assert.Equal(3, result.State.Friendly.Locations[0].BoardPosition);
+        Assert.True(RuleStateValidator.IsValid(result.State));
+    }
+
     private static RuleGameState CreateState(PlayerState? friendly = null, PlayerState? opponent = null) => new(
         1,
         PlayerSide.Friendly,

@@ -108,7 +108,7 @@ public sealed class DiscardWarlockRuleEngine
                 Board = player.Board.Add(new MinionState(
                     token.EntityId,
                     token.CardId,
-                    player.Board.Length + 1,
+                    player.BoardCount + 1,
                     token.Attack,
                     token.Health,
                     token.Health,
@@ -225,7 +225,9 @@ public sealed class DiscardWarlockRuleEngine
             return TransitionResult.Illegal(state, RuleError.UnsupportedAction);
 
         var player = state.Player(action.Side);
-        var generated = DiscardWarlockCardCatalog.Create(candidate.CardId, candidate.EntityId) with { Temporary = true };
+        if (!DiscardWarlockCardCatalog.TryCreate(candidate.CardId, candidate.EntityId, out var generatedCard) || generatedCard is null)
+            return TransitionResult.Illegal(state, RuleError.UnsupportedAction);
+        var generated = generatedCard with { Temporary = true };
         var events = ImmutableArray.Create(new RuleEvent("choice_selected", choice.SourceEntityId, candidate.EntityId, 0, candidate.CardId));
         if (player.Hand.Length >= CommonRuleEngine.MaximumHandSize)
         {
@@ -248,7 +250,7 @@ public sealed class DiscardWarlockRuleEngine
         var location = player.Locations.FirstOrDefault(candidate => candidate.EntityId == action.SourceEntityId);
         if (location is null)
             return TransitionResult.Illegal(state, RuleError.SourceNotFound);
-        if (location.Cooldown > 0 || location.Durability <= 0)
+        if (!location.Available || location.Cooldown > 0 || location.Durability <= 0)
             return TransitionResult.Illegal(state, RuleError.LocationUnavailable);
         var choice = state.PendingChoice;
         if (choice is null || choice.SourceCardId != DiscardWarlockCardIds.ChamberOfViscidus ||
@@ -261,7 +263,8 @@ public sealed class DiscardWarlockRuleEngine
         var updatedLocation = location with
         {
             Durability = location.Durability - 1,
-            Cooldown = location.ActivationCooldown
+            Cooldown = location.ActivationCooldown,
+            Available = false
         };
         var locations = updatedLocation.Durability == 0
             ? player.Locations.Remove(location)
@@ -475,7 +478,7 @@ public sealed class DiscardWarlockRuleEngine
                 Board = player.Board.Add(new MinionState(
                     token.EntityId,
                     token.CardId,
-                    player.Board.Length + 1,
+                    player.BoardCount + 1,
                     token.Attack,
                     token.Health,
                     token.Health,
@@ -503,7 +506,7 @@ public sealed class DiscardWarlockRuleEngine
             Board = player.Board.Add(new MinionState(
                 card.EntityId,
                 card.CardId,
-                player.Board.Length + 1,
+                player.BoardCount + 1,
                 card.Attack,
                 Math.Max(1, card.Health),
                 Math.Max(1, card.Health),

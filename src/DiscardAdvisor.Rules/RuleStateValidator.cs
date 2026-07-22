@@ -53,8 +53,8 @@ public static class RuleStateValidator
             errors.Add($"{name}_mana_negative");
         if (player.Mana.Available > player.Mana.Maximum + player.Mana.Temporary)
             errors.Add($"{name}_mana_overflow");
-        if (!HasContiguousPositions(player.Board.Select(minion => minion.BoardPosition)) ||
-            !HasContiguousPositions(player.Locations.Select(location => location.BoardPosition)))
+        if (!HasContiguousPositions(player.Board.Select(minion => minion.BoardPosition)
+                .Concat(player.Locations.Select(location => location.BoardPosition))))
             errors.Add($"{name}_board_position");
         if (player.Board.Any(minion => minion.Health < 0 || minion.MaxHealth < 1 || minion.AttacksThisTurn < 0) ||
             player.Locations.Any(location => location.Durability < 0 || location.Cooldown < 0))
