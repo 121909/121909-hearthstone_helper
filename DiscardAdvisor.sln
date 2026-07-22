@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiscardAdvisor.Plugin", "sr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiscardAdvisor.Plugin.Tests", "tests\DiscardAdvisor.Plugin.Tests\DiscardAdvisor.Plugin.Tests.csproj", "{97DC403B-E19F-4F47-A476-D5893E7F513E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiscardAdvisor.Domain", "src\DiscardAdvisor.Domain\DiscardAdvisor.Domain.csproj", "{395D9241-9C38-45CB-9EE6-82DF6A4C9442}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -21,6 +23,9 @@ Global
 		{97DC403B-E19F-4F47-A476-D5893E7F513E}.Debug|x64.Build.0 = Debug|Any CPU
 		{97DC403B-E19F-4F47-A476-D5893E7F513E}.Release|x64.ActiveCfg = Release|Any CPU
 		{97DC403B-E19F-4F47-A476-D5893E7F513E}.Release|x64.Build.0 = Release|Any CPU
+		{395D9241-9C38-45CB-9EE6-82DF6A4C9442}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{395D9241-9C38-45CB-9EE6-82DF6A4C9442}.Debug|x64.Build.0 = Debug|Any CPU
+		{395D9241-9C38-45CB-9EE6-82DF6A4C9442}.Release|x64.ActiveCfg = Release|Any CPU
+		{395D9241-9C38-45CB-9EE6-82DF6A4C9442}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
-

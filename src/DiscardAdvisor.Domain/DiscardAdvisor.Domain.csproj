@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>DiscardAdvisor.Domain</AssemblyName>
+    <RootNamespace>DiscardAdvisor.Domain</RootNamespace>
+  </PropertyGroup>
+</Project>
+

@@ -16,15 +16,23 @@
       <HintPath>$(HdtExecutable)</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="HearthDb">
+      <HintPath>$(HdtReferenceDir)\HearthDb.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="PresentationFramework" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DiscardAdvisor.Domain/DiscardAdvisor.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' != 'net472'">
     <Compile Remove="DiscardAdvisorPlugin.cs" />
+    <Compile Remove="HdtGameContextProvider.cs" />
   </ItemGroup>
 
   <Target Name="ValidateHdtReference" BeforeTargets="ResolveReferences" Condition="'$(TargetFramework)' == 'net472' and !Exists('$(HdtExecutable)')">
     <Error Text="HDT v1.53.11 reference not found at '$(HdtExecutable)'. Run scripts/bootstrap-hdt-reference.ps1 or set HDT_INSTALL_DIR." />
   </Target>
 </Project>
-

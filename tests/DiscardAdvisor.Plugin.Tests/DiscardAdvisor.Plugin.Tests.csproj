@@ -16,6 +16,10 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/DiscardAdvisor.Plugin/DiscardAdvisor.Plugin.csproj" />
+    <ProjectReference Include="../../src/DiscardAdvisor.Domain/DiscardAdvisor.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../profiles/wild-discard-warlock.json" Link="profiles/wild-discard-warlock.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
-

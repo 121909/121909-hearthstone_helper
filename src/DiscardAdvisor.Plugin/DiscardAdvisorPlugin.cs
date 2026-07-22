@@ -9,7 +9,7 @@ public sealed class DiscardAdvisorPlugin : IPlugin
     private readonly IPluginRuntime _runtime;
 
     public DiscardAdvisorPlugin()
-        : this(new PluginRuntime())
+        : this(new PluginRuntime(new HdtGameContextProvider()))
     {
     }
 

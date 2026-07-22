@@ -1,4 +1,6 @@
 using System.Threading;
+using System.Linq;
+using DiscardAdvisor.Domain;
 using Xunit;
 
 namespace DiscardAdvisor.Plugin.Tests;
@@ -67,5 +69,39 @@ public sealed class PluginLifetimeTests
         Assert.True(lifetime.TryGetSession(out var observedToken));
         Assert.Equal(runningToken, observedToken);
     }
-}
 
+    [Fact]
+    public void RuntimeEvaluatesGateOnStartAndClearsItOnStop()
+    {
+        var context = new PluginGateContext(
+            TargetDeckProfile.GameMode,
+            TargetDeckProfile.Cards.SelectMany(card => Enumerable.Repeat(card.CardId, card.Count)),
+            new RuntimeCompatibility(
+                TargetRuntimeCompatibility.HearthstoneBuild,
+                TargetRuntimeCompatibility.HdtVersion,
+                TargetRuntimeCompatibility.CardDefsSha256,
+                TargetRuntimeCompatibility.HearthDbSha256));
+        var runtime = new PluginRuntime(new StubGameContextProvider(context));
+
+        runtime.Start();
+
+        Assert.NotNull(runtime.CurrentGateDecision);
+        Assert.True(runtime.CurrentGateDecision!.IsEnabled);
+
+        runtime.Stop();
+
+        Assert.Null(runtime.CurrentGateDecision);
+    }
+
+    private sealed class StubGameContextProvider : IGameContextProvider
+    {
+        private readonly PluginGateContext _context;
+
+        public StubGameContextProvider(PluginGateContext context)
+        {
+            _context = context;
+        }
+
+        public PluginGateContext CaptureGateContext() => _context;
+    }
+}
