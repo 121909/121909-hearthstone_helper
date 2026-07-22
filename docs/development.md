@@ -43,3 +43,21 @@ The plugin defaults to `experimental`, which attaches the recommendation Overlay
 ```
 
 Shadow mode still captures privacy-filtered fixtures and runs the local advisor, but it never attaches the Overlay. Diagnostics record game boundaries and one terminal disposition for each analysis (`Published`, `Superseded`, `Cancelled`, or `Failed`). Invalid settings fail closed to shadow mode.
+
+To build and install the complete dependency set for a shadow run, close HDT and run:
+
+```powershell
+.\scripts\install-shadow-plugin.ps1
+```
+
+The script builds `net472` against pinned HDT `v1.53.11`, installs into `%APPDATA%\HearthstoneDeckTracker\Plugins\DiscardAdvisor`, and writes shadow settings under `%APPDATA%\HearthstoneDeckTracker\DiscardAdvisor`. Pass `-HdtReferenceDir`, `-PluginDirectory`, or `-HdtDataDirectory` when using an existing or portable HDT layout. Start HDT afterward and enable Discard Advisor under `Options > Tracker > Plugins`.
+
+After the run, aggregate all evidence in one report:
+
+```powershell
+.\scripts\run-offline-regression.ps1 `
+  -InputPath `
+    "$env:APPDATA\HearthstoneDeckTracker\Replays", `
+    "$env:APPDATA\HearthstoneDeckTracker\DiscardAdvisor\Fixtures", `
+    "$env:APPDATA\HearthstoneDeckTracker\DiscardAdvisor\Diagnostics"
+```
