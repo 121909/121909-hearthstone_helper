@@ -95,3 +95,25 @@ Keep `profiles\release.json` aligned with the plugin and rule versions used for 
 ```
 
 The script verifies the prerequisite flag and exact version cohort before atomically writing `mode: experimental`; a failed check never changes the settings file.
+
+## Evidence archive
+
+Before clearing diagnostics or moving a completed Windows collection aside, archive
+the exact report and white-listed evidence files with hashes:
+
+```powershell
+.\scripts\archive-validation-evidence.ps1 `
+  -RegressionReportPath .\.artifacts\offline-regression\offline-regression.json `
+  -ReplayPath "$env:APPDATA\HearthstoneDeckTracker\Replays" `
+  -FixturePath "$env:APPDATA\HearthstoneDeckTracker\DiscardAdvisor\Fixtures" `
+  -AnnotationPath .\annotations `
+  -DiagnosticsPath "$env:APPDATA\HearthstoneDeckTracker\DiscardAdvisor\Diagnostics"
+```
+
+The archive contains only `*.hdtreplay`, `*.snapshot.json`,
+`*.annotation.json`, `discard-advisor.jsonl*`, the generated regression files,
+and `profiles\release.json`. Its `validation-evidence.json` records SHA-256,
+byte length, category, and an anonymous source index for each copied file; it
+does not record absolute local source paths. Verify source authenticity and
+reviewer identity outside this automated archive before treating it as real
+evidence.
