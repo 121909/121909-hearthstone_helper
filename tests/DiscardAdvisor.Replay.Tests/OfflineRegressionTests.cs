@@ -229,6 +229,36 @@ public sealed class OfflineRegressionTests
         var actions = Assert.IsType<JArray>(candidate["actions"]);
         var action = Assert.IsType<JObject>(Assert.Single(actions));
         Assert.Equal("END_TURN", action["annotation"]?.Value<string>("kind"));
+
+        var annotationPath = new ExpertAnnotationDraftWriter().Write(
+            paths.ExpertReviewPath,
+            item.Value<string>("stateId")!,
+            new[] { candidate.Value<string>("reviewOptionId")! },
+            Path.Combine(directory.Path, "annotations"));
+        var annotation = JObject.Parse(File.ReadAllText(annotationPath));
+        Assert.Equal(item.Value<string>("stateId"), annotation.Value<string>("stateId"));
+        Assert.Equal(
+            "END_TURN",
+            annotation["expertTop3"]?[0]?["actions"]?[0]?.Value<string>("kind"));
+        Assert.Throws<IOException>(() => new ExpertAnnotationDraftWriter().Write(
+            paths.ExpertReviewPath,
+            item.Value<string>("stateId")!,
+            new[] { candidate.Value<string>("reviewOptionId")! },
+            Path.Combine(directory.Path, "annotations")));
+    }
+
+    [Fact]
+    public void AnnotationValidationRejectsIncompleteActionFields()
+    {
+        var annotation = new ExpertAnnotation(
+            "1.0.0",
+            "turn-1:test",
+            new[]
+            {
+                new AnnotatedRoute("invalid", new[] { new AnnotatedAction("ATTACK", SourceEntityId: 10) })
+            });
+
+        Assert.Throws<InvalidOperationException>(annotation.Validate);
     }
 
     private static string FixturePath(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", name);

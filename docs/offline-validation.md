@@ -42,4 +42,20 @@ An optional `*.annotation.json` identifies one to three acceptable expert routes
 
 `expert-review-pack.json` is a blind route-ranking pack. It contains deterministically shuffled `option-*` routes and their display CardIds, but no candidate IDs, scores, confidence, or original Advisor rank. Reviewers rank one to three complete routes, putting the strongest route first, may author a custom route when none is correct, copy the action objects into `expertTop3`, add independent labels/reasons, and save the result as `<state_id>.annotation.json`. The report's Top-3 metric checks whether the expert's primary route (`expertTop3[0]`) appears in the Advisor's first three; alternatives do not make an otherwise missed primary route count. The report tracks progress toward 200 annotations and the 80% target.
 
+On Windows, write a ranked selection from the blind pack without manually
+copying entity IDs:
+
+```powershell
+.\scripts\create-expert-annotation.ps1 `
+  -ReviewPack .\.artifacts\offline-regression\expert-review-pack.json `
+  -StateId "turn-8:<hash>" `
+  -RankedOption option-4, option-1
+```
+
+The first option is the expert primary route. The command validates every
+action, writes atomically under an `annotations` directory, and refuses to
+replace an existing review unless `-Force` is supplied. Use the pack's
+`customRouteTemplate` when no offered route is correct, then rerun the offline
+regression with the annotation directory as an input.
+
 Offline reports include legal-route rate, p50/p95/maximum latency, deadline expiration, Top-3 consistency, and unsupported-interaction counts. Deadline expiration compares compute time with the Snapshot's remaining turn time. State supersession and whether an expired result became visible require shadow-run telemetry and are not inferred from Power.log.

@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading;
+using Newtonsoft.Json;
 
 namespace DiscardAdvisor.Replay;
 
@@ -12,6 +14,18 @@ public static class Program
     {
         try
         {
+            if (args.Length > 0 && string.Equals(args[0], "annotate", StringComparison.OrdinalIgnoreCase))
+            {
+                var annotationCommand = AnnotationCommand.Parse(args.Skip(1).ToArray());
+                var annotationPath = new ExpertAnnotationDraftWriter().Write(
+                    annotationCommand.ReviewPack,
+                    annotationCommand.StateId,
+                    annotationCommand.RankedOptions,
+                    annotationCommand.OutputDirectory,
+                    annotationCommand.Overwrite);
+                Console.WriteLine($"Expert annotation: {annotationPath}");
+                return 0;
+            }
             var command = CommandLine.Parse(args);
             using var cancellation = new CancellationTokenSource();
             Console.CancelKeyPress += (_, eventArgs) =>
@@ -39,11 +53,72 @@ public static class Program
             Console.Error.WriteLine("Offline regression cancelled.");
             return 130;
         }
-        catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException or JsonException)
         {
             Console.Error.WriteLine(exception.Message);
             Console.Error.WriteLine(CommandLine.Usage);
+            Console.Error.WriteLine(AnnotationCommand.Usage);
             return 2;
+        }
+    }
+
+    private sealed record AnnotationCommand(
+        string ReviewPack,
+        string StateId,
+        IReadOnlyList<string> RankedOptions,
+        string OutputDirectory,
+        bool Overwrite)
+    {
+        public const string Usage =
+            "Usage: DiscardAdvisor.Replay annotate --review-pack <path> --state-id <id> " +
+            "--rank <option-id> [--rank <option-id>] [--rank <option-id>] [--output <directory>] [--force]";
+
+        public static AnnotationCommand Parse(IReadOnlyList<string> args)
+        {
+            string? reviewPack = null;
+            string? stateId = null;
+            string? output = null;
+            var ranks = new List<string>();
+            var overwrite = false;
+            for (var index = 0; index < args.Count; index++)
+            {
+                var option = args[index];
+                if (option == "--force")
+                {
+                    overwrite = true;
+                    continue;
+                }
+                var value = index + 1 < args.Count
+                    ? args[++index]
+                    : throw new ArgumentException($"Missing value for '{option}'.");
+                switch (option)
+                {
+                    case "--review-pack":
+                        reviewPack = value;
+                        break;
+                    case "--state-id":
+                        stateId = value;
+                        break;
+                    case "--rank":
+                        ranks.Add(value);
+                        break;
+                    case "--output":
+                        output = value;
+                        break;
+                    default:
+                        throw new ArgumentException($"Unknown annotation option '{option}'.");
+                }
+            }
+            if (string.IsNullOrWhiteSpace(reviewPack))
+                throw new ArgumentException("--review-pack is required.");
+            if (string.IsNullOrWhiteSpace(stateId))
+                throw new ArgumentException("--state-id is required.");
+            if (ranks.Count is < 1 or > 3)
+                throw new ArgumentException("Provide one to three --rank options.");
+            output ??= Path.Combine(
+                Path.GetDirectoryName(Path.GetFullPath(reviewPack)) ?? Environment.CurrentDirectory,
+                "annotations");
+            return new AnnotationCommand(reviewPack, stateId, ranks, output, overwrite);
         }
     }
 

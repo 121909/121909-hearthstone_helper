@@ -33,6 +33,8 @@ public sealed class ExpertAnnotation
             throw new InvalidOperationException("Every annotated route must include a label.");
         if (ExpertTop3.Any(route => route.Actions.IsEmpty))
             throw new InvalidOperationException("Every annotated route must contain at least one action.");
+        foreach (var action in ExpertTop3.SelectMany(route => route.Actions))
+            action.Validate();
     }
 }
 
@@ -59,6 +61,27 @@ public sealed record AnnotatedAction(
     int? BoardPosition = null,
     int? ChoiceId = null)
 {
+    public void Validate()
+    {
+        var valid = Kind switch
+        {
+            "PLAY_CARD" => SourceEntityId.HasValue && !ChoiceId.HasValue &&
+                           (!BoardPosition.HasValue || BoardPosition > 0),
+            "ATTACK" => SourceEntityId.HasValue && TargetEntityId.HasValue &&
+                        !BoardPosition.HasValue && !ChoiceId.HasValue,
+            "USE_HERO_POWER" => !SourceEntityId.HasValue && !BoardPosition.HasValue && !ChoiceId.HasValue,
+            "USE_LOCATION" => SourceEntityId.HasValue && TargetEntityId.HasValue &&
+                              !BoardPosition.HasValue && !ChoiceId.HasValue,
+            "SELECT_CHOICE" => !SourceEntityId.HasValue && TargetEntityId.HasValue &&
+                               !BoardPosition.HasValue && ChoiceId.HasValue,
+            "END_TURN" => !SourceEntityId.HasValue && !TargetEntityId.HasValue &&
+                          !BoardPosition.HasValue && !ChoiceId.HasValue,
+            _ => false
+        };
+        if (!valid)
+            throw new InvalidOperationException($"Invalid annotated action '{Kind}'.");
+    }
+
     public static AnnotatedAction FromRuleAction(RuleAction action) => action switch
     {
         PlayCardAction play => new AnnotatedAction(
