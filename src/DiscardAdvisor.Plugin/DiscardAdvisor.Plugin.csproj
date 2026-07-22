@@ -31,6 +31,7 @@
     <Compile Remove="DiscardAdvisorPlugin.cs" />
     <Compile Remove="HdtGameContextProvider.cs" />
     <Compile Remove="HdtSnapshotObservationFactory.cs" />
+    <Compile Remove="HdtGameEventSource.cs" />
   </ItemGroup>
 
   <Target Name="ValidateHdtReference" BeforeTargets="ResolveReferences" Condition="'$(TargetFramework)' == 'net472' and !Exists('$(HdtExecutable)')">

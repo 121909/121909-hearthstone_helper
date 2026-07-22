@@ -65,10 +65,36 @@ public sealed class GameSnapshotBuilderTests
         Assert.True(result.IsValid);
     }
 
-    private static FriendlyPlayerSnapshot CreateFriendly(IEnumerable<HandCardSnapshot> hand) => new(
+    [Fact]
+    public void StateIdIsStableAcrossEquivalentInputOrder()
+    {
+        var firstHand = new[]
+        {
+            new HandCardSnapshot(102, "BT_300", 2, 6, false),
+            new HandCardSnapshot(101, "EX1_308", 1, 1, false)
+        };
+        var secondHand = firstHand.Reverse();
+
+        var first = new GameSnapshotBuilder().Build(CreateObservation(CreateFriendly(firstHand)));
+        var second = new GameSnapshotBuilder().Build(CreateObservation(CreateFriendly(secondHand)));
+
+        Assert.Equal(first.StateId, second.StateId);
+        Assert.StartsWith("turn-3:", first.StateId, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StateIdChangesWhenVisibleStateChanges()
+    {
+        var first = new GameSnapshotBuilder().Build(CreateObservation(CreateFriendly(Array.Empty<HandCardSnapshot>(), 3)));
+        var second = new GameSnapshotBuilder().Build(CreateObservation(CreateFriendly(Array.Empty<HandCardSnapshot>(), 2)));
+
+        Assert.NotEqual(first.StateId, second.StateId);
+    }
+
+    internal static FriendlyPlayerSnapshot CreateFriendly(IEnumerable<HandCardSnapshot> hand, int availableMana = 3) => new(
         new HeroSnapshot(1, "HERO_07", 30, 30, 0, 0, false, false, 0, 1),
         new HeroPowerSnapshot(2, "CS2_056", 2, true, 0, 1),
-        new ManaSnapshot(3, 0, 0, 3, 0, 0),
+        new ManaSnapshot(availableMana, 0, 3 - availableMana, 3, 0, 0),
         hand,
         Array.Empty<MinionSnapshot>(),
         Array.Empty<LocationSnapshot>(),
@@ -80,7 +106,7 @@ public sealed class GameSnapshotBuilderTests
         Array.Empty<ZoneCardSnapshot>(),
         0);
 
-    private static GameObservation CreateObservation(FriendlyPlayerSnapshot friendly)
+    internal static GameObservation CreateObservation(FriendlyPlayerSnapshot friendly)
     {
         var opponent = new OpponentObservation(
             new HeroSnapshot(3, "HERO_08", 30, 30, 0, 0, false, false, 0, 1),
@@ -108,7 +134,6 @@ public sealed class GameSnapshotBuilderTests
             TargetRuntimeCompatibility.HdtVersion,
             TargetRuntimeCompatibility.CardDefsSha256,
             Guid.Parse("d4051f3d-0b0a-4470-b921-04bda2b57c79"),
-            "turn-3:test-state",
             3,
             "MAIN_ACTION",
             "FRIENDLY",

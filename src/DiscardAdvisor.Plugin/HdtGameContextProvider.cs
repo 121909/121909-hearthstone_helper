@@ -14,6 +14,9 @@ namespace DiscardAdvisor.Plugin;
 
 internal sealed class HdtGameContextProvider : IGameContextProvider
 {
+    private static readonly object CompatibilityGate = new();
+    private static RuntimeCompatibility? _compatibility;
+
     public PluginGateContext CaptureGateContext()
     {
         var game = HdtApiCore.Game;
@@ -28,6 +31,18 @@ internal sealed class HdtGameContextProvider : IGameContextProvider
     }
 
     internal static RuntimeCompatibility CaptureCompatibility()
+    {
+        lock (CompatibilityGate)
+            return _compatibility ??= CaptureCompatibilityCore();
+    }
+
+    internal static void InvalidateCompatibility()
+    {
+        lock (CompatibilityGate)
+            _compatibility = null;
+    }
+
+    private static RuntimeCompatibility CaptureCompatibilityCore()
     {
         var hdtAssembly = typeof(HdtApiCore).Assembly;
         var hdtVersion = hdtAssembly.GetName().Version?.ToString(3) ?? string.Empty;

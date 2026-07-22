@@ -11,9 +11,9 @@ using HdtApiCore = Hearthstone_Deck_Tracker.API.Core;
 
 namespace DiscardAdvisor.Plugin;
 
-internal sealed class HdtSnapshotObservationFactory
+internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
 {
-    public bool TryCapture(Guid gameId, string stateId, bool isStable, int remainingTurnTimeMs, out GameObservation? observation)
+    public bool TryCapture(Guid gameId, bool isStable, out GameObservation? observation)
     {
         var game = HdtApiCore.Game;
         var friendlyHero = game.Player.Hero;
@@ -35,6 +35,7 @@ internal sealed class HdtSnapshotObservationFactory
             ? "FRIENDLY"
             : game.OpponentEntity?.HasTag(GameTag.CURRENT_PLAYER) == true ? "OPPONENT" : "NONE";
         var compatibility = HdtGameContextProvider.CaptureCompatibility();
+        var remainingTurnTimeMs = CaptureRemainingTurnTimeMs(game);
         var friendly = CaptureFriendly(game, friendlyHero, friendlyHeroPower);
         var opponent = CaptureOpponent(game, opponentHero, opponentHeroPower);
         var sensitive = new SensitiveGameMetadata(null, null, null, null);
@@ -44,7 +45,6 @@ internal sealed class HdtSnapshotObservationFactory
             compatibility.HdtVersion,
             compatibility.CardDefsSha256,
             gameId,
-            stateId,
             turnNumber,
             ((Step)gameEntity.GetTag(GameTag.STEP)).ToString(),
             activePlayer,
@@ -230,6 +230,14 @@ internal sealed class HdtSnapshotObservationFactory
         entity.HasTag(GameTag.MEGA_WINDFURY) ? 4 : entity.HasTag(GameTag.WINDFURY) ? 2 : 1;
 
     private static int? PositiveOrNull(int value) => value > 0 ? value : null;
+
+    private static int CaptureRemainingTurnTimeMs(GameV2 game)
+    {
+        var activeEntity = game.PlayerEntity?.HasTag(GameTag.CURRENT_PLAYER) == true
+            ? game.PlayerEntity
+            : game.OpponentEntity?.HasTag(GameTag.CURRENT_PLAYER) == true ? game.OpponentEntity : null;
+        return Math.Max(0, activeEntity?.GetTag(GameTag.TIMEOUT) ?? 0) * 1000;
+    }
 
     private static bool HasPublicCard(Entity entity) => entity.Id > 0 && !string.IsNullOrWhiteSpace(entity.CardId);
 }

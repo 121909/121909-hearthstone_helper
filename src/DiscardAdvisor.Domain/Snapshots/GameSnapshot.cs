@@ -59,5 +59,22 @@ public sealed class GameSnapshot
     public IReadOnlyList<SnapshotAction> ActionsThisTurn { get; }
     public ChoiceSnapshot? CurrentChoice { get; }
     public DerivedStateSnapshot Derived { get; }
-}
 
+    internal GameSnapshot WithStateId(string stateId) => new(
+        RuleSetVersion,
+        HearthstoneBuild,
+        HdtVersion,
+        CardDefsHash,
+        GameId,
+        stateId,
+        TurnNumber,
+        Step,
+        ActivePlayer,
+        RemainingTurnTimeMs,
+        IsStable,
+        Friendly,
+        Opponent,
+        ActionsThisTurn,
+        Derived,
+        CurrentChoice);
+}
