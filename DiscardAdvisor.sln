@@ -19,6 +19,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiscardAdvisor.Search.Tests
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiscardAdvisor.Search.Benchmarks", "benchmarks\DiscardAdvisor.Search.Benchmarks\DiscardAdvisor.Search.Benchmarks.csproj", "{E09F4EEB-0866-4BB6-A060-C0DF504F32DA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiscardAdvisor.Llm", "src\DiscardAdvisor.Llm\DiscardAdvisor.Llm.csproj", "{0D6AE96A-E127-46D6-BA98-5F1914183CD9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiscardAdvisor.Llm.Tests", "tests\DiscardAdvisor.Llm.Tests\DiscardAdvisor.Llm.Tests.csproj", "{143D7616-8401-4645-BC58-8A78B0A4DB78}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -57,5 +61,13 @@ Global
 		{E09F4EEB-0866-4BB6-A060-C0DF504F32DA}.Debug|x64.Build.0 = Debug|Any CPU
 		{E09F4EEB-0866-4BB6-A060-C0DF504F32DA}.Release|x64.ActiveCfg = Release|Any CPU
 		{E09F4EEB-0866-4BB6-A060-C0DF504F32DA}.Release|x64.Build.0 = Release|Any CPU
+		{0D6AE96A-E127-46D6-BA98-5F1914183CD9}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0D6AE96A-E127-46D6-BA98-5F1914183CD9}.Debug|x64.Build.0 = Debug|Any CPU
+		{0D6AE96A-E127-46D6-BA98-5F1914183CD9}.Release|x64.ActiveCfg = Release|Any CPU
+		{0D6AE96A-E127-46D6-BA98-5F1914183CD9}.Release|x64.Build.0 = Release|Any CPU
+		{143D7616-8401-4645-BC58-8A78B0A4DB78}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{143D7616-8401-4645-BC58-8A78B0A4DB78}.Debug|x64.Build.0 = Debug|Any CPU
+		{143D7616-8401-4645-BC58-8A78B0A4DB78}.Release|x64.ActiveCfg = Release|Any CPU
+		{143D7616-8401-4645-BC58-8A78B0A4DB78}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
