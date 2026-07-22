@@ -37,7 +37,7 @@ public sealed class DiscardAdvisorPlugin : IPlugin
 
     public string Author => "121909";
 
-    public Version Version => new(0, 2, 0);
+    public Version Version => new(0, 3, 0);
 
     public MenuItem MenuItem => null!;
 

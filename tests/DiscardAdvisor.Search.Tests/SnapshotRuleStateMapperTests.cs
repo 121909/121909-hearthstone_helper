@@ -24,6 +24,9 @@ public sealed class SnapshotRuleStateMapperTests
         Assert.Equal(2, state.Friendly.Deck.Count(card => card.CardId == DiscardWarlockCardIds.ShredOfTime));
         Assert.False(state.Friendly.DeckOrderKnown);
         Assert.Equal((2, 0), (state.Friendly.Locations[0].Durability, state.Friendly.Locations[0].Cooldown));
+        Assert.True(state.Friendly.Board[0].DivineShield);
+        Assert.True(state.Friendly.Board[0].Poisonous);
+        Assert.True(state.Friendly.Board[0].Lifesteal);
         Assert.NotNull(state.PendingChoice);
         Assert.Equal(10, state.PendingChoice!.Candidates[0].EntityId);
     }
@@ -81,14 +84,39 @@ public sealed class SnapshotRuleStateMapperTests
         Assert.Contains("incomplete_known_deck:2/5", result.UnsupportedInteractions);
     }
 
-    private static GameSnapshot CreateSnapshot(string handCardId)
+    [Fact]
+    public void RejectsRebornWithoutGuessingUnbuffedResurrectionStats()
+    {
+        var result = new SnapshotRuleStateMapper().Map(CreateSnapshot(DiscardWarlockCardIds.Soulfire, reborn: true));
+
+        Assert.False(result.IsSupported);
+        Assert.Contains(
+            $"unsupported_reborn:20:{DiscardWarlockCardIds.OcularOccultist}",
+            result.UnsupportedInteractions);
+    }
+
+    [Fact]
+    public void RejectsInteractionsAlreadyMarkedUnsupportedBySnapshotCapture()
+    {
+        var result = new SnapshotRuleStateMapper().Map(CreateSnapshot(
+            DiscardWarlockCardIds.Soulfire,
+            unsupportedInteractions: new[] { "unknown_visible_enchantment:77" }));
+
+        Assert.False(result.IsSupported);
+        Assert.Contains("unknown_visible_enchantment:77", result.UnsupportedInteractions);
+    }
+
+    private static GameSnapshot CreateSnapshot(
+        string handCardId,
+        bool reborn = false,
+        string[]? unsupportedInteractions = null)
     {
         var friendly = new FriendlyPlayerSnapshot(
             new HeroSnapshot(1, "HERO_07", 30, 30, 0, 0, false, false, 0, 1),
             new HeroPowerSnapshot(2, "CS2_056", 2, true, 0, 1),
             new ManaSnapshot(5, 0, 0, 5, 0, 0),
             new[] { new HandCardSnapshot(10, handCardId, 1, 1, true) },
-            new[] { new MinionSnapshot(20, DiscardWarlockCardIds.OcularOccultist, 1, 3, 6, 6, 0, 1, false, false, true, false, false, false, false, false, false, false, false, false, false, true) },
+            new[] { new MinionSnapshot(20, DiscardWarlockCardIds.OcularOccultist, 1, 3, 6, 6, 0, 1, false, false, true, false, false, false, true, true, true, reborn, false, false, false, true) },
             new[] { new LocationSnapshot(40, DiscardWarlockCardIds.ChamberOfViscidus, 2, 2, 0, true) },
             new[] { new DeckEntrySnapshot(DiscardWarlockCardIds.Soulfire, 1) },
             new[] { new DeckEntrySnapshot(DiscardWarlockCardIds.ShredOfTime, 1) },
@@ -110,7 +138,7 @@ public sealed class SnapshotRuleStateMapperTests
             0,
             Array.Empty<string>());
         return new GameSnapshot(
-            "0.2.0",
+            "0.3.0",
             246003,
             "1.53.11",
             new string('a', 64),
@@ -128,7 +156,7 @@ public sealed class SnapshotRuleStateMapperTests
                 new[] { new PlatysaurBindingSnapshot(20, 30) },
                 new[] { 10 },
                 2,
-                Array.Empty<string>()),
+                unsupportedInteractions ?? Array.Empty<string>()),
             new ChoiceSnapshot(
                 7,
                 "HAND_DISCARD",

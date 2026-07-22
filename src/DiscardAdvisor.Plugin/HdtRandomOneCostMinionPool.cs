@@ -13,6 +13,9 @@ public sealed class HdtRandomOneCostMinionPool : IRandomOneCostMinionPool
     {
         "Battlecry",
         "Charge",
+        "DivineShield",
+        "Lifesteal",
+        "Poisonous",
         "Rush",
         "Stealth",
         "Taunt"
@@ -43,6 +46,9 @@ public sealed class HdtRandomOneCostMinionPool : IRandomOneCostMinionPool
             HasMechanic(mechanics, "Rush"),
             HasMechanic(mechanics, "Charge"),
             HasMechanic(mechanics, "Stealth"),
+            card.DivineShield,
+            card.Poisonous,
+            HasMechanic(mechanics, "Lifesteal"),
             HasUnmodeledEffects(card.Text, mechanics));
     }
 

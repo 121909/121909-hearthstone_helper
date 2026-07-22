@@ -20,6 +20,8 @@ public sealed class SnapshotRuleStateMapper
         if (snapshot is null)
             throw new ArgumentNullException(nameof(snapshot));
         var unsupported = ImmutableArray.CreateBuilder<string>();
+        unsupported.AddRange(snapshot.Derived.UnsupportedInteractions
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
         var nextEntityId = MaximumEntityId(snapshot) + 1;
         var friendlyHand = snapshot.Friendly.Hand.Select(card =>
         {
@@ -58,6 +60,8 @@ public sealed class SnapshotRuleStateMapper
         if (deck.Count != snapshot.Friendly.DeckCount)
             unsupported.Add($"incomplete_known_deck:{deck.Count}/{snapshot.Friendly.DeckCount}");
         var pendingChoice = MapChoice(snapshot, unsupported);
+        AddUnsupportedReborn(snapshot.Friendly.Board, unsupported);
+        AddUnsupportedReborn(snapshot.Opponent.Board, unsupported);
 
         if (unsupported.Count > 0)
             return new RuleStateMappingResult(false, null, unsupported.ToImmutable());
@@ -201,7 +205,18 @@ public sealed class SnapshotRuleStateMapper
         minion.Charge,
         minion.Stealth,
         minion.Immune,
-        minion.SummonedThisTurn);
+        minion.SummonedThisTurn,
+        minion.DivineShield,
+        minion.Poisonous,
+        minion.Lifesteal);
+
+    private static void AddUnsupportedReborn(
+        IEnumerable<MinionSnapshot> board,
+        ImmutableArray<string>.Builder unsupported)
+    {
+        foreach (var minion in board.Where(minion => minion.Reborn))
+            unsupported.Add($"unsupported_reborn:{minion.EntityId}:{minion.CardId}");
+    }
 
     private static LocationState MapLocation(LocationSnapshot location) => new(
         location.EntityId,

@@ -198,20 +198,29 @@ public sealed class CommonRuleEngine
         var updatedAttacker = attacker with { AttacksThisTurn = attacker.AttacksThisTurn + 1 };
         if (targetsHero)
         {
-            defenderPlayer = defenderPlayer with { Hero = DamageHero(defenderPlayer.Hero, attacker.Attack) };
-            events.Add(new RuleEvent("damage", attacker.EntityId, defenderPlayer.Hero.EntityId, attacker.Attack));
+            var damage = RuleDamage.Apply(defenderPlayer.Hero, attacker.Attack);
+            defenderPlayer = defenderPlayer with { Hero = damage.Hero };
+            events.Add(new RuleEvent("damage", attacker.EntityId, defenderPlayer.Hero.EntityId, damage.DamageApplied));
+            if (attacker.Lifesteal)
+                attackerPlayer = ApplyLifesteal(attackerPlayer, damage.DamageApplied, attacker.EntityId, events);
         }
         else
         {
             var target = targetMinion!;
-            updatedAttacker = updatedAttacker with { Health = attacker.Health - (attacker.Immune ? 0 : target.Attack) };
-            var updatedTarget = target with { Health = target.Health - (target.Immune ? 0 : attacker.Attack) };
+            var damageToAttacker = RuleDamage.Apply(attacker, target.Attack, target.Poisonous);
+            var damageToTarget = RuleDamage.Apply(target, attacker.Attack, attacker.Poisonous);
+            updatedAttacker = damageToAttacker.Minion with { AttacksThisTurn = attacker.AttacksThisTurn + 1 };
+            var updatedTarget = damageToTarget.Minion;
             defenderPlayer = defenderPlayer with
             {
                 Board = Replace(defenderPlayer.Board, updatedTarget)
             };
-            events.Add(new RuleEvent("damage", attacker.EntityId, target.EntityId, attacker.Attack));
-            events.Add(new RuleEvent("damage", target.EntityId, attacker.EntityId, target.Attack));
+            AddMinionDamageEvents(events, attacker.EntityId, target.EntityId, damageToTarget);
+            AddMinionDamageEvents(events, target.EntityId, attacker.EntityId, damageToAttacker);
+            if (attacker.Lifesteal)
+                attackerPlayer = ApplyLifesteal(attackerPlayer, damageToTarget.DamageApplied, attacker.EntityId, events);
+            if (target.Lifesteal)
+                defenderPlayer = ApplyLifesteal(defenderPlayer, damageToAttacker.DamageApplied, target.EntityId, events);
         }
 
         attackerPlayer = attackerPlayer with { Board = Replace(attackerPlayer.Board, updatedAttacker) };
@@ -240,22 +249,24 @@ public sealed class CommonRuleEngine
         var updatedHero = hero with { AttacksThisTurn = hero.AttacksThisTurn + 1 };
         if (targetsHero)
         {
-            defenderPlayer = defenderPlayer with { Hero = DamageHero(defenderPlayer.Hero, attack) };
-            events.Add(new RuleEvent("damage", hero.EntityId, defenderPlayer.Hero.EntityId, attack));
+            var damage = RuleDamage.Apply(defenderPlayer.Hero, attack);
+            defenderPlayer = defenderPlayer with { Hero = damage.Hero };
+            events.Add(new RuleEvent("damage", hero.EntityId, defenderPlayer.Hero.EntityId, damage.DamageApplied));
         }
         else
         {
             var target = targetMinion!;
-            updatedHero = DamageHero(updatedHero, target.Attack);
+            var damageToHero = RuleDamage.Apply(updatedHero, target.Attack);
+            var damageToTarget = RuleDamage.Apply(target, attack);
+            updatedHero = damageToHero.Hero;
             defenderPlayer = defenderPlayer with
             {
-                Board = Replace(defenderPlayer.Board, target with
-                {
-                    Health = target.Health - (target.Immune ? 0 : attack)
-                })
+                Board = Replace(defenderPlayer.Board, damageToTarget.Minion)
             };
-            events.Add(new RuleEvent("damage", hero.EntityId, target.EntityId, attack));
-            events.Add(new RuleEvent("damage", target.EntityId, hero.EntityId, target.Attack));
+            AddMinionDamageEvents(events, hero.EntityId, target.EntityId, damageToTarget);
+            events.Add(new RuleEvent("damage", target.EntityId, hero.EntityId, damageToHero.DamageApplied));
+            if (target.Lifesteal)
+                defenderPlayer = ApplyLifesteal(defenderPlayer, damageToHero.DamageApplied, target.EntityId, events);
         }
 
         var weapon = attackerPlayer.Weapon;
@@ -388,16 +399,30 @@ public sealed class CommonRuleEngine
         state.Friendly.Board.Any(minion => minion.EntityId == entityId) ||
         state.Opponent.Board.Any(minion => minion.EntityId == entityId);
 
-    private static HeroState DamageHero(HeroState hero, int amount)
+    private static HeroState DamageHero(HeroState hero, int amount) => RuleDamage.Apply(hero, amount).Hero;
+
+    private static PlayerState ApplyLifesteal(
+        PlayerState player,
+        int damageApplied,
+        int sourceEntityId,
+        ICollection<RuleEvent> events)
     {
-        if (amount <= 0 || hero.Immune)
-            return hero;
-        var armorDamage = Math.Min(hero.Armor, amount);
-        return hero with
-        {
-            Armor = hero.Armor - armorDamage,
-            Health = Math.Max(0, hero.Health - (amount - armorDamage))
-        };
+        var healed = RuleDamage.Heal(player.Hero, damageApplied);
+        var amount = healed.Health - player.Hero.Health;
+        if (amount > 0)
+            events.Add(new RuleEvent("heal", sourceEntityId, player.Hero.EntityId, amount));
+        return player with { Hero = healed };
+    }
+
+    private static void AddMinionDamageEvents(
+        ICollection<RuleEvent> events,
+        int sourceEntityId,
+        int targetEntityId,
+        MinionDamageResult damage)
+    {
+        if (damage.DivineShieldLost)
+            events.Add(new RuleEvent("divine_shield_lost", sourceEntityId, targetEntityId));
+        events.Add(new RuleEvent("damage", sourceEntityId, targetEntityId, damage.DamageApplied));
     }
 
     private static ImmutableArray<MinionState> Replace(ImmutableArray<MinionState> board, MinionState minion)

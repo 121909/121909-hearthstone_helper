@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "profileId": "wild-discard-warlock",
-  "activeRuleSetVersion": "0.2.0",
+  "activeRuleSetVersion": "0.3.0",
   "patches": [
     {
       "hearthstoneBuild": 246003,
-      "ruleSetVersion": "0.2.0",
+      "ruleSetVersion": "0.3.0",
       "cardDataStatus": "MATCHED",
       "runtimeStatus": "EXPERIMENTAL",
       "reviewedOn": "2026-07-22",

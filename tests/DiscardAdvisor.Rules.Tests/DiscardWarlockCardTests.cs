@@ -157,6 +157,21 @@ public sealed class DiscardWarlockCardTests
     }
 
     [Fact]
+    public void SoulfireRemovesDivineShieldWithoutDamagingTheMinion()
+    {
+        var soulfire = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.Soulfire, 10);
+        var shielded = new MinionState(30, "SHIELDED", 1, 2, 5, 5, DivineShield: true);
+        var state = CreateState(hand: new[] { soulfire }, opponentBoard: new[] { shielded });
+
+        var result = _engine.Apply(state, new PlayCardAction(PlayerSide.Friendly, soulfire.EntityId, shielded.EntityId));
+
+        var minion = Assert.Single(result.State.Opponent.Board);
+        Assert.Equal(5, minion.Health);
+        Assert.False(minion.DivineShield);
+        Assert.Contains(result.Events, ruleEvent => ruleEvent.Type == "divine_shield_lost");
+    }
+
+    [Fact]
     public void SoulariumDrawsThreeTemporaryCardsAndCastsShred()
     {
         var soularium = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.Soularium, 10);
@@ -305,6 +320,7 @@ public sealed class DiscardWarlockCardTests
         HandCardState[]? hand = null,
         HandCardState[]? deck = null,
         MinionState[]? board = null,
+        MinionState[]? opponentBoard = null,
         int heroHealth = 30,
         int opponentHealth = 30,
         string heroPowerCardId = "HERO_POWER")
@@ -319,7 +335,8 @@ public sealed class DiscardWarlockCardTests
         var opponent = PlayerState.Create(
             new HeroState(200, "OPPONENT_HERO", opponentHealth, 30),
             new HeroPowerState(201, "OPPONENT_POWER", 2),
-            new ManaState(10, 0, 0, 10, 0, 0));
+            new ManaState(10, 0, 0, 10, 0, 0),
+            board: opponentBoard);
         return new RuleGameState(1, PlayerSide.Friendly, friendly, opponent);
     }
 

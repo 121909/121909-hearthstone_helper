@@ -29,6 +29,9 @@ public sealed record RandomOneCostMinion(
     bool Rush = false,
     bool Charge = false,
     bool Stealth = false,
+    bool DivineShield = false,
+    bool Poisonous = false,
+    bool Lifesteal = false,
     bool HasUnmodeledEffects = false);
 
 public interface IRandomOneCostMinionPool
@@ -548,26 +551,23 @@ public sealed class RandomOutcomeSampler
     {
         var targetSide = RuleGameState.Other(sourceSide);
         var targetPlayer = state.Player(targetSide);
-        var events = ImmutableArray.Create(new RuleEvent("damage", sourceEntityId, targetEntityId, 1));
+        var events = ImmutableArray<RuleEvent>.Empty;
         if (targetPlayer.Hero.EntityId == targetEntityId)
         {
-            var hero = targetPlayer.Hero;
-            if (!hero.Immune)
-            {
-                if (hero.Armor > 0)
-                    hero = hero with { Armor = hero.Armor - 1 };
-                else
-                    hero = hero with { Health = Math.Max(0, hero.Health - 1) };
-            }
-
-            return new DamageResult(state.WithPlayer(targetSide, targetPlayer with { Hero = hero }), events);
+            var damage = RuleDamage.Apply(targetPlayer.Hero, 1);
+            events = events.Add(new RuleEvent("damage", sourceEntityId, targetEntityId, damage.DamageApplied));
+            return new DamageResult(state.WithPlayer(targetSide, targetPlayer with { Hero = damage.Hero }), events);
         }
 
         var minion = targetPlayer.Board.FirstOrDefault(candidate => candidate.EntityId == targetEntityId);
-        if (minion is null || minion.Immune)
+        if (minion is null)
             return new DamageResult(state, events);
 
-        var damaged = minion with { Health = minion.Health - 1 };
+        var damageToMinion = RuleDamage.Apply(minion, 1);
+        var damaged = damageToMinion.Minion;
+        if (damageToMinion.DivineShieldLost)
+            events = events.Add(new RuleEvent("divine_shield_lost", sourceEntityId, targetEntityId));
+        events = events.Add(new RuleEvent("damage", sourceEntityId, targetEntityId, damageToMinion.DamageApplied));
         if (damaged.Health > 0)
         {
             targetPlayer = targetPlayer with { Board = targetPlayer.Board.Replace(minion, damaged) };
@@ -615,7 +615,10 @@ public sealed class RandomOutcomeSampler
             Rush: candidate.Rush,
             Charge: candidate.Charge,
             Stealth: candidate.Stealth,
-            SummonedThisTurn: true);
+            SummonedThisTurn: true,
+            DivineShield: candidate.DivineShield,
+            Poisonous: candidate.Poisonous,
+            Lifesteal: candidate.Lifesteal);
         player = player with { Board = player.Board.Add(minion) };
         var events = ImmutableArray.Create(new RuleEvent("summon", sourceEntityId, entityId, 0, candidate.CardId));
         if (candidate.HasUnmodeledEffects)

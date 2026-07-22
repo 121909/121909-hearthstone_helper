@@ -763,20 +763,26 @@ public sealed class DiscardWarlockRuleEngine
     private static TransitionResult DealDamage(TransitionResult result, int targetEntityId, int amount, int sourceEntityId)
     {
         var state = result.State;
-        var events = result.Events.Add(new RuleEvent("damage", sourceEntityId, targetEntityId, amount));
+        var events = result.Events;
         foreach (var side in new[] { PlayerSide.Friendly, PlayerSide.Opponent })
         {
             var player = state.Player(side);
             if (player.Hero.EntityId == targetEntityId)
             {
-                state = state.WithPlayer(side, player with { Hero = DamageHero(player.Hero, amount) });
+                var heroDamage = RuleDamage.Apply(player.Hero, amount);
+                events = events.Add(new RuleEvent("damage", sourceEntityId, targetEntityId, heroDamage.DamageApplied));
+                state = state.WithPlayer(side, player with { Hero = heroDamage.Hero });
                 return result with { State = state, Events = events };
             }
 
             var minion = player.Board.FirstOrDefault(candidate => candidate.EntityId == targetEntityId);
             if (minion is null)
                 continue;
-            var damaged = minion with { Health = minion.Health - (minion.Immune ? 0 : amount) };
+            var minionDamage = RuleDamage.Apply(minion, amount);
+            var damaged = minionDamage.Minion;
+            if (minionDamage.DivineShieldLost)
+                events = events.Add(new RuleEvent("divine_shield_lost", sourceEntityId, targetEntityId));
+            events = events.Add(new RuleEvent("damage", sourceEntityId, targetEntityId, minionDamage.DamageApplied));
             if (damaged.Health > 0)
                 player = player with { Board = player.Board.Replace(minion, damaged) };
             else
@@ -794,17 +800,7 @@ public sealed class DiscardWarlockRuleEngine
         return result;
     }
 
-    private static HeroState DamageHero(HeroState hero, int amount)
-    {
-        if (hero.Immune || amount <= 0)
-            return hero;
-        var armorDamage = Math.Min(hero.Armor, amount);
-        return hero with
-        {
-            Armor = hero.Armor - armorDamage,
-            Health = Math.Max(0, hero.Health - amount + armorDamage)
-        };
-    }
+    private static HeroState DamageHero(HeroState hero, int amount) => RuleDamage.Apply(hero, amount).Hero;
 
     private static TransitionResult Append(TransitionResult result, params RuleEvent[] events) =>
         result with { Events = result.Events.AddRange(events) };

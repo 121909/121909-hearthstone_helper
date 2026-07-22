@@ -1,6 +1,6 @@
 # Wild Discard Warlock rule specification
 
-Rule-set version: `0.2.0`
+Rule-set version: `0.3.0`
 Card definitions: Hearthstone build `246003`  
 Target mode: `RANKED_WILD`
 
@@ -51,6 +51,13 @@ multiset, never as a known order. Each draw from a deck with more than one
 remaining entity is therefore a uniform random branch. Small branch sets are
 enumerated exactly; larger multi-draw chains use the configured deterministic
 Monte Carlo seed. Ordered decks are permitted only in explicit rule fixtures.
+
+Visible Divine Shield, Poisonous, and Lifesteal tags are resolved for combat
+and spell damage. Divine Shield is removed before health changes, Poisonous
+destroys a minion only when damage is applied, and Lifesteal heals after the
+simultaneous combat damage is known. A visible Reborn minion currently marks
+the Snapshot `unsupported_reborn`; reconstructing it without the original
+unbuffed stats and enchantment split would invent state.
 
 ## Draw, discard, and board invariants
 

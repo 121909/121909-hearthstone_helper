@@ -99,7 +99,10 @@ public sealed record MinionState(
     bool Charge = false,
     bool Stealth = false,
     bool Immune = false,
-    bool SummonedThisTurn = false);
+    bool SummonedThisTurn = false,
+    bool DivineShield = false,
+    bool Poisonous = false,
+    bool Lifesteal = false);
 
 public sealed record LocationState(
     int EntityId,

@@ -19,7 +19,7 @@ public sealed class SearchPerformanceCollection
 [Collection(SearchPerformanceCollection.Name)]
 public sealed class SearchPerformanceRegressionTests
 {
-    private const string ExpectedSeededSearchHash = "60a937e96de18df2af7e6a23f5c38aa7d27b1011d4bf3ff7d3a52424c9df5d49";
+    private const string ExpectedSeededSearchHash = "4cb39bdf226d37c10d30c252dc0d24f7756abcf78f3f05d354cb1211b18b7145";
 
     [Fact]
     [Trait("Category", "Performance")]

@@ -143,6 +143,62 @@ public sealed class CommonRuleEngineTests
     }
 
     [Fact]
+    public void DivineShieldAbsorbsCombatDamageBeforeHealth()
+    {
+        var attacker = Minion(10, 1, attack: 3, health: 3);
+        var defender = Minion(20, 1, attack: 2, health: 2, divineShield: true);
+        var state = CreateState(
+            friendly: CreatePlayer(board: new[] { attacker }),
+            opponent: CreatePlayer(board: new[] { defender }));
+
+        var result = _engine.Apply(state, new AttackAction(PlayerSide.Friendly, 10, 20));
+
+        Assert.Equal(1, result.State.Friendly.Board.Single().Health);
+        var shielded = result.State.Opponent.Board.Single();
+        Assert.Equal(2, shielded.Health);
+        Assert.False(shielded.DivineShield);
+        Assert.Contains(result.Events, ruleEvent => ruleEvent.Type == "divine_shield_lost");
+    }
+
+    [Fact]
+    public void PoisonousDestroysAMinionOnlyWhenDamageIsApplied()
+    {
+        var poisonous = Minion(10, 1, attack: 1, health: 2, poisonous: true);
+        var defender = Minion(20, 1, attack: 0, health: 10);
+        var shielded = defender with { DivineShield = true };
+
+        var destroyed = _engine.Apply(
+            CreateState(
+                friendly: CreatePlayer(board: new[] { poisonous }),
+                opponent: CreatePlayer(board: new[] { defender })),
+            new AttackAction(PlayerSide.Friendly, 10, 20));
+        var protectedResult = _engine.Apply(
+            CreateState(
+                friendly: CreatePlayer(board: new[] { poisonous }),
+                opponent: CreatePlayer(board: new[] { shielded })),
+            new AttackAction(PlayerSide.Friendly, 10, 20));
+
+        Assert.Empty(destroyed.State.Opponent.Board);
+        Assert.Single(protectedResult.State.Opponent.Board);
+    }
+
+    [Fact]
+    public void LifestealHealsBothOwnersFromSimultaneousCombatDamage()
+    {
+        var attacker = Minion(10, 1, attack: 3, health: 5, lifesteal: true);
+        var defender = Minion(20, 1, attack: 2, health: 5, lifesteal: true);
+        var state = CreateState(
+            friendly: CreatePlayer(board: new[] { attacker }, heroHealth: 20),
+            opponent: CreatePlayer(board: new[] { defender }, heroId: 200, heroHealth: 20));
+
+        var result = _engine.Apply(state, new AttackAction(PlayerSide.Friendly, 10, 20));
+
+        Assert.Equal(23, result.State.Friendly.Hero.Health);
+        Assert.Equal(22, result.State.Opponent.Hero.Health);
+        Assert.Equal(2, result.Events.Count(ruleEvent => ruleEvent.Type == "heal"));
+    }
+
+    [Fact]
     public void HeroAttackConsumesWeaponDurabilityAndArmorAbsorbsRetaliation()
     {
         var friendly = CreatePlayer(heroHealth: 30, heroArmor: 2, weapon: new WeaponState(30, "WEAPON", 3, 1));
@@ -265,7 +321,10 @@ public sealed class CommonRuleEngineTests
         int health = 1,
         bool taunt = false,
         bool rush = false,
-        bool summoned = false) => new(
+        bool summoned = false,
+        bool divineShield = false,
+        bool poisonous = false,
+        bool lifesteal = false) => new(
             entityId,
             $"M{entityId}",
             position,
@@ -274,5 +333,8 @@ public sealed class CommonRuleEngineTests
             health,
             Taunt: taunt,
             Rush: rush,
-            SummonedThisTurn: summoned);
+            SummonedThisTurn: summoned,
+            DivineShield: divineShield,
+            Poisonous: poisonous,
+            Lifesteal: lifesteal);
 }

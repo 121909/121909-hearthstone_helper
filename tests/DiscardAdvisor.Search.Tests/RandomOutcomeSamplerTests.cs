@@ -55,6 +55,25 @@ public sealed class RandomOutcomeSamplerTests
     }
 
     [Fact]
+    public void BarrageMissileRemovesDivineShieldBeforeHealth()
+    {
+        var barrage = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.SoulBarrage, 10);
+        var shielded = new MinionState(30, "SHIELDED", 1, 1, 1, 1, DivineShield: true);
+        var state = CreateState(new[] { barrage }, opponentBoard: new[] { shielded });
+        var transition = TransitionResult.Legal(state, new[]
+        {
+            new RuleEvent("random_damage_pending", barrage.EntityId, null, 1, barrage.CardId)
+        });
+
+        var outcomes = new RandomOutcomeSampler().Resolve(transition, new RandomSamplingOptions());
+
+        var shieldHit = Assert.Single(outcomes.Where(outcome =>
+            outcome.State.Opponent.Hero.Health == 30 && !outcome.State.Opponent.Board[0].DivineShield));
+        Assert.Equal(1, shieldHit.State.Opponent.Board[0].Health);
+        Assert.Contains(shieldHit.Events, ruleEvent => ruleEvent.Type == "divine_shield_lost");
+    }
+
+    [Fact]
     public void WickedWhispersBuffsRandomAcolyteSummonsAfterTheyResolve()
     {
         var whispers = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.WickedWhispers, 10);
@@ -289,7 +308,16 @@ public sealed class RandomOutcomeSamplerTests
         });
         var pool = new StaticRandomOneCostMinionPool("test", new[]
         {
-            new RandomOneCostMinion("KEYWORD_MINION", 2, 3, Taunt: true, Rush: true, Stealth: true)
+            new RandomOneCostMinion(
+                "KEYWORD_MINION",
+                2,
+                3,
+                Taunt: true,
+                Rush: true,
+                Stealth: true,
+                DivineShield: true,
+                Poisonous: true,
+                Lifesteal: true)
         });
 
         var outcome = Assert.Single(new RandomOutcomeSampler(pool).Resolve(
@@ -302,6 +330,9 @@ public sealed class RandomOutcomeSamplerTests
         Assert.True(summoned.Taunt);
         Assert.True(summoned.Rush);
         Assert.True(summoned.Stealth);
+        Assert.True(summoned.DivineShield);
+        Assert.True(summoned.Poisonous);
+        Assert.True(summoned.Lifesteal);
         Assert.Contains(outcome.Events, ruleEvent => ruleEvent.Type == "summon_failed_board_full");
     }
 
