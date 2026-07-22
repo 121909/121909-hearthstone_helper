@@ -29,6 +29,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../DiscardAdvisor.Domain/DiscardAdvisor.Domain.csproj" />
+    <ProjectReference Include="../DiscardAdvisor.Rules/DiscardAdvisor.Rules.csproj" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' != 'net472'">
