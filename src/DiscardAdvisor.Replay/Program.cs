@@ -31,6 +31,7 @@ public static class Program
             Console.WriteLine($"Shadow thresholds: {(report.ShadowRun.MeetsAutomatedAcceptanceThresholds ? "MET" : "NOT MET")}");
             Console.WriteLine($"JSON report: {paths.JsonPath}");
             Console.WriteLine($"Markdown report: {paths.MarkdownPath}");
+            Console.WriteLine($"Expert review pack: {paths.ExpertReviewPath}");
             return report.Passed ? 0 : 1;
         }
         catch (OperationCanceledException)

@@ -25,7 +25,7 @@ Run the regression on Windows with PowerShell:
   -InputPath .\tests\Fixtures\schema\minimal-snapshot.json, .\tests\Fixtures\schema\minimal-snapshot.annotation.json
 ```
 
-The command writes `.artifacts\offline-regression\offline-regression.json` and `.md`. It returns a non-zero exit code when an input cannot be loaded, a Snapshot cannot be mapped, no route is generated, or any generated route fails independent legality replay.
+The command writes `.artifacts\offline-regression\offline-regression.json`, `.md`, and `expert-review-pack.json`. It returns a non-zero exit code when an input cannot be loaded, a Snapshot cannot be mapped, no route is generated, or any generated route fails independent legality replay.
 
 Pass HDT's `DiscardAdvisor\Diagnostics` directory as another input to aggregate shadow-run JSONL telemetry:
 
@@ -39,5 +39,7 @@ The shadow section counts only sessions recorded with `mode=shadow`. Only a real
 ## Expert annotations
 
 An optional `*.annotation.json` identifies one to three acceptable expert routes for a `state_id`. Actions use the stable protocol kinds `PLAY_CARD`, `ATTACK`, `USE_HERO_POWER`, `USE_LOCATION`, `SELECT_CHOICE`, and `END_TURN`, plus the relevant entity IDs, target, board position, or choice ID. A Snapshot is Top-3 consistent when at least one of the advisor's first three complete action sequences exactly matches one of the expert routes.
+
+`expert-review-pack.json` contains every currently unannotated Snapshot, the advisor candidates, risk values, CardIds for display, and a nested `annotation` object for each exact action. Reviewers rank one to three complete routes, copy those nested action objects into `expertTop3`, add independent labels/reasons, and save the result as `<state_id>.annotation.json`. The report tracks progress toward 200 annotations and the 80% Top-3 consistency target. Candidate scores are context for review, not a substitute for independent expert judgment.
 
 Offline reports include legal-route rate, p50/p95/maximum latency, deadline expiration, Top-3 consistency, and unsupported-interaction counts. Deadline expiration compares compute time with the Snapshot's remaining turn time. State supersession and whether an expired result became visible require shadow-run telemetry and are not inferred from Power.log.

@@ -155,13 +155,25 @@ public sealed class OfflineRegressionTests
     {
         using var directory = new TemporaryDirectory();
         var input = new RegressionInputLoader().Load(new[] { FixturePath("minimal-snapshot.json") });
-        var report = new OfflineRegressionRunner().Run(input, new OfflineRegressionOptions(TimeBudgetMs: 100));
+        var report = new OfflineRegressionRunner().Run(
+            input,
+            new OfflineRegressionOptions(MaximumActions: 1, TimeBudgetMs: 500));
 
         var paths = new RegressionReportWriter().Write(report, directory.Path);
 
         Assert.True(File.Exists(paths.JsonPath));
         Assert.True(File.Exists(paths.MarkdownPath));
+        Assert.True(File.Exists(paths.ExpertReviewPath));
         Assert.Contains("Legal routes", File.ReadAllText(paths.MarkdownPath), StringComparison.Ordinal);
+        var review = JObject.Parse(File.ReadAllText(paths.ExpertReviewPath));
+        var pending = Assert.IsType<JArray>(review["pending"]);
+        var item = Assert.IsType<JObject>(Assert.Single(pending));
+        Assert.Equal("minimal-snapshot.json", item.Value<string>("source"));
+        var candidates = Assert.IsType<JArray>(item["candidates"]);
+        var candidate = Assert.IsType<JObject>(Assert.Single(candidates));
+        var actions = Assert.IsType<JArray>(candidate["actions"]);
+        var action = Assert.IsType<JObject>(Assert.Single(actions));
+        Assert.Equal("END_TURN", action["annotation"]?.Value<string>("kind"));
     }
 
     private static string FixturePath(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", name);

@@ -82,7 +82,7 @@ public sealed class HdtReplayArchiveReader
         if (snapshots.Count > MaximumFixtureCount)
             throw new InvalidDataException($"The replay contains more than {MaximumFixtureCount} snapshot fixtures.");
 
-        var summary = new ReplayArchiveSummary(fullPath, powerLogLineCount, snapshots.Count, annotations.Count);
+        var summary = new ReplayArchiveSummary(Path.GetFileName(fullPath), powerLogLineCount, snapshots.Count, annotations.Count);
         return new ReplayArchiveDocuments(summary, snapshots.ToImmutable(), annotations.ToImmutable());
     }
 

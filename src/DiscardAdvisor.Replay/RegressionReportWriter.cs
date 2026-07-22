@@ -8,7 +8,7 @@ using Newtonsoft.Json.Serialization;
 
 namespace DiscardAdvisor.Replay;
 
-public sealed record RegressionReportPaths(string JsonPath, string MarkdownPath);
+public sealed record RegressionReportPaths(string JsonPath, string MarkdownPath, string ExpertReviewPath);
 
 public sealed class RegressionReportWriter
 {
@@ -29,9 +29,14 @@ public sealed class RegressionReportWriter
         Directory.CreateDirectory(directory);
         var jsonPath = Path.Combine(directory, "offline-regression.json");
         var markdownPath = Path.Combine(directory, "offline-regression.md");
+        var expertReviewPath = Path.Combine(directory, "expert-review-pack.json");
         File.WriteAllText(jsonPath, JsonConvert.SerializeObject(report, JsonSettings) + Environment.NewLine, new UTF8Encoding(false));
         File.WriteAllText(markdownPath, BuildMarkdown(report), new UTF8Encoding(false));
-        return new RegressionReportPaths(jsonPath, markdownPath);
+        File.WriteAllText(
+            expertReviewPath,
+            JsonConvert.SerializeObject(BuildExpertReviewPack(report), JsonSettings) + Environment.NewLine,
+            new UTF8Encoding(false));
+        return new RegressionReportPaths(jsonPath, markdownPath, expertReviewPath);
     }
 
     private static string BuildMarkdown(OfflineRegressionReport report)
@@ -46,7 +51,9 @@ public sealed class RegressionReportWriter
         builder.AppendLine($"- Legal routes: {report.LegalRouteCount}/{report.RouteCount} ({FormatPercent(report.LegalRouteRate)})");
         builder.AppendLine($"- Latency p50/p95/max: {report.LatencyP50Ms:F2}/{report.LatencyP95Ms:F2}/{report.LatencyMaximumMs:F2} ms");
         builder.AppendLine($"- Deadline expiration: {report.DeadlineExpiredCount}/{report.EvaluatedSnapshotCount} ({FormatPercent(report.DeadlineExpirationRate)})");
-        builder.AppendLine($"- Expert Top-3 consistency: {FormatOptionalPercent(report.ExpertTop3ConsistencyRate)} ({report.ExpertTop3MatchCount}/{report.AnnotatedSnapshotCount})");
+        builder.AppendLine($"- Expert annotations: {report.AnnotatedSnapshotCount}/200");
+        builder.AppendLine($"- Expert Top-3 consistency: {FormatOptionalPercent(report.ExpertTop3ConsistencyRate)} ({report.ExpertTop3MatchCount}/{report.AnnotatedSnapshotCount}, target 80%)");
+        builder.AppendLine($"- Expert thresholds: **{(report.MeetsExpertAnnotationTarget ? "MET" : "NOT MET")}**");
         builder.AppendLine();
         builder.AppendLine("## Shadow run");
         builder.AppendLine();
@@ -91,6 +98,30 @@ public sealed class RegressionReportWriter
         builder.AppendLine("Deadline expiration is an offline deadline check. Actual state supersession is reported separately when shadow-run telemetry is supplied.");
         return builder.ToString();
     }
+
+    private static object BuildExpertReviewPack(OfflineRegressionReport report) => new
+    {
+        ProtocolVersion = "1.0.0",
+        TargetAnnotationCount = 200,
+        AnnotatedSnapshotCount = report.AnnotatedSnapshotCount,
+        RemainingToTarget = Math.Max(0, 200 - report.AnnotatedSnapshotCount),
+        Pending = report.Snapshots
+            .Where(snapshot => snapshot.MappingSupported && !snapshot.ExpertTop3Matched.HasValue)
+            .Select(snapshot => new
+            {
+                snapshot.StateId,
+                snapshot.Source,
+                snapshot.TurnNumber,
+                Candidates = snapshot.ReviewCandidates,
+                AnnotationTemplate = new
+                {
+                    ProtocolVersion = "1.0.0",
+                    snapshot.StateId,
+                    ExpertTop3 = Array.Empty<object>()
+                }
+            })
+            .ToArray()
+    };
 
     private static string FormatPercent(double value) => value.ToString("P2", CultureInfo.InvariantCulture);
 

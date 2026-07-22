@@ -29,6 +29,8 @@ public sealed class ExpertAnnotation
             throw new InvalidOperationException("Annotation state_id is required.");
         if (ExpertTop3.IsEmpty || ExpertTop3.Length > 3)
             throw new InvalidOperationException("Annotation expertTop3 must contain one to three routes.");
+        if (ExpertTop3.Any(route => string.IsNullOrWhiteSpace(route.Label)))
+            throw new InvalidOperationException("Every annotated route must include a label.");
         if (ExpertTop3.Any(route => route.Actions.IsEmpty))
             throw new InvalidOperationException("Every annotated route must contain at least one action.");
     }
@@ -36,15 +38,18 @@ public sealed class ExpertAnnotation
 
 public sealed class AnnotatedRoute
 {
-    public AnnotatedRoute(string label, IEnumerable<AnnotatedAction> actions)
+    public AnnotatedRoute(string label, IEnumerable<AnnotatedAction> actions, string? reason = null)
     {
         Label = label;
         Actions = actions?.ToImmutableArray() ?? ImmutableArray<AnnotatedAction>.Empty;
+        Reason = reason;
     }
 
     public string Label { get; }
 
     public ImmutableArray<AnnotatedAction> Actions { get; }
+
+    public string? Reason { get; }
 }
 
 public sealed record AnnotatedAction(

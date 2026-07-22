@@ -4,6 +4,7 @@
   "expertTop3": [
     {
       "label": "End the empty opening turn",
+      "reason": "There are no playable resources or legal attacks.",
       "actions": [
         {
           "kind": "END_TURN"

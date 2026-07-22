@@ -34,6 +34,7 @@ public sealed record OfflineRegressionOptions(
 public sealed record SnapshotEvaluation(
     string Source,
     string StateId,
+    int TurnNumber,
     bool MappingSupported,
     int CandidateCount,
     int RouteCount,
@@ -41,7 +42,22 @@ public sealed record SnapshotEvaluation(
     double ElapsedMs,
     bool DeadlineExpired,
     bool? ExpertTop3Matched,
+    ImmutableArray<ExpertReviewCandidate> ReviewCandidates,
     ImmutableArray<string> UnsupportedInteractions);
+
+public sealed record ExpertReviewAction(
+    AnnotatedAction Annotation,
+    string? SourceCardId,
+    string? TargetCardId);
+
+public sealed record ExpertReviewCandidate(
+    string CandidateId,
+    double RiskAdjustedScore,
+    double Confidence,
+    double ExpectedScore,
+    double P10Score,
+    double LethalProbability,
+    ImmutableArray<ExpertReviewAction> Actions);
 
 public sealed record OfflineRegressionReport(
     DateTimeOffset GeneratedAtUtc,
@@ -72,6 +88,9 @@ public sealed record OfflineRegressionReport(
     public double DeadlineExpirationRate => EvaluatedSnapshotCount == 0
         ? 0
         : (double)DeadlineExpiredCount / EvaluatedSnapshotCount;
+
+    public bool MeetsExpertAnnotationTarget => AnnotatedSnapshotCount >= 200 &&
+                                               ExpertTop3ConsistencyRate >= 0.8d;
 
     public bool Passed
     {
@@ -134,8 +153,9 @@ public sealed class OfflineRegressionRunner
             if (!mapping.IsSupported || mapping.State is null)
             {
                 evaluations.Add(new SnapshotEvaluation(
-                    fixture.Source,
+                    DisplaySource(fixture.Source),
                     fixture.Snapshot.StateId,
+                    fixture.Snapshot.TurnNumber,
                     false,
                     0,
                     0,
@@ -143,6 +163,7 @@ public sealed class OfflineRegressionRunner
                     0,
                     false,
                     null,
+                    ImmutableArray<ExpertReviewCandidate>.Empty,
                     snapshotUnsupported.Distinct(StringComparer.Ordinal).ToImmutableArray()));
                 continue;
             }
@@ -164,8 +185,9 @@ public sealed class OfflineRegressionRunner
                 : (bool?)null;
             var elapsedMs = Math.Max(result.Elapsed.TotalMilliseconds, stopwatch.Elapsed.TotalMilliseconds);
             evaluations.Add(new SnapshotEvaluation(
-                fixture.Source,
+                DisplaySource(fixture.Source),
                 fixture.Snapshot.StateId,
+                fixture.Snapshot.TurnNumber,
                 true,
                 result.Candidates.Length,
                 routes.Length,
@@ -173,6 +195,7 @@ public sealed class OfflineRegressionRunner
                 elapsedMs,
                 fixture.Snapshot.RemainingTurnTimeMs > 0 && elapsedMs >= fixture.Snapshot.RemainingTurnTimeMs,
                 top3Matched,
+                BuildReviewCandidates(mapping.State, result.Candidates),
                 snapshotUnsupported.Distinct(StringComparer.Ordinal).ToImmutableArray()));
         }
 
@@ -207,6 +230,75 @@ public sealed class OfflineRegressionRunner
         return annotation.ExpertTop3.Any(expert => advisorTop3.Any(candidate =>
             candidate.Length == expert.Actions.Length &&
             candidate.Zip(expert.Actions, (action, expected) => expected.Matches(action)).All(value => value)));
+    }
+
+    private static ImmutableArray<ExpertReviewCandidate> BuildReviewCandidates(
+        RuleGameState initialState,
+        IEnumerable<RiskAwareRouteCandidate> candidates) => candidates.Select(candidate =>
+        new ExpertReviewCandidate(
+            candidate.CandidateId,
+            candidate.RiskAdjustedScore,
+            candidate.Confidence,
+            candidate.Risk.Expected,
+            candidate.Risk.P10,
+            candidate.Risk.LethalProbability,
+            candidate.Actions.Select(action => BuildReviewAction(
+                    initialState,
+                    candidate.RepresentativeRoute.State,
+                    action))
+                .ToImmutableArray())).ToImmutableArray();
+
+    private static ExpertReviewAction BuildReviewAction(
+        RuleGameState initialState,
+        RuleGameState finalState,
+        RuleAction action)
+    {
+        var annotation = AnnotatedAction.FromRuleAction(action);
+        var sourceEntityId = action switch
+        {
+            UseHeroPowerAction heroPower => initialState.Player(heroPower.Side).HeroPower.EntityId,
+            _ => annotation.SourceEntityId
+        };
+        return new ExpertReviewAction(
+            annotation,
+            FindCardId(initialState, finalState, sourceEntityId),
+            FindCardId(initialState, finalState, annotation.TargetEntityId));
+    }
+
+    private static string? FindCardId(RuleGameState initialState, RuleGameState finalState, int? entityId)
+    {
+        if (entityId is not int id)
+            return null;
+        return FindCardId(initialState, id) ?? FindCardId(finalState, id);
+    }
+
+    private static string? FindCardId(RuleGameState state, int entityId)
+    {
+        foreach (var player in new[] { state.Friendly, state.Opponent })
+        {
+            if (player.Hero.EntityId == entityId)
+                return player.Hero.CardId;
+            if (player.HeroPower.EntityId == entityId)
+                return player.HeroPower.CardId;
+            if (player.Weapon?.EntityId == entityId)
+                return player.Weapon.CardId;
+            var cardId = player.Hand.FirstOrDefault(card => card.EntityId == entityId)?.CardId ??
+                         player.Deck.FirstOrDefault(card => card.EntityId == entityId)?.CardId ??
+                         player.Board.FirstOrDefault(card => card.EntityId == entityId)?.CardId ??
+                         player.Locations.FirstOrDefault(card => card.EntityId == entityId)?.CardId ??
+                         player.Graveyard.FirstOrDefault(card => card.EntityId == entityId)?.CardId;
+            if (cardId is not null)
+                return cardId;
+        }
+        return null;
+    }
+
+    private static string DisplaySource(string source)
+    {
+        var separator = source.IndexOf("!/", StringComparison.Ordinal);
+        if (separator < 0)
+            return System.IO.Path.GetFileName(source);
+        return System.IO.Path.GetFileName(source.Substring(0, separator)) + source.Substring(separator);
     }
 
     private static void AddUnsupported(IDictionary<string, int> destination, IEnumerable<string> values)
