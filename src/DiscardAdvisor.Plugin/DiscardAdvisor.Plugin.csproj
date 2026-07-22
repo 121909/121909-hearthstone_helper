@@ -30,6 +30,7 @@
   <ItemGroup Condition="'$(TargetFramework)' != 'net472'">
     <Compile Remove="DiscardAdvisorPlugin.cs" />
     <Compile Remove="HdtGameContextProvider.cs" />
+    <Compile Remove="HdtSnapshotObservationFactory.cs" />
   </ItemGroup>
 
   <Target Name="ValidateHdtReference" BeforeTargets="ResolveReferences" Condition="'$(TargetFramework)' == 'net472' and !Exists('$(HdtExecutable)')">

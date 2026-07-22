@@ -27,7 +27,7 @@ internal sealed class HdtGameContextProvider : IGameContextProvider
         return new PluginGateContext(gameMode, cardIds, CaptureCompatibility());
     }
 
-    private static RuntimeCompatibility CaptureCompatibility()
+    internal static RuntimeCompatibility CaptureCompatibility()
     {
         var hdtAssembly = typeof(HdtApiCore).Assembly;
         var hdtVersion = hdtAssembly.GetName().Version?.ToString(3) ?? string.Empty;
