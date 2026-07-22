@@ -1,5 +1,6 @@
 using System;
 using System.Windows.Controls;
+using DiscardAdvisor.Search;
 using Hearthstone_Deck_Tracker.Plugins;
 
 namespace DiscardAdvisor.Plugin;
@@ -7,6 +8,7 @@ namespace DiscardAdvisor.Plugin;
 public sealed class DiscardAdvisorPlugin : IPlugin
 {
     private readonly IPluginRuntime _runtime;
+    private HdtOverlayController? _overlay;
 
     public DiscardAdvisorPlugin()
         : this(CreateRuntime())
@@ -22,7 +24,7 @@ public sealed class DiscardAdvisorPlugin : IPlugin
 
     public string Description => "Turn-by-turn recommendations for the locked Wild discard-warlock deck.";
 
-    public string ButtonText => "Settings";
+    public string ButtonText => "Show / Hide";
 
     public string Author => "121909";
 
@@ -30,13 +32,23 @@ public sealed class DiscardAdvisorPlugin : IPlugin
 
     public MenuItem MenuItem => null!;
 
-    public void OnLoad() => _runtime.Start();
+    public void OnLoad()
+    {
+        _runtime.Start();
+        _overlay = new HdtOverlayController(_runtime as IOverlayStateSource);
+        _overlay.Attach();
+    }
 
-    public void OnUnload() => _runtime.Stop();
+    public void OnUnload()
+    {
+        _overlay?.Dispose();
+        _overlay = null;
+        _runtime.Stop();
+    }
 
     public void OnButtonPress()
     {
-        // Settings are added with the overlay; the MVP has no mutable plugin options yet.
+        _overlay?.ToggleVisibility();
     }
 
     public void OnUpdate() => _runtime.Update();
@@ -48,6 +60,7 @@ public sealed class DiscardAdvisorPlugin : IPlugin
             new HdtGameContextProvider(),
             new HdtGameEventSource(mechanics),
             new HdtSnapshotObservationFactory(mechanics),
-            HdtPluginDiagnostics.Create());
+            HdtPluginDiagnostics.Create(),
+            new LocalAdvisorService(new LocalTurnAdvisor(new HdtRandomOneCostMinionPool())));
     }
 }

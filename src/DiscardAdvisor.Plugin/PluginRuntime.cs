@@ -1,10 +1,11 @@
 using System;
+using System.Threading.Tasks;
 using DiscardAdvisor.Domain;
 using DiscardAdvisor.Domain.Snapshots;
 
 namespace DiscardAdvisor.Plugin;
 
-public sealed class PluginRuntime : IPluginRuntime, IDisposable
+public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDisposable
 {
     private readonly PluginLifetime _lifetime;
     private readonly IGameContextProvider? _gameContextProvider;
@@ -14,16 +15,19 @@ public sealed class PluginRuntime : IPluginRuntime, IDisposable
     private readonly GameSnapshotBuilder _snapshotBuilder = new();
     private readonly SnapshotCoordinator _snapshotCoordinator;
     private readonly IPluginDiagnostics _diagnostics;
+    private readonly ILocalAdvisorService? _advisorService;
+    private readonly object _advisorStateGate = new();
+    private PluginAdvisorUpdate _currentAdvisorUpdate = PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Offline);
     private GateStatus? _lastRecordedGateStatus;
     private Guid _gameId;
 
     public PluginRuntime()
-        : this(new PluginLifetime(), null, null, null, new SnapshotCoordinator(), NullPluginDiagnostics.Instance)
+        : this(new PluginLifetime(), null, null, null, new SnapshotCoordinator(), NullPluginDiagnostics.Instance, null)
     {
     }
 
     public PluginRuntime(IGameContextProvider gameContextProvider)
-        : this(new PluginLifetime(), gameContextProvider, null, null, new SnapshotCoordinator(), NullPluginDiagnostics.Instance)
+        : this(new PluginLifetime(), gameContextProvider, null, null, new SnapshotCoordinator(), NullPluginDiagnostics.Instance, null)
     {
     }
 
@@ -31,14 +35,16 @@ public sealed class PluginRuntime : IPluginRuntime, IDisposable
         IGameContextProvider gameContextProvider,
         IGameEventSource gameEventSource,
         ISnapshotObservationSource snapshotSource,
-        IPluginDiagnostics? diagnostics = null)
+        IPluginDiagnostics? diagnostics = null,
+        ILocalAdvisorService? advisorService = null)
         : this(
             new PluginLifetime(),
             gameContextProvider,
             gameEventSource,
             snapshotSource,
             new SnapshotCoordinator(),
-            diagnostics ?? NullPluginDiagnostics.Instance)
+            diagnostics ?? NullPluginDiagnostics.Instance,
+            advisorService)
     {
     }
 
@@ -48,7 +54,8 @@ public sealed class PluginRuntime : IPluginRuntime, IDisposable
         IGameEventSource? gameEventSource = null,
         ISnapshotObservationSource? snapshotSource = null,
         SnapshotCoordinator? snapshotCoordinator = null,
-        IPluginDiagnostics? diagnostics = null)
+        IPluginDiagnostics? diagnostics = null,
+        ILocalAdvisorService? advisorService = null)
     {
         _lifetime = lifetime;
         _gameContextProvider = gameContextProvider;
@@ -56,13 +63,25 @@ public sealed class PluginRuntime : IPluginRuntime, IDisposable
         _snapshotSource = snapshotSource;
         _snapshotCoordinator = snapshotCoordinator ?? new SnapshotCoordinator();
         _diagnostics = diagnostics ?? NullPluginDiagnostics.Instance;
+        _advisorService = advisorService;
     }
 
     public PluginRunState State => _lifetime.State;
 
     public GateDecision? CurrentGateDecision { get; private set; }
 
+    public PluginAdvisorUpdate CurrentAdvisorUpdate
+    {
+        get
+        {
+            lock (_advisorStateGate)
+                return _currentAdvisorUpdate;
+        }
+    }
+
     public event Action<SnapshotWorkItem>? SnapshotReady;
+
+    public event Action<PluginAdvisorUpdate>? AdvisorUpdated;
 
     public void Start()
     {
@@ -73,7 +92,10 @@ public sealed class PluginRuntime : IPluginRuntime, IDisposable
         _gameEventSource?.Start(HandleGameStarted, HandleGameEnded, HandleStateChanged);
         RefreshEligibility();
         if (CurrentGateDecision?.IsEnabled == true)
+        {
+            PublishAdvisorUpdate(PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Analyzing));
             _snapshotCoordinator.MarkDirty();
+        }
     }
 
     public void Stop()
@@ -83,6 +105,7 @@ public sealed class PluginRuntime : IPluginRuntime, IDisposable
         _snapshotCoordinator.Reset();
         CurrentGateDecision = null;
         _lastRecordedGateStatus = null;
+        PublishAdvisorUpdate(PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Offline));
     }
 
     public void Update()
@@ -96,7 +119,10 @@ public sealed class PluginRuntime : IPluginRuntime, IDisposable
             if (_snapshotCoordinator.TryCreateWork(CaptureSnapshot, out var workItem) && workItem is not null)
             {
                 _diagnostics.RecordSnapshot(workItem.Snapshot);
+                PublishAdvisorUpdate(PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Analyzing, workItem.StateId));
                 SnapshotReady?.Invoke(workItem);
+                if (_advisorService is not null)
+                    _ = RunAdvisorAsync(workItem);
             }
         }
         catch (Exception exception)
@@ -117,6 +143,16 @@ public sealed class PluginRuntime : IPluginRuntime, IDisposable
         {
             _diagnostics.RecordGateDecision(CurrentGateDecision);
             _lastRecordedGateStatus = CurrentGateDecision.Status;
+        }
+        if (!CurrentGateDecision.IsEnabled)
+        {
+            var status = CurrentGateDecision.Status is GateStatus.UnsupportedPatch or
+                GateStatus.UnsupportedHdtVersion or
+                GateStatus.UnsupportedCardDefinitions or
+                GateStatus.UnsupportedHearthDb
+                ? PluginAdvisorStatus.UnsupportedPatch
+                : PluginAdvisorStatus.Inactive;
+            PublishAdvisorUpdate(PluginAdvisorUpdate.StateOnly(status));
         }
     }
 
@@ -146,11 +182,41 @@ public sealed class PluginRuntime : IPluginRuntime, IDisposable
         _snapshotCoordinator.Reset();
         CurrentGateDecision = null;
         _lastRecordedGateStatus = null;
+        PublishAdvisorUpdate(PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Offline));
     }
 
     private void HandleStateChanged()
     {
+        PublishAdvisorUpdate(PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Stale));
         RefreshEligibility();
         _snapshotCoordinator.MarkDirty();
+    }
+
+    private async Task RunAdvisorAsync(SnapshotWorkItem workItem)
+    {
+        try
+        {
+            var update = await _advisorService!.AnalyzeAsync(workItem.Snapshot, workItem.CancellationToken)
+                .ConfigureAwait(false);
+            if (workItem.CancellationToken.IsCancellationRequested || !_snapshotCoordinator.CanAcceptResult(workItem.StateId))
+                return;
+            PublishAdvisorUpdate(update);
+        }
+        catch (OperationCanceledException) when (workItem.CancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            _diagnostics.RecordError("local_advisor_failed", exception);
+            if (_snapshotCoordinator.CanAcceptResult(workItem.StateId))
+                PublishAdvisorUpdate(PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Offline, workItem.StateId));
+        }
+    }
+
+    private void PublishAdvisorUpdate(PluginAdvisorUpdate update)
+    {
+        lock (_advisorStateGate)
+            _currentAdvisorUpdate = update;
+        AdvisorUpdated?.Invoke(update);
     }
 }

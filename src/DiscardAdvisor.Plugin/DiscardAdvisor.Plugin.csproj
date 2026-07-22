@@ -25,6 +25,8 @@
       <Private>false</Private>
     </Reference>
     <Reference Include="PresentationFramework" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="WindowsBase" />
   </ItemGroup>
 
   <ItemGroup>
@@ -41,6 +43,8 @@
     <Compile Remove="HdtGameEventSource.cs" />
     <Compile Remove="HdtPluginDiagnostics.cs" />
     <Compile Remove="HdtRandomOneCostMinionPool.cs" />
+    <Compile Remove="DiscardAdvisorOverlayView.cs" />
+    <Compile Remove="HdtOverlayController.cs" />
   </ItemGroup>
 
   <Target Name="ValidateHdtReference" BeforeTargets="ResolveReferences" Condition="'$(TargetFramework)' == 'net472' and !Exists('$(HdtExecutable)')">
