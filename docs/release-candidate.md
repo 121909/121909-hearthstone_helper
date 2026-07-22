@@ -20,6 +20,17 @@ builds the HDT plugin, and writes a ZIP under
 assemblies, a Shadow `settings.json`, the release manifest, installation notes,
 and a SHA-256 package manifest. PDB files and local evidence are not included.
 
+Verify a candidate after copying or downloading it:
+
+```powershell
+.\scripts\verify-release-candidate.ps1 `
+  -ArchivePath .\.artifacts\release-candidate\DiscardAdvisor-<version>.zip
+```
+
+The verifier rejects malformed ZIP layout, untracked files, missing assemblies,
+PDB files, package-manifest length or SHA-256 mismatches, release-version drift,
+and a settings mode that disagrees with the package manifest.
+
 An experimental visible-test package is deliberately unavailable without a
 verified final evidence archive:
 
@@ -32,6 +43,13 @@ verified final evidence archive:
 That command runs `verify-validation-evidence.ps1` with
 `-RequireVisiblePrerequisites` before building. A fixture-only, incomplete,
 tampered, mixed-version, or below-threshold archive is rejected.
+Verify an experimental package with the same evidence archive:
+
+```powershell
+.\scripts\verify-release-candidate.ps1 `
+  -ArchivePath .\.artifacts\release-candidate\DiscardAdvisor-<version>.zip `
+  -EvidencePath .\.artifacts\validation-evidence\<final-archive>
+```
 
 ## Current limitations
 
