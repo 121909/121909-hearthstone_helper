@@ -19,6 +19,8 @@ public sealed record LethalSearchResult(
 
 public sealed class DeterministicLethalSearch
 {
+    private const int MaximumFrontierSize = 256;
+    private const int FrontierPruneThreshold = MaximumFrontierSize * 4;
     private readonly LegalActionEnumerator _actions;
     private readonly DiscardWarlockRuleEngine _rules;
     private readonly IStateEvaluator _evaluator;
@@ -52,6 +54,7 @@ public sealed class DeterministicLethalSearch
             throw new ArgumentOutOfRangeException(nameof(timeBudget));
 
         var stopwatch = Stopwatch.StartNew();
+        var expansionBudget = CalculateExpansionBudget(timeBudget);
         var frontier = ImmutableArray.Create(new SearchRoute(
             initialState,
             ImmutableArray<RuleAction>.Empty,
@@ -68,12 +71,17 @@ public sealed class DeterministicLethalSearch
             {
                 if (cancellationToken.IsCancellationRequested)
                     return Result(false, null, explored, stopwatch, false, true);
-                if (stopwatch.Elapsed >= timeBudget)
+                if (stopwatch.Elapsed >= expansionBudget)
                     return Result(false, null, explored, stopwatch, true, false);
 
                 explored++;
                 foreach (var action in _actions.Enumerate(route.State).Where(action => action is not EndTurnAction))
                 {
+                    if (cancellationToken.IsCancellationRequested)
+                        return Result(false, null, explored, stopwatch, false, true);
+                    if (stopwatch.Elapsed >= expansionBudget)
+                        return Result(false, null, explored, stopwatch, true, false);
+
                     var transition = _rules.Apply(route.State, action);
                     if (!transition.IsLegal)
                         continue;
@@ -102,10 +110,12 @@ public sealed class DeterministicLethalSearch
                         route.Events.AddRange(transition.Events),
                         route.Probability,
                         _evaluator.Evaluate(transition.State)));
+                    if (next.Count >= FrontierPruneThreshold)
+                        next = Prioritize(next).Take(MaximumFrontierSize).ToList();
                 }
             }
-            frontier = next.OrderBy(route => route.State.Opponent.Hero.Health)
-                .ThenByDescending(route => route.Score)
+            frontier = Prioritize(next)
+                .Take(MaximumFrontierSize)
                 .ToImmutableArray();
         }
         return Result(false, null, explored, stopwatch, false, false);
@@ -113,6 +123,16 @@ public sealed class DeterministicLethalSearch
 
     private static bool IsLethal(RuleGameState state) =>
         state.Opponent.Hero.Health <= 0 && state.Friendly.Hero.Health > 0;
+
+    private static IOrderedEnumerable<SearchRoute> Prioritize(IEnumerable<SearchRoute> routes) => routes
+        .OrderBy(route => route.State.Opponent.Hero.Health)
+        .ThenByDescending(route => route.Score);
+
+    private static TimeSpan CalculateExpansionBudget(TimeSpan totalBudget)
+    {
+        var reserveTicks = Math.Min(TimeSpan.FromMilliseconds(30).Ticks, totalBudget.Ticks / 2);
+        return totalBudget - TimeSpan.FromTicks(reserveTicks);
+    }
 
     private static bool HasUnresolvedRandomness(IEnumerable<RuleEvent> events) => events.Any(ruleEvent =>
         ruleEvent.Type.StartsWith("random_", StringComparison.Ordinal) &&

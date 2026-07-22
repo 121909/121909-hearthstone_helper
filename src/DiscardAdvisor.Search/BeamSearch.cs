@@ -72,6 +72,7 @@ public sealed class BeamSearch
         options ??= new BeamSearchOptions();
         ValidateOptions(options);
         var opponentBelief = options.OpponentBelief ?? new OpponentBeliefModel().Estimate(initialState);
+        var expansionTimeBudget = CalculateExpansionTimeBudget(options.EffectiveTimeBudget);
 
         var stopwatch = Stopwatch.StartNew();
         var frontier = ImmutableArray.Create(new SearchRoute(
@@ -91,7 +92,7 @@ public sealed class BeamSearch
         var dominancePruned = 0;
         var timedOut = false;
         var cancelled = false;
-        var random = new Random(options.EffectiveRandomSampling.Seed);
+        var random = new SeededRandomSource(options.EffectiveRandomSampling.Seed);
 
         for (var depth = 0; depth < options.MaximumActions && !frontier.IsEmpty; depth++)
         {
@@ -100,7 +101,7 @@ public sealed class BeamSearch
                 cancelled = true;
                 break;
             }
-            if (stopwatch.Elapsed >= options.EffectiveTimeBudget)
+            if (stopwatch.Elapsed >= expansionTimeBudget)
             {
                 timedOut = true;
                 break;
@@ -114,7 +115,7 @@ public sealed class BeamSearch
                     cancelled = true;
                     break;
                 }
-                if (stopwatch.Elapsed >= options.EffectiveTimeBudget)
+                if (stopwatch.Elapsed >= expansionTimeBudget)
                 {
                     timedOut = true;
                     break;
@@ -123,12 +124,38 @@ public sealed class BeamSearch
                 expanded++;
                 foreach (var action in _actions.Enumerate(route.State))
                 {
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        cancelled = true;
+                        break;
+                    }
+                    if (stopwatch.Elapsed >= expansionTimeBudget)
+                    {
+                        timedOut = true;
+                        break;
+                    }
+
                     var transition = _rules.Apply(route.State, action);
                     if (!transition.IsLegal)
                         continue;
-                    var outcomes = _randomOutcomes.Resolve(transition, options.EffectiveRandomSampling, random);
+                    var outcomes = _randomOutcomes.Resolve(
+                        transition,
+                        options.EffectiveRandomSampling,
+                        random,
+                        () => cancellationToken.IsCancellationRequested || stopwatch.Elapsed >= expansionTimeBudget);
                     foreach (var outcome in outcomes)
                     {
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            cancelled = true;
+                            break;
+                        }
+                        if (stopwatch.Elapsed >= expansionTimeBudget)
+                        {
+                            timedOut = true;
+                            break;
+                        }
+
                         generated++;
                         var candidate = new SearchRoute(
                             outcome.State,
@@ -148,23 +175,63 @@ public sealed class BeamSearch
 
                         next.Add(candidate);
                     }
+                    if (cancelled || timedOut)
+                        break;
                 }
+                if (cancelled || timedOut)
+                    break;
             }
-            if (cancelled || timedOut)
+            if (cancelled)
                 break;
+            if (timedOut)
+            {
+                frontier = next.OrderByDescending(RoutePriority)
+                    .Take(options.BeamWidth)
+                    .ToImmutableArray();
+                break;
+            }
 
             var uniqueNext = new List<SearchRoute>();
-            foreach (var group in next.GroupBy(route => RuleStateKey.Calculate(route.State)))
+            var preselected = next.OrderByDescending(RoutePriority)
+                .Take(options.BeamWidth * 2)
+                .ToArray();
+            var bestByState = new Dictionary<string, SearchRoute>(StringComparer.Ordinal);
+            foreach (var route in preselected)
             {
-                var best = group.OrderByDescending(RoutePriority).First();
-                deduplicated += group.Count() - 1;
-                if (seenAtDepth.TryGetValue(group.Key, out var seenDepth) && seenDepth < depth + 1)
+                if (stopwatch.Elapsed >= expansionTimeBudget)
+                {
+                    timedOut = true;
+                    break;
+                }
+
+                var key = RuleStateKey.Calculate(route.State);
+                if (bestByState.TryGetValue(key, out var existing))
+                {
+                    deduplicated++;
+                    if (RoutePriority(route) > RoutePriority(existing))
+                        bestByState[key] = route;
+                }
+                else
+                {
+                    bestByState.Add(key, route);
+                }
+            }
+            foreach (var entry in bestByState)
+            {
+                if (seenAtDepth.TryGetValue(entry.Key, out var seenDepth) && seenDepth < depth + 1)
                 {
                     deduplicated++;
                     continue;
                 }
-                seenAtDepth[group.Key] = depth + 1;
-                uniqueNext.Add(best);
+                seenAtDepth[entry.Key] = depth + 1;
+                uniqueNext.Add(entry.Value);
+            }
+            if (timedOut)
+            {
+                frontier = uniqueNext.OrderByDescending(RoutePriority)
+                    .Take(options.BeamWidth)
+                    .ToImmutableArray();
+                break;
             }
             var pruned = _dominancePruner.Prune(uniqueNext, out var prunedThisDepth);
             dominancePruned += prunedThisDepth;
@@ -178,9 +245,16 @@ public sealed class BeamSearch
             .GroupBy(route => RuleStateKey.Calculate(route.State))
             .Select(group => group.OrderByDescending(RoutePriority).First())
             .ToImmutableArray();
+        var maximumRankingGroups = Math.Max(options.TopK * 2, 8);
+        var rankingRoutes = finalRoutes
+            .GroupBy(RiskAwareRouteRanker.ActionSequenceKey, StringComparer.Ordinal)
+            .OrderByDescending(group => group.Max(RoutePriority))
+            .Take(maximumRankingGroups)
+            .SelectMany(group => group)
+            .ToImmutableArray();
         var candidates = _routeRanker.Rank(
             initialState,
-            finalRoutes,
+            rankingRoutes,
             opponentBelief,
             options.TopK);
         var candidateRanks = candidates
@@ -211,6 +285,12 @@ public sealed class BeamSearch
     private double Evaluate(RuleGameState state, OpponentBelief belief) => _evaluator is IDetailedStateEvaluator detailed
         ? detailed.EvaluateDetailed(state, belief).Total
         : _evaluator.Evaluate(state);
+
+    private static TimeSpan CalculateExpansionTimeBudget(TimeSpan totalBudget)
+    {
+        var reserveTicks = Math.Min(TimeSpan.FromMilliseconds(50).Ticks, totalBudget.Ticks / 4);
+        return totalBudget - TimeSpan.FromTicks(reserveTicks);
+    }
 
     private static void ValidateOptions(BeamSearchOptions options)
     {

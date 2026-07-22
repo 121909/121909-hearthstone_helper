@@ -85,6 +85,23 @@ public sealed class RandomOutcomeSampler
         RandomSamplingOptions options,
         Random random)
     {
+        if (random is null)
+            throw new ArgumentNullException(nameof(random));
+        return Resolve(transition, options, new SystemRandomSource(random));
+    }
+
+    public ImmutableArray<RandomOutcome> Resolve(
+        TransitionResult transition,
+        RandomSamplingOptions options,
+        IRandomSource random)
+        => Resolve(transition, options, random, null);
+
+    public ImmutableArray<RandomOutcome> Resolve(
+        TransitionResult transition,
+        RandomSamplingOptions options,
+        IRandomSource random,
+        Func<bool>? shouldStop)
+    {
         if (transition is null)
             throw new ArgumentNullException(nameof(transition));
         if (options is null)
@@ -106,6 +123,8 @@ public sealed class RandomOutcomeSampler
 
         foreach (var root in roots)
         {
+            if (shouldStop?.Invoke() == true)
+                break;
             if (TryResolveExactly(root, exactLimitPerRoot, out var exact))
             {
                 resolved.AddRange(exact);
@@ -116,6 +135,8 @@ public sealed class RandomOutcomeSampler
             var sampleProbability = root.Probability / sampleCount;
             for (var index = 0; index < sampleCount; index++)
             {
+                if (shouldStop?.Invoke() == true)
+                    break;
                 var sampled = ResolveSample(root with { Probability = sampleProbability }, random);
                 resolved.Add(sampled);
             }
@@ -131,7 +152,7 @@ public sealed class RandomOutcomeSampler
         RandomSamplingOptions? options = null)
     {
         options ??= new RandomSamplingOptions();
-        return Resolve(transition, options, new Random(options.Seed));
+        return Resolve(transition, options, new SeededRandomSource(options.Seed));
     }
 
     private bool TryResolveExactly(
@@ -325,7 +346,7 @@ public sealed class RandomOutcomeSampler
             outcome.UsesMonteCarlo));
     }
 
-    private RandomOutcome ResolveSample(RandomOutcome root, Random random)
+    private RandomOutcome ResolveSample(RandomOutcome root, IRandomSource random)
     {
         var current = root;
         for (var guard = 0; guard < 32; guard++)
@@ -350,7 +371,7 @@ public sealed class RandomOutcomeSampler
         RandomOutcome outcome,
         int pendingIndex,
         RuleEvent pending,
-        Random random)
+        IRandomSource random)
     {
         var state = outcome.State;
         var events = ImmutableArray<RuleEvent>.Empty;
@@ -386,7 +407,7 @@ public sealed class RandomOutcomeSampler
         RandomOutcome outcome,
         int pendingIndex,
         RuleEvent pending,
-        Random random)
+        IRandomSource random)
     {
         if (_oneCostMinions.Candidates.Count == 0)
             return ResolveUnavailablePool(outcome, pendingIndex, pending);
