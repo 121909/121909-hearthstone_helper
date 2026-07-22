@@ -19,6 +19,7 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
     private readonly ILocalAdvisorService? _advisorService;
     private readonly object _advisorStateGate = new();
     private PluginAdvisorUpdate _currentAdvisorUpdate = PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Offline);
+    private PluginAdvisorUpdate? _lastCompletedAdvisorUpdate;
     private GateStatus? _lastRecordedGateStatus;
     private Guid _gameId;
     private bool _gameSessionActive;
@@ -110,6 +111,8 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
         _lifetime.Stop();
         _gameEventSource?.Stop();
         _snapshotCoordinator.Reset();
+        lock (_advisorStateGate)
+            _lastCompletedAdvisorUpdate = null;
         CurrentGateDecision = null;
         _lastRecordedGateStatus = null;
         PublishAdvisorUpdate(PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Offline));
@@ -123,14 +126,22 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
 
         try
         {
-            if (_snapshotCoordinator.TryCreateWork(CaptureSnapshot, out var workItem) && workItem is not null)
+            if (_snapshotCoordinator.TryCreateWork(
+                    CaptureSnapshot,
+                    out var workItem,
+                    out var unchangedCompletedState) && workItem is not null)
             {
                 EnsureGameSessionStarted(workItem.Snapshot.GameId);
                 _diagnostics.RecordSnapshot(workItem.Snapshot);
-                PublishAdvisorUpdate(PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Analyzing, workItem.StateId));
+                if (!TryPublishAnalyzing(workItem))
+                    return;
                 SnapshotReady?.Invoke(workItem);
                 if (_advisorService is not null)
                     _ = RunAdvisorAsync(workItem);
+            }
+            else if (unchangedCompletedState)
+            {
+                RestoreCompletedAdvisorUpdate();
             }
         }
         catch (Exception exception)
@@ -208,6 +219,8 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
             _gameSessionActive = false;
         }
         _snapshotCoordinator.Reset();
+        lock (_advisorStateGate)
+            _lastCompletedAdvisorUpdate = null;
         CurrentGateDecision = null;
         _lastRecordedGateStatus = null;
         PublishAdvisorUpdate(PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Offline));
@@ -215,9 +228,14 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
 
     private void HandleStateChanged()
     {
-        PublishAdvisorUpdate(PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Stale));
+        var stale = PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Stale);
+        lock (_advisorStateGate)
+        {
+            _snapshotCoordinator.MarkDirty();
+            _currentAdvisorUpdate = stale;
+            AdvisorUpdated?.Invoke(stale);
+        }
         RefreshEligibility();
-        _snapshotCoordinator.MarkDirty();
     }
 
     private async Task RunAdvisorAsync(SnapshotWorkItem workItem)
@@ -229,13 +247,12 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
                     () => _advisorService!.AnalyzeAsync(workItem.Snapshot, workItem.CancellationToken),
                     workItem.CancellationToken)
                 .ConfigureAwait(false);
-            if (workItem.CancellationToken.IsCancellationRequested || !_snapshotCoordinator.CanAcceptResult(workItem.StateId))
+            if (workItem.CancellationToken.IsCancellationRequested || !TryPublishCompletedAdvisorUpdate(workItem, update))
             {
                 stopwatch.Stop();
                 RecordAdvisorAnalysis(workItem, update, stopwatch.Elapsed, AdvisorAnalysisDisposition.Superseded);
                 return;
             }
-            PublishAdvisorUpdate(update);
             stopwatch.Stop();
             RecordAdvisorAnalysis(workItem, update, stopwatch.Elapsed, AdvisorAnalysisDisposition.Published);
         }
@@ -252,8 +269,61 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
             stopwatch.Stop();
             RecordAdvisorAnalysis(workItem, null, stopwatch.Elapsed, AdvisorAnalysisDisposition.Failed);
             _diagnostics.RecordError("local_advisor_failed", exception);
-            if (_snapshotCoordinator.CanAcceptResult(workItem.StateId))
-                PublishAdvisorUpdate(PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Offline, workItem.StateId));
+            TryPublishCurrentState(PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Offline, workItem.StateId));
+        }
+    }
+
+    private bool TryPublishAnalyzing(SnapshotWorkItem workItem)
+    {
+        var update = PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Analyzing, workItem.StateId);
+        lock (_advisorStateGate)
+        {
+            if (workItem.CancellationToken.IsCancellationRequested || !_snapshotCoordinator.CanAcceptResult(workItem.StateId))
+                return false;
+            _currentAdvisorUpdate = update;
+            AdvisorUpdated?.Invoke(update);
+        }
+        return true;
+    }
+
+    private bool TryPublishCompletedAdvisorUpdate(SnapshotWorkItem workItem, PluginAdvisorUpdate update)
+    {
+        lock (_advisorStateGate)
+        {
+            if (workItem.CancellationToken.IsCancellationRequested || !_snapshotCoordinator.TryCompleteWork(workItem.StateId))
+                return false;
+            _lastCompletedAdvisorUpdate = update;
+            _currentAdvisorUpdate = update;
+            AdvisorUpdated?.Invoke(update);
+        }
+        return true;
+    }
+
+    private bool TryPublishCurrentState(PluginAdvisorUpdate update)
+    {
+        lock (_advisorStateGate)
+        {
+            if (update.StateId is null || !_snapshotCoordinator.CanAcceptResult(update.StateId))
+                return false;
+            _currentAdvisorUpdate = update;
+            AdvisorUpdated?.Invoke(update);
+        }
+        return true;
+    }
+
+    private void RestoreCompletedAdvisorUpdate()
+    {
+        PluginAdvisorUpdate? restored;
+        lock (_advisorStateGate)
+        {
+            restored = _lastCompletedAdvisorUpdate;
+            if (restored?.StateId is null ||
+                !string.Equals(restored.StateId, _snapshotCoordinator.CurrentStateId, StringComparison.Ordinal))
+            {
+                return;
+            }
+            _currentAdvisorUpdate = restored;
+            AdvisorUpdated?.Invoke(restored);
         }
     }
 
@@ -277,7 +347,9 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
     private void PublishAdvisorUpdate(PluginAdvisorUpdate update)
     {
         lock (_advisorStateGate)
+        {
             _currentAdvisorUpdate = update;
-        AdvisorUpdated?.Invoke(update);
+            AdvisorUpdated?.Invoke(update);
+        }
     }
 }

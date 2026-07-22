@@ -70,7 +70,7 @@ public static class SnapshotStateId
 
         output.Append('{').Append(value.GetType().FullName).Append(':');
         foreach (var property in value.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public)
-                     .Where(property => property.CanRead && property.Name != nameof(GameSnapshot.StateId))
+                     .Where(property => property.CanRead && ShouldHashProperty(value, property))
                      .OrderBy(property => property.Name, StringComparer.Ordinal))
         {
             output.Append(property.Name).Append('=');
@@ -78,6 +78,13 @@ public static class SnapshotStateId
         }
         output.Append("};");
         ancestors.Remove(value);
+    }
+
+    private static bool ShouldHashProperty(object owner, PropertyInfo property)
+    {
+        if (property.Name == nameof(GameSnapshot.StateId))
+            return false;
+        return owner is not GameSnapshot || property.Name != nameof(GameSnapshot.RemainingTurnTimeMs);
     }
 
     private sealed class ReferenceEqualityComparer : IEqualityComparer<object>

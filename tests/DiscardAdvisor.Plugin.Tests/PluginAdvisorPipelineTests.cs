@@ -41,13 +41,15 @@ public sealed class PluginAdvisorPipelineTests
         var observation = GameSnapshotBuilderTests.CreateObservation(
             GameSnapshotBuilderTests.CreateFriendly(Array.Empty<HandCardSnapshot>()));
         var source = new StubSnapshotSource(observation);
+        var events = new TriggerGameEventSource();
         var advisor = new ControlledAdvisorService();
         var diagnostics = new RecordingDiagnostics();
         using var coordinator = new SnapshotCoordinator(() => DateTimeOffset.UtcNow, TimeSpan.Zero);
         using var runtime = new PluginRuntime(
             new PluginLifetime(),
             new StubContextProvider(SupportedContext()),
-            snapshotSource: source,
+            events,
+            source,
             snapshotCoordinator: coordinator,
             diagnostics: diagnostics,
             advisorService: advisor);
@@ -75,6 +77,13 @@ public sealed class PluginAdvisorPipelineTests
 
         Assert.Contains(PluginAdvisorStatus.Analyzing, statuses);
         Assert.Equal(PluginAdvisorStatus.NoLegalRoute, runtime.CurrentAdvisorUpdate.Status);
+        Assert.Equal(1, advisor.InvocationCount);
+
+        events.TriggerStateChanged();
+        runtime.Update();
+
+        Assert.Equal(PluginAdvisorStatus.NoLegalRoute, runtime.CurrentAdvisorUpdate.Status);
+        Assert.Equal(1, advisor.InvocationCount);
     }
 
     [Fact]
@@ -129,6 +138,40 @@ public sealed class PluginAdvisorPipelineTests
             analysis.StateId == secondStateId &&
             analysis.GameId == secondGameId &&
             analysis.Disposition == AdvisorAnalysisDisposition.Published);
+    }
+
+    [Fact]
+    public async Task UnchangedStateIsRedispatchedWhenPriorAnalysisWasCancelled()
+    {
+        var observation = GameSnapshotBuilderTests.CreateObservation(
+            GameSnapshotBuilderTests.CreateFriendly(Array.Empty<HandCardSnapshot>()));
+        var source = new SequencedSnapshotSource(observation, observation);
+        var events = new TriggerGameEventSource();
+        var advisor = new IgnoringCancellationAdvisorService();
+        using var coordinator = new SnapshotCoordinator(() => DateTimeOffset.UtcNow, TimeSpan.Zero);
+        using var runtime = new PluginRuntime(
+            new PluginLifetime(),
+            new StubContextProvider(SupportedContext()),
+            events,
+            source,
+            coordinator,
+            advisorService: advisor);
+
+        runtime.Start();
+        runtime.Update();
+        await WaitUntilAsync(() => advisor.Count == 1);
+        var stateId = advisor.StateId(0);
+
+        events.TriggerStateChanged();
+        runtime.Update();
+        await WaitUntilAsync(() => advisor.Count == 2);
+        Assert.Equal(stateId, advisor.StateId(1));
+
+        advisor.Complete(0, PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.NoLegalRoute, stateId));
+        await Task.Delay(50);
+        Assert.Equal(PluginAdvisorStatus.Analyzing, runtime.CurrentAdvisorUpdate.Status);
+        advisor.Complete(1, PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.NoLegalRoute, stateId));
+        await WaitUntilAsync(() => runtime.CurrentAdvisorUpdate.Status == PluginAdvisorStatus.NoLegalRoute);
     }
 
     [Fact]
@@ -227,10 +270,12 @@ public sealed class PluginAdvisorPipelineTests
 
         public GameSnapshot? Snapshot { get; private set; }
         public int InvocationThreadId { get; private set; }
+        public int InvocationCount { get; private set; }
 
         public Task<PluginAdvisorUpdate> AnalyzeAsync(GameSnapshot snapshot, CancellationToken cancellationToken)
         {
             InvocationThreadId = Environment.CurrentManagedThreadId;
+            InvocationCount++;
             Snapshot = snapshot;
             cancellationToken.Register(() => _completion.TrySetCanceled(cancellationToken));
             return _completion.Task;

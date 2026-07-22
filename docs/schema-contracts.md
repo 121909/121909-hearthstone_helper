@@ -45,11 +45,18 @@ also enforce these invariants:
 6. Route step indexes start at zero and are contiguous.
 7. Every route action passes the legality validator against the state produced
    by the preceding step.
-7. `selectedRouteId` and `alternativeRouteId` identify routes in the same
+
+`state_id` hashes semantic visible state, game identity, protocol/rule versions,
+and compatibility fingerprints. It intentionally excludes
+`remainingTurnTimeMs`: timer drift changes the analysis deadline but must not
+cancel or duplicate an otherwise identical state. After a dirty event, an
+identical state may reuse only a completed result; cancelled in-flight work is
+redispatched.
+8. `selectedRouteId` and `alternativeRouteId` identify routes in the same
    result; the alternative is absent or different from the selected route.
-8. A result is accepted only when its `stateId`, protocol version, rule-set
+9. A result is accepted only when its `stateId`, protocol version, rule-set
    version, and candidate-set hash still match the current request.
-9. Unknown cards, tags, or generated effects create an `UNSUPPORTED` branch;
+10. Unknown cards, tags, or generated effects create an `UNSUPPORTED` branch;
    they never create guessed actions or state transitions.
 
 ## Compatibility

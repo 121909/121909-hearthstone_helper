@@ -48,7 +48,26 @@ public sealed class SnapshotCoordinatorTests
     }
 
     [Fact]
-    public void DoesNotDispatchAnUnchangedStateTwice()
+    public void DoesNotDispatchAnUnchangedCompletedStateTwice()
+    {
+        var now = DateTimeOffset.Parse("2026-07-22T00:00:00Z");
+        using var coordinator = new SnapshotCoordinator(() => now, TimeSpan.FromMilliseconds(200));
+        coordinator.MarkDirty();
+        now = now.AddMilliseconds(200);
+        Assert.True(coordinator.TryCreateWork(() => CreateSnapshot(3), out var first));
+        Assert.True(coordinator.TryCompleteWork(first!.StateId));
+
+        coordinator.MarkDirty();
+        now = now.AddMilliseconds(200);
+        Assert.False(coordinator.TryCreateWork(() => CreateSnapshot(3), out var duplicate, out var unchanged));
+
+        Assert.Null(duplicate);
+        Assert.True(unchanged);
+        Assert.True(coordinator.CanAcceptResult(first.StateId));
+    }
+
+    [Fact]
+    public void RedispatchesAnUnchangedStateWhenPriorWorkWasCancelled()
     {
         var now = DateTimeOffset.Parse("2026-07-22T00:00:00Z");
         using var coordinator = new SnapshotCoordinator(() => now, TimeSpan.FromMilliseconds(200));
@@ -58,11 +77,12 @@ public sealed class SnapshotCoordinatorTests
 
         coordinator.MarkDirty();
         now = now.AddMilliseconds(200);
-        Assert.False(coordinator.TryCreateWork(() => CreateSnapshot(3), out var duplicate));
+        Assert.True(coordinator.TryCreateWork(() => CreateSnapshot(3), out var second, out var unchanged));
 
-        Assert.Null(duplicate);
-        Assert.NotNull(first);
-        Assert.True(coordinator.CanAcceptResult(first!.StateId));
+        Assert.True(first!.CancellationToken.IsCancellationRequested);
+        Assert.False(unchanged);
+        Assert.NotNull(second);
+        Assert.Equal(first.StateId, second!.StateId);
     }
 
     [Fact]

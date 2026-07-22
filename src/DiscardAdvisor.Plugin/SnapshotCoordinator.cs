@@ -28,7 +28,7 @@ public sealed class SnapshotCoordinator : IDisposable
     private DateTimeOffset _lastDirtyAt;
     private long _dirtyVersion;
     private bool _dirty;
-    private string? _lastDispatchedStateId;
+    private string? _lastCompletedStateId;
     private string? _currentStateId;
 
     public SnapshotCoordinator()
@@ -66,9 +66,16 @@ public sealed class SnapshotCoordinator : IDisposable
     }
 
     public bool TryCreateWork(Func<GameSnapshot?> capture, out SnapshotWorkItem? workItem)
+        => TryCreateWork(capture, out workItem, out _);
+
+    public bool TryCreateWork(
+        Func<GameSnapshot?> capture,
+        out SnapshotWorkItem? workItem,
+        out bool unchangedCompletedState)
     {
         if (capture is null)
             throw new ArgumentNullException(nameof(capture));
+        unchangedCompletedState = false;
 
         long captureVersion;
         lock (_gate)
@@ -99,13 +106,13 @@ public sealed class SnapshotCoordinator : IDisposable
 
             _dirty = false;
             _currentStateId = snapshot.StateId;
-            if (string.Equals(_lastDispatchedStateId, snapshot.StateId, StringComparison.Ordinal))
+            if (string.Equals(_lastCompletedStateId, snapshot.StateId, StringComparison.Ordinal))
             {
+                unchangedCompletedState = true;
                 workItem = null;
                 return false;
             }
 
-            _lastDispatchedStateId = snapshot.StateId;
             _activeWork = new CancellationTokenSource();
             workItem = new SnapshotWorkItem(snapshot, _activeWork.Token);
             return true;
@@ -118,6 +125,19 @@ public sealed class SnapshotCoordinator : IDisposable
             return !_dirty && string.Equals(_currentStateId, stateId, StringComparison.Ordinal);
     }
 
+    public bool TryCompleteWork(string stateId)
+    {
+        lock (_gate)
+        {
+            if (_dirty || !string.Equals(_currentStateId, stateId, StringComparison.Ordinal))
+                return false;
+            _lastCompletedStateId = stateId;
+            _activeWork?.Dispose();
+            _activeWork = null;
+            return true;
+        }
+    }
+
     public void Reset()
     {
         lock (_gate)
@@ -125,7 +145,7 @@ public sealed class SnapshotCoordinator : IDisposable
             _dirty = false;
             _dirtyVersion++;
             _currentStateId = null;
-            _lastDispatchedStateId = null;
+            _lastCompletedStateId = null;
             CancelActiveWork();
         }
     }
@@ -141,4 +161,3 @@ public sealed class SnapshotCoordinator : IDisposable
         _activeWork = null;
     }
 }
-

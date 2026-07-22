@@ -92,6 +92,34 @@ public sealed class GameSnapshotBuilderTests
         Assert.NotEqual(first.StateId, second.StateId);
     }
 
+    [Fact]
+    public void StateIdIgnoresRemainingTurnTimerDrift()
+    {
+        var observation = CreateObservation(CreateFriendly(Array.Empty<HandCardSnapshot>()));
+        var later = new GameObservation(
+            observation.HearthstoneBuild,
+            observation.HdtVersion,
+            observation.CardDefsHash,
+            observation.GameId,
+            observation.TurnNumber,
+            observation.Step,
+            observation.ActivePlayer,
+            observation.RemainingTurnTimeMs - 5000,
+            observation.IsStable,
+            observation.Friendly,
+            observation.Opponent,
+            observation.Derived,
+            observation.SensitiveMetadata,
+            observation.ActionsThisTurn,
+            observation.CurrentChoice);
+
+        var first = new GameSnapshotBuilder().Build(observation);
+        var second = new GameSnapshotBuilder().Build(later);
+
+        Assert.Equal(first.StateId, second.StateId);
+        Assert.NotEqual(first.RemainingTurnTimeMs, second.RemainingTurnTimeMs);
+    }
+
     internal static FriendlyPlayerSnapshot CreateFriendly(IEnumerable<HandCardSnapshot> hand, int availableMana = 3) => new(
         new HeroSnapshot(1, "HERO_07", 30, 30, 0, 0, false, false, 0, 1),
         new HeroPowerSnapshot(2, "CS2_056", 2, true, 0, 1),
