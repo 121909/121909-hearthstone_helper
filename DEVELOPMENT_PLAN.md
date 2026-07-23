@@ -412,8 +412,11 @@ Overlay 是高频工具界面，应保持安静、紧凑并避免遮挡棋盘：
 - [x] 根据真实 Windows 对局发现的费用漂移，将 `BOT_568` 更新为 2 费并建立 Hearthstone build `247416` 的新兼容行。
 - [x] 提供覆盖安装、影子运行、专家标注、证据归档和可见测试门禁的 Windows 操作手册。
 - [x] 将已重印的镀银魔像从 `KAR_205` 更新为当前客户端使用的 `WON_098`，并建立对应的版本 cohort。
-- [x] 修复 HDT 未报告实时 Hearthstone build 时误用旧 HearthDb build 的问题，仅在 CardDefs 指纹匹配时回退到当前 build。
+- [x] 修复 HDT 缺失或缓存陈旧的 Hearthstone build 阻断当前规则的问题；已验证的 CardDefs 指纹优先于该元数据。
 - [x] 修复 HDT 实体集合过滤导致英雄技能未被采集的问题，并记录可审计的快照跳过原因。
+- [x] 将 HDT 暂时缺失的英雄技能降级为不可用占位状态，避免对手非关键实体阻断 Shadow 快照。
+- [x] 使 Windows Shadow 进度检查只统计当前发布 cohort，并在尚无 Fixture 时继续输出可用进度报告。
+- [x] 在门禁诊断中记录 build、HDT、CardDefs 和 HearthDb 观测值，避免 `UnsupportedPatch` 无法定位。
 
 交付物：评估报告、规则覆盖报告、已知限制和发布候选版本。
 

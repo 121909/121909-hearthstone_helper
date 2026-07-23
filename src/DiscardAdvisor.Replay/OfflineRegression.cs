@@ -16,7 +16,9 @@ public sealed record OfflineRegressionOptions(
     int MaximumActions = 12,
     int TopK = 5,
     int TimeBudgetMs = 250,
-    int Seed = 0x5EED)
+    int Seed = 0x5EED,
+    string? TargetPluginVersion = null,
+    string? TargetRuleSetVersion = null)
 {
     public void Validate()
     {
@@ -28,6 +30,8 @@ public sealed record OfflineRegressionOptions(
             throw new ArgumentOutOfRangeException(nameof(TopK));
         if (TimeBudgetMs < 1)
             throw new ArgumentOutOfRangeException(nameof(TimeBudgetMs));
+        if (string.IsNullOrWhiteSpace(TargetPluginVersion) != string.IsNullOrWhiteSpace(TargetRuleSetVersion))
+            throw new ArgumentException("Target plugin and rule-set versions must be supplied together.");
     }
 }
 
@@ -283,7 +287,10 @@ public sealed class OfflineRegressionRunner
             Percentile(latencies, 0.50),
             Percentile(latencies, 0.95),
             latencies.Length == 0 ? 0 : latencies[^1],
-            ShadowRunReport.FromTelemetry(input.ShadowTelemetry),
+            ShadowRunReport.FromTelemetry(
+                input.ShadowTelemetry,
+                options.TargetPluginVersion,
+                options.TargetRuleSetVersion),
             unsupported.ToImmutableDictionary(StringComparer.Ordinal),
             input.Errors,
             input.Replays,

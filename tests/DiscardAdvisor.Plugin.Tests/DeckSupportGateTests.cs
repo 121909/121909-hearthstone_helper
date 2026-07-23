@@ -132,11 +132,22 @@ public sealed class DeckSupportGateTests
     }
 
     [Fact]
-    public void CompatibilityResolverPrefersHdtReportedBuild()
+    public void CompatibilityResolverPrefersVerifiedCardDefinitionsOverStaleHdtBuild()
     {
         var build = RuntimeCompatibilityResolver.ResolveHearthstoneBuild(
             reportedBuild: 246003,
             cardDefsSha256: TargetRuntimeCompatibility.CardDefsSha256,
+            hearthDbBuild: "247416");
+
+        Assert.Equal(TargetRuntimeCompatibility.HearthstoneBuild, build);
+    }
+
+    [Fact]
+    public void CompatibilityResolverUsesReportedBuildWhenCardDefinitionsAreUnknown()
+    {
+        var build = RuntimeCompatibilityResolver.ResolveHearthstoneBuild(
+            reportedBuild: 246003,
+            cardDefsSha256: "unknown",
             hearthDbBuild: "247416");
 
         Assert.Equal(246003, build);

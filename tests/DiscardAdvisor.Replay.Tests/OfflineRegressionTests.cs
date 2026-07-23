@@ -252,8 +252,51 @@ public sealed class OfflineRegressionTests
         Assert.Equal(1, report.ShadowRun.VersionCohortCount);
         Assert.Equal(0, report.ShadowRun.MissingVersionMetadataGameCount);
         var cohort = Assert.Single(report.ShadowRun.VersionCohorts);
-        Assert.Equal(("0.4.10", "0.3.3"), (cohort.PluginVersion, cohort.RuleSetVersion));
+        Assert.Equal(("0.4.11", "0.3.3"), (cohort.PluginVersion, cohort.RuleSetVersion));
         Assert.False(report.ShadowRun.MeetsAutomatedAcceptanceThresholds);
+    }
+
+    [Fact]
+    public void ShadowReportCanIgnoreHistoricalPluginCohorts()
+    {
+        var current = BuildCompletedShadowRunTelemetry(5);
+        var oldGameId = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
+        var oldTimestamp = DateTimeOffset.Parse("2026-07-21T00:00:00Z");
+        var old = new ShadowRunTelemetry(
+            1,
+            ImmutableArray.Create(new ShadowGameSession(
+                oldGameId,
+                "shadow",
+                true,
+                true,
+                true,
+                "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "0.4.9",
+                "0.3.3")),
+            ImmutableArray.Create(new ShadowAdvisorRequestObservation(
+                oldTimestamp,
+                1,
+                oldGameId,
+                "old-state",
+                "shadow")),
+            ImmutableArray.Create(Analysis(oldTimestamp.AddSeconds(1), 2, oldGameId, "old-state", "Published")),
+            ImmutableArray<string>.Empty);
+        var telemetry = current with
+        {
+            LogFileCount = 2,
+            Games = current.Games.AddRange(old.Games),
+            Requests = current.Requests.AddRange(old.Requests),
+            Analyses = current.Analyses.AddRange(old.Analyses)
+        };
+
+        var report = ShadowRunReport.FromTelemetry(telemetry, "0.4.11", "0.3.3");
+
+        Assert.Equal(5, report.CompletedGameWithPublishedAnalysisCount);
+        Assert.Equal(5, report.AnalysisCount);
+        Assert.Equal(1, report.VersionCohortCount);
+        Assert.Equal(1, report.IgnoredVersionGameCount);
+        Assert.Equal("0.4.11", report.TargetPluginVersion);
+        Assert.Equal("0.3.3", report.TargetRuleSetVersion);
     }
 
     [Fact]
@@ -346,7 +389,7 @@ public sealed class OfflineRegressionTests
             RunCount: 1,
             VersionCohortCount: 1,
             MissingVersionMetadataGameCount: 0,
-            VersionCohorts: ImmutableArray.Create(new ShadowVersionCohort("0.4.10", "0.3.3", 5, 5, 5, 5)),
+            VersionCohorts: ImmutableArray.Create(new ShadowVersionCohort("0.4.11", "0.3.3", 5, 5, 5, 5)),
             LatencyP50Ms: 100,
             LatencyP95Ms: 200,
             LatencyMaximumMs: 250);
@@ -518,7 +561,7 @@ public sealed class OfflineRegressionTests
                 true,
                 true,
                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "0.4.10",
+                "0.4.11",
                 "0.3.3"));
             requests.Add(new ShadowAdvisorRequestObservation(timestamp, index * 2 + 1, gameId, stateId, "shadow"));
             analyses.Add(Analysis(

@@ -124,6 +124,64 @@ public sealed class SnapshotRuleStateMapperTests
         Assert.Contains("inactive_step:MAIN_END", wrongStep.UnsupportedInteractions);
     }
 
+    [Fact]
+    public void KeepsSnapshotSupportedWhenHdtTemporarilyHidesHeroPowers()
+    {
+        var original = CreateSnapshot(DiscardWarlockCardIds.Soulfire);
+        var friendly = new FriendlyPlayerSnapshot(
+            original.Friendly.Hero,
+            new HeroPowerSnapshot(1001, "UNKNOWN_HERO_POWER", 0, false, 1, 1),
+            original.Friendly.Mana,
+            original.Friendly.Hand,
+            original.Friendly.Board,
+            original.Friendly.Locations,
+            original.Friendly.OriginalDeck,
+            original.Friendly.KnownRemainingDeck,
+            original.Friendly.DeckCount,
+            original.Friendly.Fatigue,
+            original.Friendly.Graveyard,
+            original.Friendly.Discarded,
+            original.Friendly.DiscardCount,
+            original.Friendly.Weapon);
+        var opponent = new OpponentPlayerSnapshot(
+            original.Opponent.Hero,
+            new HeroPowerSnapshot(1002, "UNKNOWN_HERO_POWER", 0, false, 1, 1),
+            original.Opponent.HandCount,
+            original.Opponent.Board,
+            original.Opponent.Locations,
+            original.Opponent.DeckCount,
+            original.Opponent.Fatigue,
+            original.Opponent.Graveyard,
+            original.Opponent.RevealedCards,
+            original.Opponent.SecretCount,
+            original.Opponent.SecretCandidates,
+            original.Opponent.Weapon,
+            original.Opponent.QuestCardId);
+        var snapshot = new GameSnapshot(
+            original.RuleSetVersion,
+            original.HearthstoneBuild,
+            original.HdtVersion,
+            original.CardDefsHash,
+            original.GameId,
+            original.StateId,
+            original.TurnNumber,
+            original.Step,
+            original.ActivePlayer,
+            original.RemainingTurnTimeMs,
+            original.IsStable,
+            friendly,
+            opponent,
+            original.ActionsThisTurn,
+            original.Derived,
+            original.CurrentChoice);
+
+        var result = new SnapshotRuleStateMapper().Map(snapshot);
+
+        Assert.True(result.IsSupported);
+        Assert.NotNull(result.State);
+        Assert.Empty(result.UnsupportedInteractions);
+    }
+
     private static GameSnapshot CreateSnapshot(
         string handCardId,
         bool reborn = false,

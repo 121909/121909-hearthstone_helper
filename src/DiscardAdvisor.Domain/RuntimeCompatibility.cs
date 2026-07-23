@@ -43,10 +43,12 @@ public static class RuntimeCompatibilityResolver
 
     public static int ResolveHearthstoneBuild(int? reportedBuild, string cardDefsSha256, string hearthDbBuild)
     {
-        if (reportedBuild.HasValue)
-            return reportedBuild.Value;
+        // HDT caches this value from a local helper. A known live CardDefs fingerprint is a
+        // stronger indication of the active rules than a non-null but stale reported build.
         if (IsSupportedCardDefsHash(cardDefsSha256))
             return TargetRuntimeCompatibility.HearthstoneBuild;
+        if (reportedBuild.HasValue)
+            return reportedBuild.Value;
         return int.TryParse(hearthDbBuild, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedBuild)
             ? parsedBuild
             : 0;

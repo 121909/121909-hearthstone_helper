@@ -43,6 +43,11 @@ public static class Program
             Console.WriteLine($"Latency p95: {report.LatencyP95Ms:F2} ms");
             Console.WriteLine($"Shadow games with published analyses: {report.ShadowRun.CompletedGameWithPublishedAnalysisCount}/{ValidationPolicy.RequiredShadowGameCount}");
             Console.WriteLine($"Shadow runs/version cohorts: {report.ShadowRun.RunCount}/{report.ShadowRun.VersionCohortCount}");
+            if (report.ShadowRun.TargetPluginVersion is not null)
+            {
+                Console.WriteLine($"Shadow target cohort: {report.ShadowRun.TargetPluginVersion}/{report.ShadowRun.TargetRuleSetVersion}");
+                Console.WriteLine($"Shadow games ignored from other cohorts: {report.ShadowRun.IgnoredVersionGameCount}");
+            }
             Console.WriteLine($"Shadow requests/analyses: {report.ShadowRun.RequestCount}/{report.ShadowRun.AnalysisCount}");
             Console.WriteLine($"Shadow superseded: {report.ShadowRun.SupersededCount}/{report.ShadowRun.AnalysisCount}");
             Console.WriteLine($"Shadow thresholds: {(report.ShadowRun.MeetsAutomatedAcceptanceThresholds ? "MET" : "NOT MET")}");
@@ -141,7 +146,8 @@ public static class Program
     {
         public const string Usage =
             "Usage: DiscardAdvisor.Replay --input <path> [--input <path>] [--output <directory>] " +
-            "[--time-budget-ms <1..10000>] [--beam-width <n>] [--maximum-actions <n>] [--top-k <n>] [--seed <n>]";
+            "[--time-budget-ms <1..10000>] [--beam-width <n>] [--maximum-actions <n>] [--top-k <n>] [--seed <n>] " +
+            "[--plugin-version <version> --rule-set-version <version>]";
 
         public static CommandLine Parse(IReadOnlyList<string> args)
         {
@@ -152,6 +158,8 @@ public static class Program
             var topK = 5;
             var timeBudgetMs = 250;
             var seed = 0x5EED;
+            string? pluginVersion = null;
+            string? ruleSetVersion = null;
             for (var index = 0; index < args.Count; index++)
             {
                 var option = args[index];
@@ -183,6 +191,12 @@ public static class Program
                             ? parsed
                             : throw new ArgumentException($"'{value}' is not a valid integer for '{option}'.");
                         break;
+                    case "--plugin-version":
+                        pluginVersion = value;
+                        break;
+                    case "--rule-set-version":
+                        ruleSetVersion = value;
+                        break;
                     default:
                         throw new ArgumentException($"Unknown option '{option}'.");
                 }
@@ -192,7 +206,14 @@ public static class Program
             return new CommandLine(
                 inputs,
                 output,
-                new OfflineRegressionOptions(beamWidth, maximumActions, topK, timeBudgetMs, seed));
+                new OfflineRegressionOptions(
+                    beamWidth,
+                    maximumActions,
+                    topK,
+                    timeBudgetMs,
+                    seed,
+                    pluginVersion,
+                    ruleSetVersion));
         }
 
         private static int ParsePositive(string value, string option) =>

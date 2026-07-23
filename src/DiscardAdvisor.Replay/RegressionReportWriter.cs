@@ -71,6 +71,11 @@ public sealed class RegressionReportWriter
             builder.AppendLine($"- Completed games with a published Shadow analysis: {report.ShadowRun.CompletedGameWithPublishedAnalysisCount}/{ValidationPolicy.RequiredShadowGameCount} ({report.ShadowRun.CompletedGameCount} completed, {report.ShadowRun.StartedGameCount} started)");
             builder.AppendLine($"- Completed games without a published analysis: {report.ShadowRun.CompletedGameWithoutPublishedAnalysisCount}");
             builder.AppendLine($"- Runs / version cohorts / games missing metadata: {report.ShadowRun.RunCount}/{report.ShadowRun.VersionCohortCount}/{report.ShadowRun.MissingVersionMetadataGameCount}");
+            if (report.ShadowRun.TargetPluginVersion is not null)
+            {
+                builder.AppendLine($"- Target cohort: `{EscapeCell(report.ShadowRun.TargetPluginVersion)}` / `{EscapeCell(report.ShadowRun.TargetRuleSetVersion ?? string.Empty)}`");
+                builder.AppendLine($"- Historical games ignored from other cohorts: {report.ShadowRun.IgnoredVersionGameCount}");
+            }
             builder.AppendLine($"- Automated acceptance thresholds: **{(report.ShadowRun.MeetsAutomatedAcceptanceThresholds ? "MET" : "NOT MET")}**");
             builder.AppendLine($"- Requests/terminal analyses: {report.ShadowRun.RequestCount}/{report.ShadowRun.AnalysisCount}");
             builder.AppendLine($"- Published/superseded/cancelled/failed: {report.ShadowRun.PublishedCount}/{report.ShadowRun.SupersededCount}/{report.ShadowRun.CancelledCount}/{report.ShadowRun.FailedCount}");

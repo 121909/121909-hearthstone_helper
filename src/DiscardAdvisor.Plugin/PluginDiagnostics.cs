@@ -284,11 +284,20 @@ public sealed class RedactedDiagnosticStore : IPluginDiagnostics
             ["completed"] = completed
         }));
 
-    public void RecordGateDecision(GateDecision decision) => Write(new DiagnosticEntry(
-        _utcNow(),
-        "gate_decision",
-        decision.ObservedDeckHash,
-        new Dictionary<string, object> { ["status"] = decision.Status.ToString() }));
+    public void RecordGateDecision(GateDecision decision)
+    {
+        if (decision is null)
+            throw new ArgumentNullException(nameof(decision));
+        var data = new Dictionary<string, object> { ["status"] = decision.Status.ToString() };
+        if (decision.ObservedCompatibility is { } compatibility)
+        {
+            data["hearthstoneBuild"] = compatibility.HearthstoneBuild;
+            data["hdtVersion"] = compatibility.HdtVersion;
+            data["cardDefsSha256"] = compatibility.CardDefsSha256;
+            data["hearthDbSha256"] = compatibility.HearthDbSha256;
+        }
+        Write(new DiagnosticEntry(_utcNow(), "gate_decision", decision.ObservedDeckHash, data));
+    }
 
     public void RecordSnapshotCaptureSkipped(SnapshotCaptureFailure failure)
     {

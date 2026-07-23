@@ -28,8 +28,8 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
         out SnapshotCaptureFailure failure)
     {
         var game = HdtApiCore.Game;
-        var friendlyHero = game.Player.Hero;
-        var opponentHero = game.Opponent.Hero;
+        var friendlyHero = FindHero(game, game.Player);
+        var opponentHero = FindHero(game, game.Opponent);
         var friendlyHeroPower = FindHeroPower(game, game.Player);
         var opponentHeroPower = FindHeroPower(game, game.Opponent);
         var turnNumber = game.GetTurnNumber();
@@ -38,8 +38,6 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
         failure = GetCaptureFailure(
             friendlyHero,
             opponentHero,
-            friendlyHeroPower,
-            opponentHeroPower,
             game.PlayerEntity,
             gameEntity,
             turnNumber);
@@ -67,8 +65,16 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
         var currentChoice = CaptureChoice(game, mechanics);
         if (currentChoice is null && game.Player.OfferedEntityIds.Count == 0)
             _mechanics.RecordChoiceClosed();
-        var friendly = CaptureFriendly(game, friendlyHero!, friendlyHeroPower!, mechanics);
-        var opponent = CaptureOpponent(game, opponentHero!, opponentHeroPower!);
+        var fallbackHeroPowerEntityId = NextSyntheticEntityId(game);
+        var friendly = CaptureFriendly(
+            game,
+            friendlyHero!,
+            CaptureHeroPowerOrUnavailable(friendlyHeroPower, fallbackHeroPowerEntityId),
+            mechanics);
+        var opponent = CaptureOpponent(
+            game,
+            opponentHero!,
+            CaptureHeroPowerOrUnavailable(opponentHeroPower, fallbackHeroPowerEntityId + 1));
         var sensitive = new SensitiveGameMetadata(null, null, null, null);
 
         observation = new GameObservation(
@@ -140,7 +146,7 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
     private static FriendlyPlayerSnapshot CaptureFriendly(
         GameV2 game,
         Entity hero,
-        Entity heroPower,
+        HeroPowerSnapshot heroPower,
         SpecialMechanicsState mechanics)
     {
         var playerEntity = game.PlayerEntity!;
@@ -154,7 +160,7 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
 
         return new FriendlyPlayerSnapshot(
             CaptureHero(hero),
-            CaptureHeroPower(heroPower),
+            heroPower,
             CaptureMana(playerEntity),
             game.Player.Hand.Where(HasPublicCard).OrderBy(entity => entity.ZonePosition)
                 .Select(entity => CaptureHandCard(entity, mechanics.TemporaryEntityIds.Contains(entity.Id))),
@@ -191,14 +197,14 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
         return RemainingDeckSnapshotBuilder.Build(originalDeck, removedOriginalCards, createdCardsInDeck);
     }
 
-    private static OpponentObservation CaptureOpponent(GameV2 game, Entity hero, Entity heroPower)
+    private static OpponentObservation CaptureOpponent(GameV2 game, Entity hero, HeroPowerSnapshot heroPower)
     {
         var revealed = game.Opponent.RevealedEntities
             .Select(entity => CaptureObservedCard(entity, !entity.Info.Hidden && HasPublicCard(entity)));
 
         return new OpponentObservation(
             CaptureHero(hero),
-            CaptureHeroPower(heroPower),
+            heroPower,
             game.Opponent.Hand.Select(entity => CaptureObservedCard(entity, false)),
             game.Opponent.Minions.Where(HasPublicCard).OrderBy(entity => entity.ZonePosition).Select(CaptureMinion),
             game.Opponent.Board.Where(entity => entity.IsLocation && HasPublicCard(entity)).OrderBy(entity => entity.ZonePosition).Select(CaptureLocation),
@@ -240,6 +246,16 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
     {
         var exhausted = entity.HasTag(GameTag.EXHAUSTED);
         return new HeroPowerSnapshot(entity.Id, entity.CardId!, Math.Max(0, entity.Cost), !exhausted, exhausted ? 1 : 0, 1);
+    }
+
+    private static HeroPowerSnapshot CaptureHeroPowerOrUnavailable(Entity? entity, int fallbackEntityId)
+    {
+        if (entity is not null)
+            return CaptureHeroPower(entity);
+
+        // Hero powers are public information, but HDT can temporarily omit their entities while it applies tags.
+        // Do not invent an action: retain the snapshot and mark the synthetic power unavailable.
+        return new HeroPowerSnapshot(fallbackEntityId, "UNKNOWN_HERO_POWER", 0, false, 1, 1);
     }
 
     private static ManaSnapshot CaptureMana(Entity playerEntity)
@@ -320,19 +336,31 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
     private static ObservedCard CaptureObservedCard(Entity entity, bool isPublic) =>
         new(entity.Id, entity.CardId, isPublic, PositiveOrNull(entity.GetTag(GameTag.CREATOR)));
 
+    private static Entity? FindHero(GameV2 game, Player player) =>
+        FindPublicPlayerEntity(game, player, entity => entity.IsHero);
+
     private static Entity? FindHeroPower(GameV2 game, Player player) =>
+        FindPublicPlayerEntity(game, player, entity => entity.IsHeroPower);
+
+    private static Entity? FindPublicPlayerEntity(GameV2 game, Player player, Func<Entity, bool> predicate) =>
         player.PlayerEntities
             .Concat(game.Entities.Values.Where(entity => entity.IsControlledBy(player.Id)))
-            .Where(entity => entity.IsHeroPower && HasPublicCard(entity))
+            .Where(entity => predicate(entity) && HasPublicCard(entity))
             .OrderByDescending(entity => entity.IsInPlay)
             .ThenByDescending(entity => entity.Id)
             .FirstOrDefault();
 
+    private static int NextSyntheticEntityId(GameV2 game)
+    {
+        var maximumEntityId = game.Entities.Keys.Where(entityId => entityId > 0).DefaultIfEmpty(0).Max();
+        if (maximumEntityId > int.MaxValue - 2)
+            throw new InvalidOperationException("HDT entity ids cannot allocate snapshot placeholders.");
+        return Math.Max(1000, maximumEntityId + 1);
+    }
+
     private static SnapshotCaptureFailure GetCaptureFailure(
         Entity? friendlyHero,
         Entity? opponentHero,
-        Entity? friendlyHeroPower,
-        Entity? opponentHeroPower,
         Entity? playerEntity,
         Entity? gameEntity,
         int turnNumber)
@@ -341,10 +369,6 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
             return SnapshotCaptureFailure.MissingFriendlyHero;
         if (opponentHero is null || !HasPublicCard(opponentHero))
             return SnapshotCaptureFailure.MissingOpponentHero;
-        if (friendlyHeroPower is null)
-            return SnapshotCaptureFailure.MissingFriendlyHeroPower;
-        if (opponentHeroPower is null)
-            return SnapshotCaptureFailure.MissingOpponentHeroPower;
         if (playerEntity is null)
             return SnapshotCaptureFailure.MissingPlayerEntity;
         if (gameEntity is null)

@@ -87,7 +87,10 @@ public sealed record ShadowRunReport(
     ImmutableArray<ShadowVersionCohort> VersionCohorts,
     double LatencyP50Ms,
     double LatencyP95Ms,
-    double LatencyMaximumMs)
+    double LatencyMaximumMs,
+    int IgnoredVersionGameCount = 0,
+    string? TargetPluginVersion = null,
+    string? TargetRuleSetVersion = null)
 {
     public ShadowRunReport(
         int logFileCount,
@@ -157,16 +160,29 @@ public sealed record ShadowRunReport(
         VisibleSuggestionCount == 0 &&
         LatencyP95Ms < 300;
 
-    public static ShadowRunReport FromTelemetry(ShadowRunTelemetry telemetry)
+    public static ShadowRunReport FromTelemetry(
+        ShadowRunTelemetry telemetry,
+        string? targetPluginVersion = null,
+        string? targetRuleSetVersion = null)
     {
         if (telemetry is null)
             throw new ArgumentNullException(nameof(telemetry));
-        var games = telemetry.Games.Where(game => IsShadow(game.Mode)).ToArray();
+        if (string.IsNullOrWhiteSpace(targetPluginVersion) != string.IsNullOrWhiteSpace(targetRuleSetVersion))
+            throw new ArgumentException("Target plugin and rule-set versions must be supplied together.");
+        var allShadowGames = telemetry.Games.Where(game => IsShadow(game.Mode)).ToArray();
+        var filterByVersion = !string.IsNullOrWhiteSpace(targetPluginVersion);
+        var games = filterByVersion
+            ? allShadowGames.Where(game =>
+                string.Equals(game.PluginVersion, targetPluginVersion, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(game.RuleSetVersion, targetRuleSetVersion, StringComparison.OrdinalIgnoreCase)).ToArray()
+            : allShadowGames;
         var gameIds = games.Select(game => game.GameId).ToHashSet();
-        var requests = telemetry.Requests.Where(request =>
-            IsShadow(request.Mode) || gameIds.Contains(request.GameId)).ToArray();
-        var analyses = telemetry.Analyses.Where(analysis =>
-            IsShadow(analysis.Mode) || gameIds.Contains(analysis.GameId)).ToArray();
+        var requests = telemetry.Requests.Where(request => filterByVersion
+            ? gameIds.Contains(request.GameId)
+            : IsShadow(request.Mode) || gameIds.Contains(request.GameId)).ToArray();
+        var analyses = telemetry.Analyses.Where(analysis => filterByVersion
+            ? gameIds.Contains(analysis.GameId)
+            : IsShadow(analysis.Mode) || gameIds.Contains(analysis.GameId)).ToArray();
         var latencies = analyses.Select(analysis => analysis.ElapsedMs).OrderBy(value => value).ToArray();
         var duplicates = CountDuplicateRequests(requests, analyses);
         var missingRequests = CountRequestImbalance(requests, analyses, missingRequests: true);
@@ -220,7 +236,10 @@ public sealed record ShadowRunReport(
             versionCohorts,
             Percentile(latencies, 0.50),
             Percentile(latencies, 0.95),
-            latencies.Length == 0 ? 0 : latencies[^1]);
+            latencies.Length == 0 ? 0 : latencies[^1],
+            allShadowGames.Length - games.Length,
+            filterByVersion ? targetPluginVersion : null,
+            filterByVersion ? targetRuleSetVersion : null);
     }
 
     private static bool IsShadow(string value) => string.Equals(value, "shadow", StringComparison.OrdinalIgnoreCase);
