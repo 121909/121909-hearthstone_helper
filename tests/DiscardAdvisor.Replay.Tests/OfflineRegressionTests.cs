@@ -252,7 +252,7 @@ public sealed class OfflineRegressionTests
         Assert.Equal(1, report.ShadowRun.VersionCohortCount);
         Assert.Equal(0, report.ShadowRun.MissingVersionMetadataGameCount);
         var cohort = Assert.Single(report.ShadowRun.VersionCohorts);
-        Assert.Equal(("0.4.7", "0.3.3"), (cohort.PluginVersion, cohort.RuleSetVersion));
+        Assert.Equal(("0.4.8", "0.3.3"), (cohort.PluginVersion, cohort.RuleSetVersion));
         Assert.False(report.ShadowRun.MeetsAutomatedAcceptanceThresholds);
     }
 
@@ -346,7 +346,7 @@ public sealed class OfflineRegressionTests
             RunCount: 1,
             VersionCohortCount: 1,
             MissingVersionMetadataGameCount: 0,
-            VersionCohorts: ImmutableArray.Create(new ShadowVersionCohort("0.4.7", "0.3.3", 5, 5, 5, 5)),
+            VersionCohorts: ImmutableArray.Create(new ShadowVersionCohort("0.4.8", "0.3.3", 5, 5, 5, 5)),
             LatencyP50Ms: 100,
             LatencyP95Ms: 200,
             LatencyMaximumMs: 250);
@@ -518,7 +518,7 @@ public sealed class OfflineRegressionTests
                 true,
                 true,
                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "0.4.7",
+                "0.4.8",
                 "0.3.3"));
             requests.Add(new ShadowAdvisorRequestObservation(timestamp, index * 2 + 1, gameId, stateId, "shadow"));
             analyses.Add(Analysis(

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -52,8 +51,10 @@ internal sealed class HdtGameContextProvider : IGameContextProvider
             ? ComputeSha256(cardDefsPath)
             : TargetRuntimeCompatibility.CardDefsSha256;
 
-        var hearthstoneBuild = HdtApiCore.Game.MetaData.HearthstoneBuild
-            ?? (int.TryParse(HearthDb.Cards.Build, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedBuild) ? parsedBuild : 0);
+        var hearthstoneBuild = RuntimeCompatibilityResolver.ResolveHearthstoneBuild(
+            HdtApiCore.Game.MetaData.HearthstoneBuild,
+            cardDefsHash,
+            HearthDb.Cards.Build);
 
         return new RuntimeCompatibility(
             hearthstoneBuild,

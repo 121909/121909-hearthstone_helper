@@ -42,3 +42,9 @@ A new Hearthstone build starts as unsupported. Add a new matrix row only after
 the 17 target definitions have been compared, changed rules have tests, and all
 binary and CardDefs fingerprints have been refreshed. Do not modify an older
 row in place to make a new patch appear compatible.
+
+HDT may temporarily omit the live Hearthstone build from game metadata. In
+that case the plugin infers the active build only when the local
+`CardDefs.base.xml` SHA-256 exactly matches the reviewed row. It does not treat
+the older build embedded in the pinned HearthDb assembly as the live client
+build.

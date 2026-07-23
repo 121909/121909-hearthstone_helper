@@ -10,7 +10,7 @@ namespace DiscardAdvisor.Plugin;
 
 public sealed class DiscardAdvisorPlugin : IPlugin
 {
-    public const string SemanticVersion = "0.4.7";
+    public const string SemanticVersion = "0.4.8";
 
     private readonly IPluginRuntime _runtime;
     private readonly PluginSettings _settings;

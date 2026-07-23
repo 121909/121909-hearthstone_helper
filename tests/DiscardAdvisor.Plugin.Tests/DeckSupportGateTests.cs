@@ -120,6 +120,28 @@ public sealed class DeckSupportGateTests
         Assert.Equal(GateStatus.IncompleteDeck, result.Status);
     }
 
+    [Fact]
+    public void CompatibilityResolverUsesKnownCardDefinitionsWhenHdtDoesNotReportABuild()
+    {
+        var build = RuntimeCompatibilityResolver.ResolveHearthstoneBuild(
+            reportedBuild: null,
+            cardDefsSha256: TargetRuntimeCompatibility.CardDefsSha256,
+            hearthDbBuild: "246003");
+
+        Assert.Equal(TargetRuntimeCompatibility.HearthstoneBuild, build);
+    }
+
+    [Fact]
+    public void CompatibilityResolverPrefersHdtReportedBuild()
+    {
+        var build = RuntimeCompatibilityResolver.ResolveHearthstoneBuild(
+            reportedBuild: 246003,
+            cardDefsSha256: TargetRuntimeCompatibility.CardDefsSha256,
+            hearthDbBuild: "247416");
+
+        Assert.Equal(246003, build);
+    }
+
     public static IEnumerable<object[]> UnsupportedRuntimeCases()
     {
         yield return new object[]
