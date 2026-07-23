@@ -64,4 +64,4 @@ Set-Content -LiteralPath $settingsPath -Encoding UTF8 -NoNewline -Value "{`r`n  
 Write-Host "Installed Discard Advisor in shadow mode."
 Write-Host "Plugin directory: $PluginDirectory"
 Write-Host "Settings: $settingsPath"
-Write-Host "Start HDT, enable Discard Advisor under Options > Tracker > Plugins, and keep settings.json set to shadow during the 50-game run."
+Write-Host "Start HDT, enable Discard Advisor under Options > Tracker > Plugins, and keep settings.json set to shadow during the 5-game run."

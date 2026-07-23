@@ -50,7 +50,7 @@ post-publish duplicate requests, failures, visible suggestions, p95 latency,
 and unsupported-interaction occurrences. Superseded work followed by a retry
 is not counted as a duplicate request.
 
-The shadow section counts only sessions recorded with `mode=shadow`. Only a real HDT `OnGameEnd` increments completed-game progress; plugin unloads and interrupted sessions do not. The 50-game threshold counts only completed games that contain at least one `Published` Shadow analysis, so completed games that never produce an accepted analysis do not inflate the evidence. The report covers end-to-end latency, analyses superseded by a newer state, cancellations, failures, duplicate requests for the same `game_id + state_id`, and any suggestion incorrectly marked visible. Its automated threshold is met at 50 completed games with published analyses, p95 below 300 ms, and zero failures, duplicate requests, or visible suggestions; manual review is still required for obvious HDT lag and gameplay quality.
+The shadow section counts only sessions recorded with `mode=shadow`. Only a real HDT `OnGameEnd` increments completed-game progress; plugin unloads and interrupted sessions do not. The five-game threshold counts only completed games that contain at least one `Published` Shadow analysis, so completed games that never produce an accepted analysis do not inflate the evidence. The report covers end-to-end latency, analyses superseded by a newer state, cancellations, failures, duplicate requests for the same `game_id + state_id`, and any suggestion incorrectly marked visible. Its automated threshold is met at five completed games with published analyses, p95 below 300 ms, and zero failures, duplicate requests, or visible suggestions; manual review is still required for obvious HDT lag and gameplay quality.
 Every request and terminal analysis also carries a per-process `runId`, plugin
 version, and rule-set version. The final automated threshold requires complete
 metadata and exactly one plugin/rule version cohort; multiple HDT runs using
@@ -59,9 +59,9 @@ a newer build instead of mixing version cohorts.
 
 ## Expert annotations
 
-An optional `*.annotation.json` identifies one to three acceptable expert routes for a `state_id`. Actions use the stable protocol kinds `PLAY_CARD`, `ATTACK`, `USE_HERO_POWER`, `USE_LOCATION`, `SELECT_CHOICE`, and `END_TURN`, plus the relevant entity IDs, target, board position, or choice ID. A Snapshot is Top-3 consistent when at least one of the advisor's first three complete action sequences exactly matches one of the expert routes. Protocol `1.1.0` also records an anonymous `reviewerId` and UTC `reviewedAtUtc`; only annotations carrying that provenance count toward the 200-annotation gate. Legacy `1.0.0` annotations remain usable for regression comparison but are reported separately and do not count toward the target.
+An optional `*.annotation.json` identifies one to three acceptable expert routes for a `state_id`. Actions use the stable protocol kinds `PLAY_CARD`, `ATTACK`, `USE_HERO_POWER`, `USE_LOCATION`, `SELECT_CHOICE`, and `END_TURN`, plus the relevant entity IDs, target, board position, or choice ID. A Snapshot is Top-3 consistent when at least one of the advisor's first three complete action sequences exactly matches one of the expert routes. Protocol `1.1.0` also records an anonymous `reviewerId` and UTC `reviewedAtUtc`. Annotations are reported as optional metrics and do not affect the active release gate.
 
-`expert-review-pack.json` is a blind route-ranking pack. It contains deterministically shuffled `option-*` routes and their display CardIds, but no candidate IDs, scores, confidence, or original Advisor rank. Reviewers rank one to three complete routes, putting the strongest route first, may author a custom route when none is correct, copy the action objects into `expertTop3`, add independent labels/reasons, and save the result as `<state_id>.annotation.json`. The report's Top-3 metric checks whether the expert's primary route (`expertTop3[0]`) appears in the Advisor's first three; alternatives do not make an otherwise missed primary route count. The report tracks progress toward 200 annotations and the 80% target.
+`expert-review-pack.json` is a blind route-ranking pack retained for optional analysis. It contains deterministically shuffled `option-*` routes and their display CardIds, but no candidate IDs, scores, confidence, or original Advisor rank. Reviewers may rank one to three complete routes when additional quality research is desired.
 
 On Windows, write a ranked selection from the blind pack without manually
 copying entity IDs:
@@ -85,7 +85,7 @@ Offline reports include legal-route rate, p50/p95/maximum latency, deadline expi
 
 ## Visible-test gate
 
-The report exposes `meetsVisibleSuggestionPrerequisites`. It remains false until the offline routes are fully evaluated and legal, p95 latency is below 300 ms with no deadline expirations or unsupported interactions, the expert target is met (200 provenance-qualified annotations and at least 80% primary-route Top-3 consistency), and one complete 50-game shadow cohort passes the automated thresholds. The automated fields make the evidence auditable but do not independently prove that a named human or an HDT session produced every input; review the collected source data before enabling a visible cohort.
+The report exposes `meetsVisibleSuggestionPrerequisites`. It remains false until the offline routes are fully evaluated and legal, p95 latency is below 300 ms with no deadline expirations or unsupported interactions, and one complete five-game shadow cohort passes the automated thresholds. Expert annotations are not required. The automated fields make the evidence auditable but do not independently prove that an HDT session produced every input; review the collected source data before enabling a visible cohort.
 
 Keep `profiles\release.json` aligned with the plugin and rule versions used for the shadow run. Once the final report is ready, enable the small visible-test cohort with:
 
@@ -106,7 +106,6 @@ the exact report and white-listed evidence files with hashes:
   -RegressionReportPath .\.artifacts\offline-regression\offline-regression.json `
   -ReplayPath "$env:APPDATA\HearthstoneDeckTracker\Replays" `
   -FixturePath "$env:APPDATA\HearthstoneDeckTracker\DiscardAdvisor\Fixtures" `
-  -AnnotationPath .\annotations `
   -DiagnosticsPath "$env:APPDATA\HearthstoneDeckTracker\DiscardAdvisor\Diagnostics"
 ```
 

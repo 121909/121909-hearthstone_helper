@@ -18,8 +18,8 @@ active row targets Hearthstone build `247416` with rule set `0.3.3` after
 to its current `WON_098` printing. It is `EXPERIMENTAL`: the plugin gate,
 unknown-deck sampling, local search, LLM validation, Overlay, replay regression,
 and shadow telemetry are implemented. Promotion beyond experimental still
-requires the phase 5 expert annotations, 50 completed shadow games, metric
-review, and a small visible-advice trial.
+requires five completed shadow games, metric review, and a small visible-advice
+trial. Expert annotations are optional in the active validation profile.
 
 ## Deck hash
 

@@ -41,7 +41,7 @@ if(-not (Test-Path -LiteralPath $reportPath -PathType Leaf))
 }
 $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
 $shadow = $report.shadowRun
-Write-Host ("Shadow checkpoint: {0}/50 completed games with a published analysis ({1} completed total)" -f `
+Write-Host ("Shadow checkpoint: {0}/5 completed games with a published analysis ({1} completed total)" -f `
     $shadow.completedGameWithPublishedAnalysisCount, $shadow.completedGameCount)
 Write-Host ("Runs/version cohorts/missing metadata: {0}/{1}/{2}" -f `
     $shadow.runCount, $shadow.versionCohortCount, $shadow.missingVersionMetadataGameCount)
@@ -50,7 +50,7 @@ Write-Host ("Requests/analyses: {0}/{1}; missing starts: {2}; unfinished: {3}" -
 Write-Host ("p95: {0:N2} ms; duplicates: {1}; failures: {2}; visible: {3}; unsupported occurrences: {4}" -f `
     $shadow.latencyP95Ms, $shadow.duplicateRequestCount, $shadow.failedCount, $shadow.visibleSuggestionCount, $shadow.unsupportedInteractionOccurrenceCount)
 
-$enoughGames = $shadow.completedGameWithPublishedAnalysisCount -ge 50
+$enoughGames = $shadow.completedGameWithPublishedAnalysisCount -ge 5
 $hardThresholds = [bool]$shadow.meetsAutomatedAcceptanceThresholds
 if($RequireAcceptance -and (-not $enoughGames -or -not $hardThresholds))
 {

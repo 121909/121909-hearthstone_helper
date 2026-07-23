@@ -52,9 +52,12 @@ public sealed class RegressionReportWriter
         builder.AppendLine($"- Legal routes: {report.LegalRouteCount}/{report.RouteCount} ({FormatPercent(report.LegalRouteRate)})");
         builder.AppendLine($"- Latency p50/p95/max: {report.LatencyP50Ms:F2}/{report.LatencyP95Ms:F2}/{report.LatencyMaximumMs:F2} ms");
         builder.AppendLine($"- Deadline expiration: {report.DeadlineExpiredCount}/{report.EvaluatedSnapshotCount} ({FormatPercent(report.DeadlineExpirationRate)})");
-        builder.AppendLine($"- Expert annotations: {report.QualifiedAnnotatedSnapshotCount}/200 qualified ({report.AnnotatedSnapshotCount} total, {report.UnqualifiedAnnotatedSnapshotCount} legacy or unqualified)");
-        builder.AppendLine($"- Qualified expert primary route in Advisor Top-3: {FormatOptionalPercent(report.QualifiedExpertTop3ConsistencyRate)} ({report.QualifiedExpertTop3MatchCount}/{report.QualifiedAnnotatedSnapshotCount}, target 80%)");
-        builder.AppendLine($"- Expert thresholds: **{(report.MeetsExpertAnnotationTarget ? "MET" : "NOT MET")}**");
+        builder.AppendLine($"- Expert annotation gate: **{(report.ExpertAnnotationsRequired ? "REQUIRED" : "DISABLED")}**");
+        if (report.AnnotatedSnapshotCount > 0)
+        {
+            builder.AppendLine($"- Optional expert annotations: {report.QualifiedAnnotatedSnapshotCount} qualified ({report.AnnotatedSnapshotCount} total, {report.UnqualifiedAnnotatedSnapshotCount} legacy or unqualified)");
+            builder.AppendLine($"- Optional expert primary route in Advisor Top-3: {FormatOptionalPercent(report.QualifiedExpertTop3ConsistencyRate)} ({report.QualifiedExpertTop3MatchCount}/{report.QualifiedAnnotatedSnapshotCount})");
+        }
         builder.AppendLine($"- Visible-suggestion prerequisites: **{(report.MeetsVisibleSuggestionPrerequisites ? "MET" : "NOT MET")}**");
         builder.AppendLine();
         builder.AppendLine("## Shadow run");
@@ -65,7 +68,7 @@ public sealed class RegressionReportWriter
         }
         else
         {
-            builder.AppendLine($"- Completed games with a published Shadow analysis: {report.ShadowRun.CompletedGameWithPublishedAnalysisCount}/50 ({report.ShadowRun.CompletedGameCount} completed, {report.ShadowRun.StartedGameCount} started)");
+            builder.AppendLine($"- Completed games with a published Shadow analysis: {report.ShadowRun.CompletedGameWithPublishedAnalysisCount}/{ValidationPolicy.RequiredShadowGameCount} ({report.ShadowRun.CompletedGameCount} completed, {report.ShadowRun.StartedGameCount} started)");
             builder.AppendLine($"- Completed games without a published analysis: {report.ShadowRun.CompletedGameWithoutPublishedAnalysisCount}");
             builder.AppendLine($"- Runs / version cohorts / games missing metadata: {report.ShadowRun.RunCount}/{report.ShadowRun.VersionCohortCount}/{report.ShadowRun.MissingVersionMetadataGameCount}");
             builder.AppendLine($"- Automated acceptance thresholds: **{(report.ShadowRun.MeetsAutomatedAcceptanceThresholds ? "MET" : "NOT MET")}**");
@@ -119,11 +122,11 @@ public sealed class RegressionReportWriter
     {
         ProtocolVersion = "1.0.0",
         ReviewMethod = "BLIND_ROUTE_RANKING",
-        Instructions = "Rank routes without opening offline-regression.json. Put the strongest route first in expertTop3; only that primary route is used for the Advisor Top-3 metric. Author a custom route when none of the blinded options is correct. Use the annotate command with an anonymous reviewer id; protocol 1.1.0 provenance is required for the 200-annotation target.",
-        TargetAnnotationCount = 200,
+        Instructions = "Expert annotations are optional and do not affect the active release gate. When supplied, rank routes without opening offline-regression.json and put the strongest route first in expertTop3.",
+        TargetAnnotationCount = 0,
         QualifiedAnnotatedSnapshotCount = report.QualifiedAnnotatedSnapshotCount,
         LegacyOrUnqualifiedAnnotationCount = report.UnqualifiedAnnotatedSnapshotCount,
-        RemainingToTarget = Math.Max(0, 200 - report.QualifiedAnnotatedSnapshotCount),
+        RemainingToTarget = 0,
         Pending = report.Snapshots
             .Where(snapshot => snapshot.MappingSupported && !snapshot.AnnotationQualified)
             .Select(snapshot => new

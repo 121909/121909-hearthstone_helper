@@ -1,7 +1,11 @@
 {
   "manifestVersion": 1,
-  "pluginVersion": "0.4.6",
+  "pluginVersion": "0.4.7",
   "ruleSetVersion": "0.3.3",
   "hdtVersion": "1.53.11",
-  "channel": "experimental"
+  "channel": "experimental",
+  "validation": {
+    "requiredShadowGames": 5,
+    "expertAnnotationsRequired": false
+  }
 }

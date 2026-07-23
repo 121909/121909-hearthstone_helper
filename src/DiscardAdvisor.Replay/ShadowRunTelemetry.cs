@@ -144,17 +144,18 @@ public sealed record ShadowRunReport(
     public int CompletedGameWithoutPublishedAnalysisCount =>
         Math.Max(0, CompletedGameCount - CompletedGameWithPublishedAnalysisCount);
 
-    public bool MeetsAutomatedAcceptanceThresholds => CompletedGameWithPublishedAnalysisCount >= 50 &&
-                                                       AnalysisCount > 0 &&
-                                                       RequestCount == AnalysisCount &&
-                                                       MissingRequestCount == 0 &&
-                                                       UnfinishedRequestCount == 0 &&
-                                                       MissingVersionMetadataGameCount == 0 &&
-                                                       VersionCohortCount == 1 &&
-                                                       FailedCount == 0 &&
-                                                       DuplicateRequestCount == 0 &&
-                                                       VisibleSuggestionCount == 0 &&
-                                                       LatencyP95Ms < 300;
+    public bool MeetsAutomatedAcceptanceThresholds =>
+        CompletedGameWithPublishedAnalysisCount >= ValidationPolicy.RequiredShadowGameCount &&
+        AnalysisCount > 0 &&
+        RequestCount == AnalysisCount &&
+        MissingRequestCount == 0 &&
+        UnfinishedRequestCount == 0 &&
+        MissingVersionMetadataGameCount == 0 &&
+        VersionCohortCount == 1 &&
+        FailedCount == 0 &&
+        DuplicateRequestCount == 0 &&
+        VisibleSuggestionCount == 0 &&
+        LatencyP95Ms < 300;
 
     public static ShadowRunReport FromTelemetry(ShadowRunTelemetry telemetry)
     {

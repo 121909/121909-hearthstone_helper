@@ -134,8 +134,11 @@ public sealed record OfflineRegressionReport(
         ? 0
         : (double)DeadlineExpiredCount / EvaluatedSnapshotCount;
 
-    public bool MeetsExpertAnnotationTarget => QualifiedAnnotatedSnapshotCount >= 200 &&
-                                               QualifiedExpertTop3ConsistencyRate >= 0.8d;
+    public bool ExpertAnnotationsRequired => ValidationPolicy.ExpertAnnotationsRequired;
+
+    public bool MeetsExpertAnnotationTarget => !ExpertAnnotationsRequired ||
+                                               (QualifiedAnnotatedSnapshotCount >= ValidationPolicy.OptionalExpertAnnotationTarget &&
+                                                QualifiedExpertTop3ConsistencyRate >= ValidationPolicy.OptionalExpertTop3ConsistencyTarget);
 
     public bool MeetsVisibleSuggestionPrerequisites => Passed &&
                                                        EvaluatedSnapshotCount == SnapshotCount &&

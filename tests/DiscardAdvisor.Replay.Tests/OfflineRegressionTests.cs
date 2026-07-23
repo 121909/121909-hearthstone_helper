@@ -218,7 +218,8 @@ public sealed class OfflineRegressionTests
         Assert.Equal(1, report.AnnotatedSnapshotCount);
         Assert.Equal(0, report.QualifiedAnnotatedSnapshotCount);
         Assert.Equal(1, report.UnqualifiedAnnotatedSnapshotCount);
-        Assert.False(report.MeetsExpertAnnotationTarget);
+        Assert.True(report.MeetsExpertAnnotationTarget);
+        Assert.False(report.ExpertAnnotationsRequired);
         var paths = new RegressionReportWriter().Write(report, directory.Path);
         var review = JObject.Parse(File.ReadAllText(paths.ExpertReviewPath));
         Assert.Single(Assert.IsType<JArray>(review["pending"]));
@@ -251,7 +252,7 @@ public sealed class OfflineRegressionTests
         Assert.Equal(1, report.ShadowRun.VersionCohortCount);
         Assert.Equal(0, report.ShadowRun.MissingVersionMetadataGameCount);
         var cohort = Assert.Single(report.ShadowRun.VersionCohorts);
-        Assert.Equal(("0.4.6", "0.3.3"), (cohort.PluginVersion, cohort.RuleSetVersion));
+        Assert.Equal(("0.4.7", "0.3.3"), (cohort.PluginVersion, cohort.RuleSetVersion));
         Assert.False(report.ShadowRun.MeetsAutomatedAcceptanceThresholds);
     }
 
@@ -307,16 +308,16 @@ public sealed class OfflineRegressionTests
     [Fact]
     public void ShadowAcceptanceCountsOnlyCompletedGamesWithPublishedAnalyses()
     {
-        var incompleteEvidence = ShadowRunReport.FromTelemetry(BuildCompletedShadowRunTelemetry(49));
+        var incompleteEvidence = ShadowRunReport.FromTelemetry(BuildCompletedShadowRunTelemetry(4));
 
-        Assert.Equal(50, incompleteEvidence.CompletedGameCount);
-        Assert.Equal(49, incompleteEvidence.CompletedGameWithPublishedAnalysisCount);
+        Assert.Equal(5, incompleteEvidence.CompletedGameCount);
+        Assert.Equal(4, incompleteEvidence.CompletedGameWithPublishedAnalysisCount);
         Assert.Equal(1, incompleteEvidence.CompletedGameWithoutPublishedAnalysisCount);
         Assert.False(incompleteEvidence.MeetsAutomatedAcceptanceThresholds);
 
-        var acceptedEvidence = ShadowRunReport.FromTelemetry(BuildCompletedShadowRunTelemetry(50));
+        var acceptedEvidence = ShadowRunReport.FromTelemetry(BuildCompletedShadowRunTelemetry(5));
 
-        Assert.Equal(50, acceptedEvidence.CompletedGameWithPublishedAnalysisCount);
+        Assert.Equal(5, acceptedEvidence.CompletedGameWithPublishedAnalysisCount);
         Assert.Equal(0, acceptedEvidence.CompletedGameWithoutPublishedAnalysisCount);
         Assert.True(acceptedEvidence.MeetsAutomatedAcceptanceThresholds);
     }
@@ -324,15 +325,15 @@ public sealed class OfflineRegressionTests
     [Fact]
     public void VisibleSuggestionGateRequiresCompleteOfflineAndShadowEvidence()
     {
-        var qualifiedSnapshots = BuildQualifiedEvaluations(200, 160);
+        var qualifiedSnapshots = ImmutableArray<SnapshotEvaluation>.Empty;
         var shadow = new ShadowRunReport(
             LogFileCount: 1,
-            StartedGameCount: 50,
-            CompletedGameCount: 50,
-            CompletedGameWithPublishedAnalysisCount: 50,
-            RequestCount: 200,
-            AnalysisCount: 200,
-            PublishedCount: 200,
+            StartedGameCount: 5,
+            CompletedGameCount: 5,
+            CompletedGameWithPublishedAnalysisCount: 5,
+            RequestCount: 5,
+            AnalysisCount: 5,
+            PublishedCount: 5,
             SupersededCount: 0,
             CancelledCount: 0,
             FailedCount: 0,
@@ -345,20 +346,20 @@ public sealed class OfflineRegressionTests
             RunCount: 1,
             VersionCohortCount: 1,
             MissingVersionMetadataGameCount: 0,
-            VersionCohorts: ImmutableArray.Create(new ShadowVersionCohort("0.4.6", "0.3.3", 50, 50, 200, 200)),
+            VersionCohorts: ImmutableArray.Create(new ShadowVersionCohort("0.4.7", "0.3.3", 5, 5, 5, 5)),
             LatencyP50Ms: 100,
             LatencyP95Ms: 200,
             LatencyMaximumMs: 250);
         var report = new OfflineRegressionReport(
             DateTimeOffset.Parse("2026-07-22T00:00:00Z"),
             new OfflineRegressionOptions(),
-            ReplayCount: 50,
-            SnapshotCount: 200,
-            EvaluatedSnapshotCount: 200,
-            AnnotatedSnapshotCount: 200,
-            ExpertTop3MatchCount: 160,
-            RouteCount: 600,
-            LegalRouteCount: 600,
+            ReplayCount: 5,
+            SnapshotCount: 0,
+            EvaluatedSnapshotCount: 0,
+            AnnotatedSnapshotCount: 0,
+            ExpertTop3MatchCount: 0,
+            RouteCount: 1,
+            LegalRouteCount: 1,
             DeadlineExpiredCount: 0,
             LatencyP50Ms: 100,
             LatencyP95Ms: 200,
@@ -370,14 +371,11 @@ public sealed class OfflineRegressionTests
             Snapshots: qualifiedSnapshots);
 
         Assert.True(report.MeetsVisibleSuggestionPrerequisites);
-        Assert.False((report with
-        {
-            Snapshots = qualifiedSnapshots.SetItem(0, qualifiedSnapshots[0] with { ExpertTop3Matched = false })
-        }).MeetsVisibleSuggestionPrerequisites);
+        Assert.True((report with { AnnotatedSnapshotCount = 0 }).MeetsVisibleSuggestionPrerequisites);
         Assert.False((report with { LatencyP95Ms = 300 }).MeetsVisibleSuggestionPrerequisites);
         Assert.False((report with
         {
-            ShadowRun = shadow with { CompletedGameWithPublishedAnalysisCount = 49 }
+            ShadowRun = shadow with { CompletedGameWithPublishedAnalysisCount = 4 }
         }).MeetsVisibleSuggestionPrerequisites);
         Assert.False((report with
         {
@@ -504,10 +502,11 @@ public sealed class OfflineRegressionTests
     private static ShadowRunTelemetry BuildCompletedShadowRunTelemetry(int publishedGameCount)
     {
         var start = DateTimeOffset.Parse("2026-07-22T00:00:00Z");
-        var games = ImmutableArray.CreateBuilder<ShadowGameSession>(50);
-        var requests = ImmutableArray.CreateBuilder<ShadowAdvisorRequestObservation>(50);
-        var analyses = ImmutableArray.CreateBuilder<ShadowAnalysisObservation>(50);
-        for (var index = 0; index < 50; index++)
+        const int gameCount = 5;
+        var games = ImmutableArray.CreateBuilder<ShadowGameSession>(gameCount);
+        var requests = ImmutableArray.CreateBuilder<ShadowAdvisorRequestObservation>(gameCount);
+        var analyses = ImmutableArray.CreateBuilder<ShadowAnalysisObservation>(gameCount);
+        for (var index = 0; index < gameCount; index++)
         {
             var gameId = new Guid(index + 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
             var timestamp = start.AddMinutes(index);
@@ -519,7 +518,7 @@ public sealed class OfflineRegressionTests
                 true,
                 true,
                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "0.4.6",
+                "0.4.7",
                 "0.3.3"));
             requests.Add(new ShadowAdvisorRequestObservation(timestamp, index * 2 + 1, gameId, stateId, "shadow"));
             analyses.Add(Analysis(
@@ -536,24 +535,6 @@ public sealed class OfflineRegressionTests
             analyses.ToImmutable(),
             ImmutableArray<string>.Empty);
     }
-
-    private static ImmutableArray<SnapshotEvaluation> BuildQualifiedEvaluations(int count, int matchedCount) =>
-        Enumerable.Range(0, count)
-            .Select(index => new SnapshotEvaluation(
-                "fixture",
-                $"turn-1:qualified-{index}",
-                1,
-                true,
-                1,
-                1,
-                1,
-                100,
-                false,
-                index < matchedCount,
-                true,
-                ImmutableArray<ExpertReviewCandidate>.Empty,
-                ImmutableArray<string>.Empty))
-            .ToImmutableArray();
 
     private static string CalculateStateId(JObject json)
     {

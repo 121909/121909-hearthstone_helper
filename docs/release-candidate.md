@@ -2,7 +2,7 @@
 
 Current candidate versions:
 
-- Plugin: `0.4.6`
+- Plugin: `0.4.7`
 - Rule set: `0.3.3`
 - HDT: `1.53.11`
 - Runtime: `.NET Framework 4.7.2`, x64
@@ -53,8 +53,9 @@ Verify an experimental package with the same evidence archive:
 
 ## Current limitations
 
-- This is a Shadow release candidate until the real 200-annotation and
-  50-qualified-game evidence gates pass.
+- This is a Shadow release candidate until the real five-qualified-game
+  evidence gate and automated thresholds pass. Expert annotations are optional
+  in the active validation profile.
 - Exact behavior is limited to the pinned deck, Hearthstone build, CardDefs,
   HearthDb, and HDT compatibility profile.
 - Generated one-cost minions and external cards with unsupported triggers,

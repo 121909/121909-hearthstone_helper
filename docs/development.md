@@ -64,14 +64,14 @@ After the run, aggregate all evidence in one report:
     "$env:APPDATA\HearthstoneDeckTracker\DiscardAdvisor\Diagnostics"
 ```
 
-The release cohort is recorded in `profiles\release.json`. Do not switch a live settings file to `experimental` manually. After the final report contains at least 200 real expert annotations, at least 50 completed real shadow games with a published analysis, and all automated thresholds, run the Windows gate:
+The release cohort is recorded in `profiles\release.json`. Do not switch a live settings file to `experimental` manually. After the final report contains at least 5 completed real shadow games with a published analysis and all automated thresholds, run the Windows gate. Expert annotations are optional in the active validation profile:
 
 ```powershell
 .\scripts\enable-visible-test.ps1 `
   -RegressionReportPath .\.artifacts\offline-regression\offline-regression.json
 ```
 
-The gate requires the report's single plugin/rule version cohort to match the release manifest, then atomically writes `mode: experimental`. Any missing evidence, mixed cohort, malformed report, or write failure leaves the existing settings unchanged.
+The gate requires the report's single plugin/rule version cohort to match the release manifest and the active no-annotation validation policy, then atomically writes `mode: experimental`. Any missing evidence, mixed cohort, malformed report, or write failure leaves the existing settings unchanged.
 
 Build the version-checked Windows release candidate with
 `.\scripts\build-release-candidate.ps1`. It defaults to Shadow mode; see
