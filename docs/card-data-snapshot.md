@@ -23,6 +23,7 @@ engine. Flavor text, artist credits, and acquisition text are intentionally not
 part of the rule-set snapshot because they cannot affect gameplay.
 
 Card updates create a new compatibility entry instead of rewriting older matrix
-rows. Build `247416` changed `BOT_568` from 1 to 2 mana; rule set `0.3.2`
-contains the reviewed cost update. A future gameplay text or tag change makes
-the active rule set unsupported until it has been reviewed and tested.
+rows. Build `247416` changed `BOT_568` from 1 to 2 mana and provides the
+current `WON_098` printing of Silverware Golem; rule set `0.3.3` contains the
+reviewed updates. A future gameplay text or tag change makes the active rule
+set unsupported until it has been reviewed and tested.

@@ -8,8 +8,8 @@ public static class TargetDeckProfile
     public const string GameMode = "RANKED_WILD";
     public const string PlayerClass = "WARLOCK";
     public const int DeckSize = 30;
-    public const string DeckHash = "c980187b4a4ff17509f32aa68db749fc6bcb64cc6f8bd32dd61f0d49b8fd2eb0";
-    public const string RuleSetVersion = "0.3.2";
+    public const string DeckHash = "3204a0f302fa866376ca21b1b793e4f48cf4e8736525512b44ee951f4408d3b4";
+    public const string RuleSetVersion = "0.3.3";
 
     public static IReadOnlyList<DeckCardCount> Cards { get; } = new[]
     {
@@ -21,7 +21,6 @@ public static class TargetDeckProfile
         new DeckCardCount("DMF_119", 2),
         new DeckCardCount("END_016", 2),
         new DeckCardCount("EX1_308", 1),
-        new DeckCardCount("KAR_205", 1),
         new DeckCardCount("RLK_532", 2),
         new DeckCardCount("RLK_534", 2),
         new DeckCardCount("SCH_147", 2),
@@ -29,7 +28,7 @@ public static class TargetDeckProfile
         new DeckCardCount("TLC_451", 2),
         new DeckCardCount("TLC_603", 2),
         new DeckCardCount("VAC_940", 2),
+        new DeckCardCount("WON_098", 1),
         new DeckCardCount("WON_103", 1)
     };
 }
-

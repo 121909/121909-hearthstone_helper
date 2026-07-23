@@ -99,6 +99,17 @@ public sealed class DeckSupportGateTests
     }
 
     [Fact]
+    public void RejectsLegacySilverwareGolemPrinting()
+    {
+        var cards = ExpandTargetDeck();
+        cards[cards.IndexOf("WON_098")] = "KAR_205";
+
+        var result = new DeckSupportGate().Evaluate(TargetDeckProfile.GameMode, cards, SupportedRuntime);
+
+        Assert.Equal(GateStatus.DeckMismatch, result.Status);
+    }
+
+    [Fact]
     public void RejectsUnknownCardIdsInsteadOfGuessing()
     {
         var cards = ExpandTargetDeck().Cast<string?>().ToList();

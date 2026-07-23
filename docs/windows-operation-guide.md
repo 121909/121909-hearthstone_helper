@@ -1,7 +1,7 @@
 # Windows 影子运行操作手册
 
 本文是 Windows 上采集 Discard Advisor 有效验证证据的完整流程。当前
-发布 cohort 为：插件 `0.4.5`、规则集 `0.3.2`、HDT `1.53.11`、炉石
+发布 cohort 为：插件 `0.4.6`、规则集 `0.3.3`、HDT `1.53.11`、炉石
 构建 `247416`。
 
 在诊断日志出现 `gate_decision` 且状态为 `Enabled` 之前，不要开始累计
@@ -56,15 +56,15 @@ Get-ChildItem $repo -Recurse -File | Unblock-File
 
 ## 3. 新建版本 Cohort
 
-旧版 `0.4.4 / 0.3.1` 的诊断数据不能与当前 `0.4.5 / 0.3.2` 混用。升级
-前先归档旧插件数据，以下操作不会删除旧证据：
+旧版 `0.4.4 / 0.3.1` 和 `0.4.5 / 0.3.2` 的诊断数据不能与当前
+`0.4.6 / 0.3.3` 混用。升级前先归档旧插件数据，以下操作不会删除旧证据：
 
 ```powershell
 $hdtData = "$env:APPDATA\HearthstoneDeckTracker"
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 
 if (Test-Path "$hdtData\DiscardAdvisor") {
-    Move-Item "$hdtData\DiscardAdvisor" "$hdtData\DiscardAdvisor-pre-0.4.5-$stamp"
+    Move-Item "$hdtData\DiscardAdvisor" "$hdtData\DiscardAdvisor-pre-0.4.6-$stamp"
 }
 ```
 
@@ -117,11 +117,11 @@ Shadow 模式会计算建议并记录诊断数据，但不会显示推荐 Overla
 
 ## 6. 使用精确目标卡组
 
-门禁只接受下列精确的 30 张狂野弃牌术。莫瑞甘的灵界当前为 2 费，但其
-CardId 和套牌代码没有变化。
+门禁只接受下列精确的 30 张狂野弃牌术。莫瑞甘的灵界当前为 2 费；镀银
+魔像必须使用当前重印版 `WON_098`，而不是旧版 `KAR_205`。
 
 ```text
-AAEBAf0GA84Hj4ID9qEGDtSzArW5A9XRA9DhA5iSBauSBZXKBteXB4SZB6StB8ayB9a+B9m+B8+/BwA=
+AAEBAf0GBM4Hj4ID8aEG9qEGDbW5A9XRA9DhA5iSBauSBZXKBteXB4SZB6StB8ayB9a+B9m+B8+/BwA=
 ```
 
 ```text

@@ -13,8 +13,9 @@ all of the following values match a reviewed row:
 The initial row targets Windows, HDT `1.53.11` at commit
 `ddc0ec01afe61a03d459c96b7d7b3f3b5d344573`, and Hearthstone build `246003`.
 Its rule set `0.3.1` is retained as historical compatibility evidence. The
-active row targets Hearthstone build `247416` with rule set `0.3.2` after
-`BOT_568` changed from 1 to 2 mana. It is `EXPERIMENTAL`: the plugin gate,
+active row targets Hearthstone build `247416` with rule set `0.3.3` after
+`BOT_568` changed from 1 to 2 mana and Silverware Golem moved from `KAR_205`
+to its current `WON_098` printing. It is `EXPERIMENTAL`: the plugin gate,
 unknown-deck sampling, local search, LLM validation, Overlay, replay regression,
 and shadow telemetry are implemented. Promotion beyond experimental still
 requires the phase 5 expert annotations, 50 completed shadow games, metric
@@ -30,7 +31,7 @@ The deck hash does not use localized names or card text. To reproduce it:
 4. Compute SHA-256 and format it as lowercase hexadecimal.
 
 The target deck canonical payload hashes to
-`c980187b4a4ff17509f32aa68db749fc6bcb64cc6f8bd32dd61f0d49b8fd2eb0`.
+`3204a0f302fa866376ca21b1b793e4f48cf4e8736525512b44ee951f4408d3b4`.
 
 This LF rule is explicit so the result is identical on Windows and Unix-like
 development hosts.

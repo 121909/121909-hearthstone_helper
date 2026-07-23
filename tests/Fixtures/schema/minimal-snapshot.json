@@ -1,12 +1,12 @@
 {
   "protocolVersion": "1.0.0",
-  "ruleSetVersion": "0.3.2",
+  "ruleSetVersion": "0.3.3",
   "hearthstoneBuild": 247416,
   "hdtVersion": "1.53.11",
   "cardDefsHash": "a3b0e3dcd112626aa47ba16ede1b26506eed175b1fda288c1b6952065c06aac4",
   "gameId": "8ed0a5ab-c11a-4f60-9fb9-2dbb59f13118",
   "gameMode": "RANKED_WILD",
-  "stateId": "turn-1:f246cc71b892720b8cd62fb943b2d1840c5e742de0c68c62535f1ff865bba75e",
+  "stateId": "turn-1:bb2b37f14eb836cfe968c4e6846da086a433485cbe99c64112df303acff14cca",
   "turnNumber": 1,
   "step": "MAIN_ACTION",
   "activePlayer": "FRIENDLY",
@@ -78,7 +78,7 @@
         "count": 1
       },
       {
-        "cardId": "KAR_205",
+        "cardId": "WON_098",
         "count": 1
       },
       {
@@ -148,7 +148,7 @@
         "count": 1
       },
       {
-        "cardId": "KAR_205",
+        "cardId": "WON_098",
         "count": 1
       },
       {

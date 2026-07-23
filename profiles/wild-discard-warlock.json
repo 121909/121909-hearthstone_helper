@@ -1,5 +1,5 @@
 {
-  "profileVersion": 2,
+  "profileVersion": 3,
   "profileId": "wild-discard-warlock",
   "displayName": "Wild Discard Warlock",
   "gameMode": "RANKED_WILD",
@@ -9,9 +9,9 @@
   "deckHash": {
     "algorithm": "SHA-256",
     "canonicalization": "Sort by ordinal CardId; encode each entry as CardId:count followed by LF; encode as UTF-8.",
-    "value": "c980187b4a4ff17509f32aa68db749fc6bcb64cc6f8bd32dd61f0d49b8fd2eb0"
+    "value": "3204a0f302fa866376ca21b1b793e4f48cf4e8736525512b44ee951f4408d3b4"
   },
-  "ruleSetVersion": "0.3.2",
+  "ruleSetVersion": "0.3.3",
   "cardData": {
     "provider": "HearthstoneJSON",
     "build": 247416,
@@ -336,7 +336,7 @@
       }
     },
     {
-      "cardId": "KAR_205",
+      "cardId": "WON_098",
       "count": 1,
       "localization": {
         "enUS": {
@@ -349,7 +349,7 @@
         }
       },
       "tags": {
-        "dbfId": 39380,
+        "dbfId": 102641,
         "collectible": true,
         "cardClass": "WARLOCK",
         "cost": 3,
@@ -357,7 +357,7 @@
         "health": 4,
         "type": "MINION",
         "rarity": "RARE",
-        "set": "KARA",
+        "set": "WONDERS",
         "mechanics": [
           "InvisibleDeathrattle"
         ]

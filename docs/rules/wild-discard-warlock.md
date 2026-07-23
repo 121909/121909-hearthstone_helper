@@ -1,6 +1,6 @@
 # Wild Discard Warlock rule specification
 
-Rule-set version: `0.3.2`
+Rule-set version: `0.3.3`
 Card definitions: Hearthstone build `247416`
 Target mode: `RANKED_WILD`
 
@@ -259,7 +259,7 @@ Because Ocular Occultist occupies its slot first, a board that had six minions
 has no room for a discarded Silverware Golem, Walking Dead, Boneweb spiders, or
 Disposable Acolytes summons.
 
-### `KAR_205` Silverware Golem / 镀银魔像
+### `WON_098` Silverware Golem / 镀银魔像
 
 Playing the card normally summons a 3/4 minion. When discarded, first count and
 record the discard, then try to move that same entity from the discard zone to

@@ -17,7 +17,7 @@ public static class DiscardWarlockCardIds
     public const string DisposableAcolytes = "CATA_499";
     public const string ChamberOfViscidus = "WON_103";
     public const string OcularOccultist = "CATA_490";
-    public const string SilverwareGolem = "KAR_205";
+    public const string SilverwareGolem = "WON_098";
     public const string WalkingDead = "RLK_532";
     public const string Chronoclaws = "END_016";
     public const string DukeOfBelow = "CATA_493";
