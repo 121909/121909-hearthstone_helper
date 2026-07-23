@@ -45,6 +45,11 @@ row in place to make a new patch appear compatible.
 
 HDT may temporarily omit the live Hearthstone build from game metadata. In
 that case the plugin infers the active build only when the local
-`CardDefs.base.xml` SHA-256 exactly matches the reviewed row. It does not treat
-the older build embedded in the pinned HearthDb assembly as the live client
-build.
+`CardDefs.base.xml` SHA-256 exactly matches a reviewed HDT data-file hash. The
+HDT file is normalized differently from the source `CardDefs.xml`; build
+`247416` therefore accepts source hash
+`a3b0e3dcd112626aa47ba16ede1b26506eed175b1fda288c1b6952065c06aac4` and
+HDT data-file hash
+`1d9cf031fb1fe37a39fdf4f515702bcc2425eb71ba8be0a236948372b15a38bb`.
+It does not treat the older build embedded in the pinned HearthDb assembly as
+the live client build.

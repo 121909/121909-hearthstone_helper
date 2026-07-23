@@ -142,6 +142,31 @@ public sealed class DeckSupportGateTests
         Assert.Equal(246003, build);
     }
 
+    [Fact]
+    public void CompatibilityResolverUsesVerifiedHdtCardDefinitionsWhenHdtDoesNotReportABuild()
+    {
+        var build = RuntimeCompatibilityResolver.ResolveHearthstoneBuild(
+            reportedBuild: null,
+            cardDefsSha256: TargetRuntimeCompatibility.HdtCardDefsSha256,
+            hearthDbBuild: "246003");
+
+        Assert.Equal(TargetRuntimeCompatibility.HearthstoneBuild, build);
+    }
+
+    [Fact]
+    public void EnablesTheExactDeckWithVerifiedHdtCardDefinitions()
+    {
+        var runtime = new RuntimeCompatibility(
+            TargetRuntimeCompatibility.HearthstoneBuild,
+            TargetRuntimeCompatibility.HdtVersion,
+            TargetRuntimeCompatibility.HdtCardDefsSha256,
+            TargetRuntimeCompatibility.HearthDbSha256);
+
+        var result = new DeckSupportGate().Evaluate(TargetDeckProfile.GameMode, ExpandTargetDeck(), runtime);
+
+        Assert.True(result.IsEnabled);
+    }
+
     public static IEnumerable<object[]> UnsupportedRuntimeCases()
     {
         yield return new object[]

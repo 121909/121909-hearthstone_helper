@@ -52,7 +52,7 @@ public sealed class DeckSupportGate
         if (!string.Equals(compatibility.HdtVersion, TargetRuntimeCompatibility.HdtVersion, StringComparison.Ordinal))
             return new GateDecision(GateStatus.UnsupportedHdtVersion, fingerprint.Hash);
 
-        if (!string.Equals(compatibility.CardDefsSha256, TargetRuntimeCompatibility.CardDefsSha256, StringComparison.OrdinalIgnoreCase))
+        if (!RuntimeCompatibilityResolver.IsSupportedCardDefsHash(compatibility.CardDefsSha256))
             return new GateDecision(GateStatus.UnsupportedCardDefinitions, fingerprint.Hash);
 
         if (!string.Equals(compatibility.HearthDbSha256, TargetRuntimeCompatibility.HearthDbSha256, StringComparison.OrdinalIgnoreCase))

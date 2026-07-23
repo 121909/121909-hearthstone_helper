@@ -52,7 +52,8 @@
       },
       "cardDefs": {
         "url": "https://api.hearthstonejson.com/v1/247416/CardDefs.xml",
-        "sha256": "a3b0e3dcd112626aa47ba16ede1b26506eed175b1fda288c1b6952065c06aac4"
+        "sha256": "a3b0e3dcd112626aa47ba16ede1b26506eed175b1fda288c1b6952065c06aac4",
+        "hdtAppDataSha256": "1d9cf031fb1fe37a39fdf4f515702bcc2425eb71ba8be0a236948372b15a38bb"
       },
       "deckHash": {
         "algorithm": "SHA-256",
