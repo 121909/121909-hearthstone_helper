@@ -77,3 +77,6 @@ Build the version-checked Windows release candidate with
 `.\scripts\build-release-candidate.ps1`. It defaults to Shadow mode; see
 `docs\release-candidate.md` for the package contents and the evidence-gated
 experimental command.
+
+For the complete Windows collection, annotation, validation, and visible-test
+workflow, see [Windows Shadow 运行操作手册](windows-operation-guide.md).
