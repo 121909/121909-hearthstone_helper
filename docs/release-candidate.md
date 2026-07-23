@@ -2,7 +2,7 @@
 
 Current candidate versions:
 
-- Plugin: `0.4.9`
+- Plugin: `0.4.10`
 - Rule set: `0.3.3`
 - HDT: `1.53.11`
 - Runtime: `.NET Framework 4.7.2`, x64

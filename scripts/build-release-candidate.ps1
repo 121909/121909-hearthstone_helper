@@ -180,10 +180,12 @@ if(Test-Path -LiteralPath $archivePath -PathType Leaf)
 
 $stagingRoot = Join-Path $outputRoot (".staging-" + [Guid]::NewGuid().ToString("N"))
 $packageRoot = Join-Path $stagingRoot $packageBaseName
-$pluginDirectory = Join-Path $packageRoot "Plugins\DiscardAdvisor"
-$dataDirectory = Join-Path $packageRoot "Data\DiscardAdvisor"
 try
 {
+    New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
+    $packageRoot = (Resolve-Path -LiteralPath $packageRoot).Path
+    $pluginDirectory = Join-Path $packageRoot "Plugins\DiscardAdvisor"
+    $dataDirectory = Join-Path $packageRoot "Data\DiscardAdvisor"
     New-Item -ItemType Directory -Path $pluginDirectory -Force | Out-Null
     New-Item -ItemType Directory -Path $dataDirectory -Force | Out-Null
     foreach($assembly in $assemblies)
@@ -210,8 +212,11 @@ try
         "Target: HDT $hdtVersion, net472, x64, mode $PresentationMode.`r`n",
         $utf8)
 
-    $packagePrefix = $packageRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) +
-        [System.IO.Path]::DirectorySeparatorChar
+    $packagePrefix = $packageRoot
+    if(-not $packagePrefix.EndsWith([string][System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::Ordinal))
+    {
+        $packagePrefix += [System.IO.Path]::DirectorySeparatorChar
+    }
     $packageFiles = @(
         Get-ChildItem -LiteralPath $packageRoot -Recurse -File |
             Sort-Object FullName |

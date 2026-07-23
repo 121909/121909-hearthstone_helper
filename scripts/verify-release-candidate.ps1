@@ -150,8 +150,11 @@ try
     {
         throw "Package manifest contains no files."
     }
-    $packagePrefix = $packageRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) +
-        [System.IO.Path]::DirectorySeparatorChar
+    $packagePrefix = $packageRoot
+    if(-not $packagePrefix.EndsWith([string][System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::Ordinal))
+    {
+        $packagePrefix += [System.IO.Path]::DirectorySeparatorChar
+    }
     $seenPaths = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
     foreach($entry in $entries)
     {

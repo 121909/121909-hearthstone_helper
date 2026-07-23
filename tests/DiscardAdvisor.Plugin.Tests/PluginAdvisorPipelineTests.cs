@@ -222,6 +222,40 @@ public sealed class PluginAdvisorPipelineTests
     }
 
     [Fact]
+    public void RuntimeRecordsUnavailableSnapshotReasonWithoutSuppressingRetries()
+    {
+        var source = new UnavailableSnapshotSource(SnapshotCaptureFailure.MissingOpponentHeroPower);
+        var diagnostics = new RecordingDiagnostics();
+        using var coordinator = new SnapshotCoordinator(() => DateTimeOffset.UtcNow, TimeSpan.Zero);
+        using var runtime = new PluginRuntime(
+            new PluginLifetime(),
+            new StubContextProvider(SupportedContext()),
+            new TriggerGameEventSource(),
+            source,
+            coordinator,
+            diagnostics);
+
+        runtime.Start();
+        runtime.Update();
+        runtime.Update();
+
+        Assert.Equal(
+            new[] { SnapshotCaptureFailure.MissingOpponentHeroPower },
+            diagnostics.CaptureFailures.ToArray());
+
+        source.Failure = SnapshotCaptureFailure.MissingPlayerEntity;
+        runtime.Update();
+
+        Assert.Equal(
+            new[]
+            {
+                SnapshotCaptureFailure.MissingOpponentHeroPower,
+                SnapshotCaptureFailure.MissingPlayerEntity
+            },
+            diagnostics.CaptureFailures.ToArray());
+    }
+
+    [Fact]
     public void UnsupportedCompatibilityPublishesUnsupportedPatch()
     {
         var context = SupportedContext();
@@ -282,10 +316,36 @@ public sealed class PluginAdvisorPipelineTests
             _observation = observation;
         }
 
-        public bool TryCapture(Guid gameId, bool isStable, out GameObservation? observation)
+        public bool TryCapture(
+            Guid gameId,
+            bool isStable,
+            out GameObservation? observation,
+            out SnapshotCaptureFailure failure)
         {
             observation = WithGameId(_observation, gameId);
+            failure = SnapshotCaptureFailure.None;
             return true;
+        }
+    }
+
+    private sealed class UnavailableSnapshotSource : ISnapshotObservationSource
+    {
+        public UnavailableSnapshotSource(SnapshotCaptureFailure failure)
+        {
+            Failure = failure;
+        }
+
+        public SnapshotCaptureFailure Failure { get; set; }
+
+        public bool TryCapture(
+            Guid gameId,
+            bool isStable,
+            out GameObservation? observation,
+            out SnapshotCaptureFailure failure)
+        {
+            observation = null;
+            failure = Failure;
+            return false;
         }
     }
 
@@ -319,9 +379,14 @@ public sealed class PluginAdvisorPipelineTests
             _observations = new Queue<GameObservation>(observations);
         }
 
-        public bool TryCapture(Guid gameId, bool isStable, out GameObservation? observation)
+        public bool TryCapture(
+            Guid gameId,
+            bool isStable,
+            out GameObservation? observation,
+            out SnapshotCaptureFailure failure)
         {
             observation = _observations.Count > 0 ? WithGameId(_observations.Dequeue(), gameId) : null;
+            failure = observation is null ? SnapshotCaptureFailure.EmptyObservation : SnapshotCaptureFailure.None;
             return observation is not null;
         }
     }
@@ -409,6 +474,8 @@ public sealed class PluginAdvisorPipelineTests
 
         public ConcurrentQueue<AdvisorRequestDiagnostic> Requests { get; } = new();
 
+        public ConcurrentQueue<SnapshotCaptureFailure> CaptureFailures { get; } = new();
+
         public void RecordGameStarted(Guid gameId) => StartedGames.Enqueue(gameId);
 
         public void RecordGameEnded(Guid gameId, bool completed) => EndedGames.Enqueue((gameId, completed));
@@ -416,6 +483,8 @@ public sealed class PluginAdvisorPipelineTests
         public void RecordGateDecision(GateDecision decision)
         {
         }
+
+        public void RecordSnapshotCaptureSkipped(SnapshotCaptureFailure failure) => CaptureFailures.Enqueue(failure);
 
         public void RecordSnapshot(GameSnapshot snapshot)
         {

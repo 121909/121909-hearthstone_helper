@@ -21,6 +21,7 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
     private PluginAdvisorUpdate _currentAdvisorUpdate = PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Offline);
     private PluginAdvisorUpdate? _lastCompletedAdvisorUpdate;
     private GateStatus? _lastRecordedGateStatus;
+    private SnapshotCaptureFailure? _lastRecordedSnapshotCaptureFailure;
     private Guid _gameId;
     private bool _gameSessionActive;
 
@@ -115,6 +116,7 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
             _lastCompletedAdvisorUpdate = null;
         CurrentGateDecision = null;
         _lastRecordedGateStatus = null;
+        _lastRecordedSnapshotCaptureFailure = null;
         PublishAdvisorUpdate(PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Offline));
     }
 
@@ -191,8 +193,16 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
 
     private GameSnapshot? CaptureSnapshot()
     {
-        if (_snapshotSource is null || !_snapshotSource.TryCapture(_gameId, true, out var observation) || observation is null)
+        if (_snapshotSource is null)
             return null;
+        var captured = _snapshotSource.TryCapture(_gameId, true, out var observation, out var failure);
+        if (!captured || observation is null)
+        {
+            RecordSnapshotCaptureFailure(
+                failure == SnapshotCaptureFailure.None ? SnapshotCaptureFailure.EmptyObservation : failure);
+            return null;
+        }
+        _lastRecordedSnapshotCaptureFailure = null;
         return _snapshotBuilder.Build(observation);
     }
 
@@ -202,6 +212,7 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
             _diagnostics.RecordGameEnded(_gameId, completed: false);
         _gameId = Guid.NewGuid();
         _gameSessionActive = true;
+        _lastRecordedSnapshotCaptureFailure = null;
         _diagnostics.RecordGameStarted(_gameId);
         HandleStateChanged();
     }
@@ -229,6 +240,7 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
             _lastCompletedAdvisorUpdate = null;
         CurrentGateDecision = null;
         _lastRecordedGateStatus = null;
+        _lastRecordedSnapshotCaptureFailure = null;
         PublishAdvisorUpdate(PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Offline));
     }
 
@@ -357,5 +369,13 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
             _currentAdvisorUpdate = update;
             AdvisorUpdated?.Invoke(update);
         }
+    }
+
+    private void RecordSnapshotCaptureFailure(SnapshotCaptureFailure failure)
+    {
+        if (_lastRecordedSnapshotCaptureFailure == failure)
+            return;
+        _lastRecordedSnapshotCaptureFailure = failure;
+        _diagnostics.RecordSnapshotCaptureSkipped(failure);
     }
 }

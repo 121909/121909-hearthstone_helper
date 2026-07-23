@@ -14,5 +14,22 @@ public interface IGameEventSource
 
 public interface ISnapshotObservationSource
 {
-    bool TryCapture(Guid gameId, bool isStable, out GameObservation? observation);
+    bool TryCapture(
+        Guid gameId,
+        bool isStable,
+        out GameObservation? observation,
+        out SnapshotCaptureFailure failure);
+}
+
+public enum SnapshotCaptureFailure
+{
+    None,
+    MissingFriendlyHero,
+    MissingOpponentHero,
+    MissingFriendlyHeroPower,
+    MissingOpponentHeroPower,
+    MissingPlayerEntity,
+    MissingGameEntity,
+    InvalidTurn,
+    EmptyObservation
 }

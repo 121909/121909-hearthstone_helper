@@ -21,6 +21,8 @@ public interface IPluginDiagnostics
 
     void RecordGateDecision(GateDecision decision);
 
+    void RecordSnapshotCaptureSkipped(SnapshotCaptureFailure failure);
+
     void RecordSnapshot(GameSnapshot snapshot);
 
     void RecordAdvisorRequest(AdvisorRequestDiagnostic request);
@@ -115,6 +117,10 @@ public sealed class NullPluginDiagnostics : IPluginDiagnostics
     {
     }
 
+    public void RecordSnapshotCaptureSkipped(SnapshotCaptureFailure failure)
+    {
+    }
+
     public void RecordSnapshot(GameSnapshot snapshot)
     {
     }
@@ -149,6 +155,9 @@ public sealed class QueuedPluginDiagnostics : IPluginDiagnostics
         Enqueue(() => _inner.RecordGameEnded(gameId, completed));
 
     public void RecordGateDecision(GateDecision decision) => Enqueue(() => _inner.RecordGateDecision(decision));
+
+    public void RecordSnapshotCaptureSkipped(SnapshotCaptureFailure failure) =>
+        Enqueue(() => _inner.RecordSnapshotCaptureSkipped(failure));
 
     public void RecordSnapshot(GameSnapshot snapshot) => Enqueue(() => _inner.RecordSnapshot(snapshot));
 
@@ -280,6 +289,17 @@ public sealed class RedactedDiagnosticStore : IPluginDiagnostics
         "gate_decision",
         decision.ObservedDeckHash,
         new Dictionary<string, object> { ["status"] = decision.Status.ToString() }));
+
+    public void RecordSnapshotCaptureSkipped(SnapshotCaptureFailure failure)
+    {
+        if (failure == SnapshotCaptureFailure.None)
+            throw new ArgumentOutOfRangeException(nameof(failure));
+        Write(new DiagnosticEntry(
+            _utcNow(),
+            "snapshot_capture_skipped",
+            null,
+            new Dictionary<string, object> { ["reason"] = failure.ToString() }));
+    }
 
     public void RecordSnapshot(GameSnapshot snapshot)
     {

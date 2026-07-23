@@ -115,11 +115,12 @@ public sealed class PluginDiagnosticsTests
                 directory,
                 utcNow: () => DateTimeOffset.Parse("2026-07-22T00:00:00Z"),
                 sessionMode: "shadow",
-                pluginVersion: "0.4.9",
+                pluginVersion: "0.4.10",
                 ruleSetVersion: "0.3.3",
                 runId: Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
 
             store.RecordGameStarted(gameId);
+            store.RecordSnapshotCaptureSkipped(SnapshotCaptureFailure.MissingOpponentHeroPower);
             store.RecordAdvisorRequest(new AdvisorRequestDiagnostic(gameId, "turn-3:fixture"));
             store.RecordAdvisorAnalysis(new AdvisorAnalysisDiagnostic(
                 gameId,
@@ -135,13 +136,15 @@ public sealed class PluginDiagnosticsTests
             var log = File.ReadAllText(Path.Combine(directory, "discard-advisor.jsonl"));
             Assert.Contains("game_started", log, StringComparison.Ordinal);
             Assert.Contains("game_ended", log, StringComparison.Ordinal);
+            Assert.Contains("snapshot_capture_skipped", log, StringComparison.Ordinal);
+            Assert.Contains("\"reason\":\"MissingOpponentHeroPower\"", log, StringComparison.Ordinal);
             Assert.Contains("advisor_request", log, StringComparison.Ordinal);
             Assert.Contains("\"completed\":true", log, StringComparison.Ordinal);
             Assert.Contains("advisor_analysis", log, StringComparison.Ordinal);
             Assert.Contains("Superseded", log, StringComparison.Ordinal);
             Assert.Contains("\"mode\":\"shadow\"", log, StringComparison.Ordinal);
             Assert.Contains("\"runId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"", log, StringComparison.Ordinal);
-            Assert.Contains("\"pluginVersion\":\"0.4.9\"", log, StringComparison.Ordinal);
+            Assert.Contains("\"pluginVersion\":\"0.4.10\"", log, StringComparison.Ordinal);
             Assert.Contains("\"ruleSetVersion\":\"0.3.3\"", log, StringComparison.Ordinal);
             Assert.Contains("\"suggestionVisible\":false", log, StringComparison.Ordinal);
         }
@@ -197,6 +200,10 @@ public sealed class PluginDiagnosticsTests
         public void RecordGameEnded(Guid gameId, bool completed) => Events.Enqueue("ended");
 
         public void RecordGateDecision(GateDecision decision)
+        {
+        }
+
+        public void RecordSnapshotCaptureSkipped(SnapshotCaptureFailure failure)
         {
         }
 

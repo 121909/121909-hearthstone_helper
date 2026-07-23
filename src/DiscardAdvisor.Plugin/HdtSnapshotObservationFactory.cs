@@ -21,19 +21,29 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
         _mechanics = mechanics;
     }
 
-    public bool TryCapture(Guid gameId, bool isStable, out GameObservation? observation)
+    public bool TryCapture(
+        Guid gameId,
+        bool isStable,
+        out GameObservation? observation,
+        out SnapshotCaptureFailure failure)
     {
         var game = HdtApiCore.Game;
         var friendlyHero = game.Player.Hero;
         var opponentHero = game.Opponent.Hero;
-        var friendlyHeroPower = FindHeroPower(game.Player);
-        var opponentHeroPower = FindHeroPower(game.Opponent);
+        var friendlyHeroPower = FindHeroPower(game, game.Player);
+        var opponentHeroPower = FindHeroPower(game, game.Opponent);
         var turnNumber = game.GetTurnNumber();
         var gameEntity = game.GameEntity;
 
-        if (friendlyHero is null || opponentHero is null || friendlyHeroPower is null || opponentHeroPower is null ||
-            gameEntity is null || turnNumber < 1 || !HasPublicCard(friendlyHero) || !HasPublicCard(opponentHero) ||
-            !HasPublicCard(friendlyHeroPower) || !HasPublicCard(opponentHeroPower))
+        failure = GetCaptureFailure(
+            friendlyHero,
+            opponentHero,
+            friendlyHeroPower,
+            opponentHeroPower,
+            game.PlayerEntity,
+            gameEntity,
+            turnNumber);
+        if (failure != SnapshotCaptureFailure.None)
         {
             observation = null;
             return false;
@@ -57,8 +67,8 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
         var currentChoice = CaptureChoice(game, mechanics);
         if (currentChoice is null && game.Player.OfferedEntityIds.Count == 0)
             _mechanics.RecordChoiceClosed();
-        var friendly = CaptureFriendly(game, friendlyHero, friendlyHeroPower, mechanics);
-        var opponent = CaptureOpponent(game, opponentHero, opponentHeroPower);
+        var friendly = CaptureFriendly(game, friendlyHero!, friendlyHeroPower!, mechanics);
+        var opponent = CaptureOpponent(game, opponentHero!, opponentHeroPower!);
         var sensitive = new SensitiveGameMetadata(null, null, null, null);
 
         observation = new GameObservation(
@@ -67,7 +77,7 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
             compatibility.CardDefsSha256,
             gameId,
             turnNumber,
-            ((Step)gameEntity.GetTag(GameTag.STEP)).ToString(),
+            ((Step)gameEntity!.GetTag(GameTag.STEP)).ToString(),
             activePlayer,
             Math.Max(0, remainingTurnTimeMs),
             isStable,
@@ -80,6 +90,7 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
                 Array.Empty<string>()),
             sensitive,
             currentChoice: currentChoice);
+        failure = SnapshotCaptureFailure.None;
         return true;
     }
 
@@ -309,8 +320,37 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
     private static ObservedCard CaptureObservedCard(Entity entity, bool isPublic) =>
         new(entity.Id, entity.CardId, isPublic, PositiveOrNull(entity.GetTag(GameTag.CREATOR)));
 
-    private static Entity? FindHeroPower(Player player) =>
-        player.PlayerEntities.FirstOrDefault(entity => entity.IsHeroPower && entity.IsInPlay);
+    private static Entity? FindHeroPower(GameV2 game, Player player) =>
+        player.PlayerEntities
+            .Concat(game.Entities.Values.Where(entity => entity.IsControlledBy(player.Id)))
+            .Where(entity => entity.IsHeroPower && HasPublicCard(entity))
+            .OrderByDescending(entity => entity.IsInPlay)
+            .ThenByDescending(entity => entity.Id)
+            .FirstOrDefault();
+
+    private static SnapshotCaptureFailure GetCaptureFailure(
+        Entity? friendlyHero,
+        Entity? opponentHero,
+        Entity? friendlyHeroPower,
+        Entity? opponentHeroPower,
+        Entity? playerEntity,
+        Entity? gameEntity,
+        int turnNumber)
+    {
+        if (friendlyHero is null || !HasPublicCard(friendlyHero))
+            return SnapshotCaptureFailure.MissingFriendlyHero;
+        if (opponentHero is null || !HasPublicCard(opponentHero))
+            return SnapshotCaptureFailure.MissingOpponentHero;
+        if (friendlyHeroPower is null)
+            return SnapshotCaptureFailure.MissingFriendlyHeroPower;
+        if (opponentHeroPower is null)
+            return SnapshotCaptureFailure.MissingOpponentHeroPower;
+        if (playerEntity is null)
+            return SnapshotCaptureFailure.MissingPlayerEntity;
+        if (gameEntity is null)
+            return SnapshotCaptureFailure.MissingGameEntity;
+        return turnNumber < 1 ? SnapshotCaptureFailure.InvalidTurn : SnapshotCaptureFailure.None;
+    }
 
     private static int GetMaxAttacks(Entity entity) =>
         entity.HasTag(GameTag.MEGA_WINDFURY) ? 4 : entity.HasTag(GameTag.WINDFURY) ? 2 : 1;
