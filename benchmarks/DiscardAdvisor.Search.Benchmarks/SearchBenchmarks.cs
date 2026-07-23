@@ -21,7 +21,7 @@ public class SearchBenchmarks
     public void Setup()
     {
         var pool = new StaticRandomOneCostMinionPool(
-            "benchmark-246003",
+            "benchmark-247416",
             Enumerable.Range(0, 128)
                 .Select(index => new RandomOneCostMinion(
                     $"BENCH_ONE_{index:D3}",

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "profileId": "wild-discard-warlock",
-  "activeRuleSetVersion": "0.3.1",
+  "activeRuleSetVersion": "0.3.2",
   "patches": [
     {
       "hearthstoneBuild": 246003,
@@ -25,6 +25,34 @@
       "cardDefs": {
         "url": "https://api.hearthstonejson.com/v1/246003/CardDefs.xml",
         "sha256": "0ecabaa56386e967fa16f7595a022b391d2627f1e0a7892f4326f6d125232d83"
+      },
+      "deckHash": {
+        "algorithm": "SHA-256",
+        "value": "c980187b4a4ff17509f32aa68db749fc6bcb64cc6f8bd32dd61f0d49b8fd2eb0"
+      }
+    },
+    {
+      "hearthstoneBuild": 247416,
+      "ruleSetVersion": "0.3.2",
+      "cardDataStatus": "MATCHED",
+      "runtimeStatus": "EXPERIMENTAL",
+      "reviewedOn": "2026-07-23",
+      "hdt": {
+        "version": "1.53.11",
+        "commit": "ddc0ec01afe61a03d459c96b7d7b3f3b5d344573",
+        "targetFramework": "net472",
+        "platform": "windows",
+        "releaseUrl": "https://github.com/HearthSim/Hearthstone-Deck-Tracker/releases/download/v1.53.11/Hearthstone.Deck.Tracker-v1.53.11.zip",
+        "releaseSha256": "0dfea71628ef95f561c3b5adad71715de7fb7a6c366e48f6b77c7521c3938465",
+        "pluginApiAssemblySha256": "8efcec6209ddbf79cf281944c455324c04671f70d467229685b552a96f4a1af0"
+      },
+      "hearthDb": {
+        "source": "HearthDb.dll from the pinned HDT release",
+        "assemblySha256": "e465ad55f9b460750246abc198da7b15650164429893681714bfe72797e638ca"
+      },
+      "cardDefs": {
+        "url": "https://api.hearthstonejson.com/v1/247416/CardDefs.xml",
+        "sha256": "a3b0e3dcd112626aa47ba16ede1b26506eed175b1fda288c1b6952065c06aac4"
       },
       "deckHash": {
         "algorithm": "SHA-256",

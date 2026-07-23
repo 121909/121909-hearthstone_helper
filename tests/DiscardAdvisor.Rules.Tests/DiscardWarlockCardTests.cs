@@ -172,6 +172,19 @@ public sealed class DiscardWarlockCardTests
     }
 
     [Fact]
+    public void SoulariumUsesCurrentTwoManaCost()
+    {
+        var soularium = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.Soularium, 10);
+        var state = CreateState(hand: new[] { soularium }, mana: 1);
+
+        var result = _engine.Apply(state, new PlayCardAction(PlayerSide.Friendly, soularium.EntityId));
+
+        Assert.Equal(2, soularium.Cost);
+        Assert.Equal(RuleError.InsufficientMana, result.Error);
+        Assert.Same(state, result.State);
+    }
+
+    [Fact]
     public void SoulariumDrawsThreeTemporaryCardsAndCastsShred()
     {
         var soularium = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.Soularium, 10);
@@ -324,12 +337,13 @@ public sealed class DiscardWarlockCardTests
         MinionState[]? opponentBoard = null,
         int heroHealth = 30,
         int opponentHealth = 30,
-        string heroPowerCardId = "HERO_POWER")
+        string heroPowerCardId = "HERO_POWER",
+        int mana = 10)
     {
         var friendly = PlayerState.Create(
             new HeroState(100, "HERO", heroHealth, 30),
             new HeroPowerState(101, heroPowerCardId, 2),
-            new ManaState(10, 0, 0, 10, 0, 0),
+            new ManaState(mana, 0, 0, 10, 0, 0),
             hand,
             board,
             deck: deck);

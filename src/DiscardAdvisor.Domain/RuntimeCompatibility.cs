@@ -27,9 +27,8 @@ public sealed class RuntimeCompatibility
 
 public static class TargetRuntimeCompatibility
 {
-    public const int HearthstoneBuild = 246003;
+    public const int HearthstoneBuild = 247416;
     public const string HdtVersion = "1.53.11";
-    public const string CardDefsSha256 = "0ecabaa56386e967fa16f7595a022b391d2627f1e0a7892f4326f6d125232d83";
+    public const string CardDefsSha256 = "a3b0e3dcd112626aa47ba16ede1b26506eed175b1fda288c1b6952065c06aac4";
     public const string HearthDbSha256 = "e465ad55f9b460750246abc198da7b15650164429893681714bfe72797e638ca";
 }
-

@@ -118,7 +118,7 @@ public sealed class SearchPerformanceRegressionTests
     }
 
     private static StaticRandomOneCostMinionPool CreatePool(int count) => new(
-        "regression-246003",
+        "regression-247416",
         Enumerable.Range(0, count).Select(index => new RandomOneCostMinion(
             $"REG_ONE_{index:D3}",
             1 + index % 3,

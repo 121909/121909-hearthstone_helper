@@ -115,8 +115,8 @@ public sealed class PluginDiagnosticsTests
                 directory,
                 utcNow: () => DateTimeOffset.Parse("2026-07-22T00:00:00Z"),
                 sessionMode: "shadow",
-                pluginVersion: "0.4.4",
-                ruleSetVersion: "0.3.1",
+                pluginVersion: "0.4.5",
+                ruleSetVersion: "0.3.2",
                 runId: Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
 
             store.RecordGameStarted(gameId);
@@ -141,8 +141,8 @@ public sealed class PluginDiagnosticsTests
             Assert.Contains("Superseded", log, StringComparison.Ordinal);
             Assert.Contains("\"mode\":\"shadow\"", log, StringComparison.Ordinal);
             Assert.Contains("\"runId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"", log, StringComparison.Ordinal);
-            Assert.Contains("\"pluginVersion\":\"0.4.4\"", log, StringComparison.Ordinal);
-            Assert.Contains("\"ruleSetVersion\":\"0.3.1\"", log, StringComparison.Ordinal);
+            Assert.Contains("\"pluginVersion\":\"0.4.5\"", log, StringComparison.Ordinal);
+            Assert.Contains("\"ruleSetVersion\":\"0.3.2\"", log, StringComparison.Ordinal);
             Assert.Contains("\"suggestionVisible\":false", log, StringComparison.Ordinal);
         }
         finally

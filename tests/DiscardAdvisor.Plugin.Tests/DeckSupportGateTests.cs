@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using DiscardAdvisor.Domain;
+using DiscardAdvisor.Rules;
 using Xunit;
 
 namespace DiscardAdvisor.Plugin.Tests;
@@ -31,7 +32,14 @@ public sealed class DeckSupportGateTests
         Assert.Equal(TargetDeckProfile.PlayerClass, root.GetProperty("playerClass").GetString());
         Assert.Equal(TargetDeckProfile.DeckSize, root.GetProperty("deckSize").GetInt32());
         Assert.Equal(TargetDeckProfile.DeckHash, root.GetProperty("deckHash").GetProperty("value").GetString());
+        Assert.Equal(TargetDeckProfile.RuleSetVersion, root.GetProperty("ruleSetVersion").GetString());
+        Assert.Equal(TargetRuntimeCompatibility.HearthstoneBuild, root.GetProperty("cardData").GetProperty("build").GetInt32());
         Assert.Equal(jsonCards, TargetDeckProfile.Cards);
+        foreach (var card in root.GetProperty("cards").EnumerateArray())
+        {
+            var cardId = card.GetProperty("cardId").GetString()!;
+            Assert.Equal(card.GetProperty("tags").GetProperty("cost").GetInt32(), DiscardWarlockCardCatalog.Create(cardId, 1).Cost);
+        }
     }
 
     [Fact]

@@ -1,7 +1,7 @@
 # Wild Discard Warlock rule specification
 
-Rule-set version: `0.3.1`
-Card definitions: Hearthstone build `246003`  
+Rule-set version: `0.3.2`
+Card definitions: Hearthstone build `247416`
 Target mode: `RANKED_WILD`
 
 This document is the implementation contract for the 17 collectible cards in
@@ -166,6 +166,8 @@ time.
 
 ### `BOT_568` The Soularium / 莫瑞甘的灵界
 
+**Play requirements:** 2 mana.
+
 **Sequence:** perform three draw requests one at a time. After each normal card
 enters hand, mark that entity Temporary through the current turn. A burned card
 is not Temporary because it never entered hand. Casts When Drawn effects fully
@@ -209,7 +211,7 @@ Available board space is checked before each spider.
 
 Playing or discarding this spell starts the same trigger after the source has
 left hand. Attempt two summons sequentially. For each available slot, sample
-independently from the build `246003`, Wild-eligible random 1-Cost minion pool;
+independently from the build `247416`, Wild-eligible random 1-Cost minion pool;
 duplicates are allowed when the game's random-generation rules allow them.
 
 Only the summoned minion's base entity and continuous/static effects apply.

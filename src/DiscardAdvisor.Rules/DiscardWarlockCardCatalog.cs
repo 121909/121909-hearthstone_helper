@@ -41,7 +41,7 @@ public static class DiscardWarlockCardCatalog
             [DiscardWarlockCardIds.PartyFiend] = new(1, RuleCardType.Minion, 1, 1),
             [DiscardWarlockCardIds.Platysaur] = new(1, RuleCardType.Minion, 1, 2),
             [DiscardWarlockCardIds.Soulfire] = new(1, RuleCardType.Spell, TargetKind: TargetKind.AnyCharacter),
-            [DiscardWarlockCardIds.Soularium] = new(1, RuleCardType.Spell),
+            [DiscardWarlockCardIds.Soularium] = new(2, RuleCardType.Spell),
             [DiscardWarlockCardIds.WickedWhispers] = new(1, RuleCardType.Spell),
             [DiscardWarlockCardIds.BonewebEgg] = new(2, RuleCardType.Minion, 0, 2),
             [DiscardWarlockCardIds.DisposableAcolytes] = new(2, RuleCardType.Spell),
