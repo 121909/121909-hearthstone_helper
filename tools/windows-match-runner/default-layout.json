@@ -1,8 +1,8 @@
 {
   "referenceWidth": 1920,
   "referenceHeight": 1080,
-  "deckSlot": { "x": 480, "y": 300 },
-  "playButton": { "x": 1562, "y": 930 },
+  "deckSlot": { "x": 451, "y": 497 },
+  "playButton": { "x": 1438, "y": 930 },
   "mulliganConfirm": { "x": 960, "y": 850 },
   "continueButton": { "x": 960, "y": 930 },
   "endTurn": { "x": 1576, "y": 514 },

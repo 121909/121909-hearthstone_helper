@@ -18,6 +18,7 @@ $remotePath = Join-Path $tempRoot "remote.git"
 $advicePath = Join-Path $adviceDirectory "current-advice.json"
 $historyPath = Join-Path $adviceDirectory "advice-history.jsonl"
 $diagnosticPath = Join-Path $diagnosticsDirectory "discard-advisor.jsonl"
+$powerLogPath = Join-Path $hdtData "Power.log"
 $process = $null
 $keepArtifacts = $false
 
@@ -200,6 +201,7 @@ try
     }
 
     New-Item -ItemType Directory -Path $adviceDirectory, $diagnosticsDirectory, $fixtureDirectory, $replayDirectory, $outputDirectory -Force | Out-Null
+    [System.IO.File]::WriteAllText($powerLogPath, "simulation power log`n", (New-Object System.Text.UTF8Encoding($false)))
     New-Item -ItemType Directory -Path $repositoryPath, $remotePath -Force | Out-Null
 
     & git init --bare --quiet $remotePath
@@ -231,6 +233,7 @@ try
         "-OutputDirectory", $outputDirectory,
         "-SkipDeckSelection",
         "-MulliganDelaySeconds", "0",
+        "-PowerLogPath", $powerLogPath,
         "-ContinueDelaySeconds", "0",
         "-ActionSettleSeconds", "1",
         "-ActionAcknowledgeTimeoutSeconds", "10",
@@ -353,6 +356,14 @@ try
             pluginVersion = "0.4.13"
             ruleSetVersion = "0.3.4"
         })
+        Wait-Until -Description "match $matchIndex mulligan log wait" -Condition {
+            @((Get-RunnerEvents $script:runnerEventsPath) |
+                Where-Object { $_.event -eq "mulligan_wait_started" }).Count -ge $matchIndex
+        }
+        [System.IO.File]::AppendAllText(
+            $powerLogPath,
+            "TAG_CHANGE Entity=GameEntity tag=MULLIGAN_STATE value=INPUT`n",
+            (New-Object System.Text.UTF8Encoding($false)))
         Wait-Until -Description "match $matchIndex mulligan click" -Condition {
             @((Get-RunnerEvents $script:runnerEventsPath) |
                 Where-Object { $_.event -eq "mouse_click" -and $_.data.purpose -eq "Keep opening hand" }).Count -ge $matchIndex
@@ -408,11 +419,15 @@ try
     {
         throw "Unexpected runner summary: $($summary | ConvertTo-Json -Compress)"
     }
-    if($summary.runnerVersion -ne "0.1.2" -or $summary.blockedAdvicePolicy -ne "ExecuteFirstStep")
+    if($summary.runnerVersion -ne "0.1.3" -or $summary.blockedAdvicePolicy -ne "ExecuteFirstStep")
     {
         throw "The runner summary did not record its executable version and advice policy."
     }
     $events = Get-RunnerEvents $script:runnerEventsPath
+    if(@($events | Where-Object { $_.event -eq "mulligan_ready" -and [bool]$_.data.detectedFromPowerLog }).Count -ne 2)
+    {
+        throw "The runner did not wait for both simulated Power.log mulligan markers."
+    }
     if(@($events | Where-Object event -eq "advice_step_acknowledged").Count -ne 9)
     {
         throw "The runner did not acknowledge all nine simulated actions."
