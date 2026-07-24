@@ -16,7 +16,9 @@ Its rule set `0.3.1` is retained as historical compatibility evidence. The
 active row targets Hearthstone build `247416` with rule set `0.3.4` after
 `BOT_568` changed from 1 to 2 mana and Silverware Golem moved from `KAR_205`
 to its current `WON_098` printing. The active rule set also recognizes the
-live client's `DMF_COIN2` Coin and the generated vanilla `DAL_354t` Squirrel.
+live client's `DMF_COIN2` second-player compensation Coin and the vanilla
+`DAL_354t` Squirrels added by `DAL_354` Acornbearer's Deathrattle after that
+one-cost minion is randomly summoned by Disposable Acolytes.
 It is `EXPERIMENTAL`: the plugin gate,
 unknown-deck sampling, local search, LLM validation, Overlay, replay regression,
 and shadow telemetry are implemented. Promotion beyond experimental still

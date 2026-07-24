@@ -42,9 +42,9 @@ public sealed class SnapshotRuleStateMapperTests
     }
 
     [Theory]
-    [InlineData(DiscardWarlockCardIds.DarkmoonCoin)]
+    [InlineData(DiscardWarlockCardIds.SecondPlayerCoin)]
     [InlineData(DiscardWarlockCardIds.Squirrel)]
-    public void MapsObservedSupportedGeneratedCards(string cardId)
+    public void MapsSupportedNonDeckHandCards(string cardId)
     {
         var result = new SnapshotRuleStateMapper().Map(CreateSnapshot(cardId));
 

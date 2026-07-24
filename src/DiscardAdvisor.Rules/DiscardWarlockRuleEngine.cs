@@ -71,7 +71,7 @@ public sealed class DiscardWarlockRuleEngine
                 result,
                 new RuleEvent("random_damage_pending", card.EntityId, null, 5, card.CardId)),
             DiscardWarlockCardIds.HandOfGuldan => Draw(result, side, 3, false, card.EntityId),
-            DiscardWarlockCardIds.TheCoin or DiscardWarlockCardIds.DarkmoonCoin => GainTemporaryMana(result, side, card.EntityId),
+            DiscardWarlockCardIds.TheCoin or DiscardWarlockCardIds.SecondPlayerCoin => GainTemporaryMana(result, side, card.EntityId),
             _ => result
         };
     }

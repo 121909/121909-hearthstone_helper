@@ -186,7 +186,7 @@ public sealed class DiscardWarlockCardTests
 
     [Theory]
     [InlineData(DiscardWarlockCardIds.TheCoin)]
-    [InlineData(DiscardWarlockCardIds.DarkmoonCoin)]
+    [InlineData(DiscardWarlockCardIds.SecondPlayerCoin)]
     public void CoinVariantsGrantOneTemporaryMana(string cardId)
     {
         var coin = DiscardWarlockCardCatalog.Create(cardId, 10);
@@ -202,7 +202,7 @@ public sealed class DiscardWarlockCardTests
     [Fact]
     public void CoinDoesNotExceedTenAvailableMana()
     {
-        var coin = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.DarkmoonCoin, 10);
+        var coin = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.SecondPlayerCoin, 10);
 
         var result = _engine.Apply(
             CreateState(hand: new[] { coin }, mana: 10),

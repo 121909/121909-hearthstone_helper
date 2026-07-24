@@ -59,9 +59,14 @@ simultaneous combat damage is known. A visible Reborn minion currently marks
 the Snapshot `unsupported_reborn`; reconstructing it without the original
 unbuffed stats and enchantment split would invent state.
 
-The live `DMF_COIN2` cosmetic Coin is equivalent to `GAME_005`: both spend
-zero mana and add one temporary mana without exceeding 10 available mana.
-The generated `DAL_354t` Squirrel is modeled as a vanilla 1/1 one-cost minion.
+The live client represents the second-player compensation Coin as
+`DMF_COIN2`; it is equivalent to `GAME_005`: both spend zero mana and add one
+temporary mana without exceeding 10 available mana. `DAL_354t` is not part of
+the locked deck or the direct effect of Disposable Acolytes. It can enter hand
+when Disposable Acolytes randomly summons `DAL_354` Acornbearer and that
+minion's Deathrattle adds two Squirrels. Each `DAL_354t` is modeled in hand as
+a vanilla 1-mana 1/1 minion; the random pool still marks Acornbearer's
+Deathrattle itself as unmodeled instead of predicting that future transition.
 
 `HeroState.Attack` is the total visible hero `ATK`, including the equipped
 weapon contribution, matching HDT's `BoardHero` semantics. Equipping or
