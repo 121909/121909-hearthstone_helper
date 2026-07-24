@@ -80,3 +80,11 @@ experimental command.
 
 For the complete Windows collection, annotation, validation, and visible-test
 workflow, see [Windows Shadow 运行操作手册](windows-operation-guide.md).
+
+The plugin also writes the latest machine-readable route to
+`%APPDATA%\HearthstoneDeckTracker\DiscardAdvisor\Automation\current-advice.json`.
+Its contract is `schemas\v1\automation-advice.schema.json`. The separate
+`tools\windows-match-runner\start-match-runner.ps1` Windows experiment consumes
+only the first step of a fresh matching `gameId + stateId`; the operation guide
+documents coordinate calibration, emergency stop, match limits, and evidence
+upload.

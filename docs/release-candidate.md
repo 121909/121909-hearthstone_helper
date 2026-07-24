@@ -2,7 +2,7 @@
 
 Current candidate versions:
 
-- Plugin: `0.4.12`
+- Plugin: `0.4.13`
 - Rule set: `0.3.4`
 - HDT: `1.53.11`
 - Runtime: `.NET Framework 4.7.2`, x64
@@ -17,8 +17,9 @@ pinned HDT reference:
 The script verifies that the source constants match `profiles\release.json`,
 builds the HDT plugin, and writes a ZIP under
 `.artifacts\release-candidate`. The archive contains only the required plugin
-assemblies, a Shadow `settings.json`, the release manifest, installation notes,
-and a SHA-256 package manifest. PDB files and local evidence are not included.
+assemblies, a Shadow `settings.json`, the Windows match runner, the release
+manifest, installation notes, and a SHA-256 package manifest. PDB files and
+local evidence are not included.
 
 Verify a candidate after copying or downloading it:
 

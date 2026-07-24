@@ -229,6 +229,17 @@ try
             throw "Release candidate is missing required assembly '$assembly'."
         }
     }
+    foreach($tool in @(
+        "Tools/WindowsMatchRunner/start-match-runner.ps1",
+        "Tools/WindowsMatchRunner/default-layout.json",
+        "Tools/WindowsMatchRunner/automation-advice.schema.json",
+        "Tools/WindowsMatchRunner/common.schema.json"))
+    {
+        if(-not $seenPaths.Contains($tool))
+        {
+            throw "Release candidate is missing required Windows runner file '$tool'."
+        }
+    }
     if((Get-ChildItem -LiteralPath $packageRoot -Recurse -Filter "*.pdb").Count -gt 0)
     {
         throw "Release candidate must not contain PDB files."

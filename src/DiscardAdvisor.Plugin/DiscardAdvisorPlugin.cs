@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Windows.Controls;
+using DiscardAdvisor.Domain;
 using DiscardAdvisor.Search;
 using Hearthstone_Deck_Tracker;
 using Hearthstone_Deck_Tracker.API;
@@ -10,7 +11,7 @@ namespace DiscardAdvisor.Plugin;
 
 public sealed class DiscardAdvisorPlugin : IPlugin
 {
-    public const string SemanticVersion = "0.4.12";
+    public const string SemanticVersion = "0.4.13";
 
     private readonly IPluginRuntime _runtime;
     private readonly PluginSettings _settings;
@@ -94,6 +95,10 @@ public sealed class DiscardAdvisorPlugin : IPlugin
             new HdtGameEventSource(mechanics),
             new HdtSnapshotObservationFactory(mechanics),
             HdtPluginDiagnostics.Create(settings.ModeName),
-            new LocalAdvisorService(new LocalTurnAdvisor(new HdtRandomOneCostMinionPool())));
+            new LocalAdvisorService(new LocalTurnAdvisor(new HdtRandomOneCostMinionPool())),
+            new FileAutomationAdviceSink(
+                Path.Combine(Config.Instance.DataDir, "DiscardAdvisor", "Automation"),
+                SemanticVersion,
+                TargetDeckProfile.RuleSetVersion));
     }
 }

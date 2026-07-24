@@ -17,6 +17,7 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
     private readonly SnapshotCoordinator _snapshotCoordinator;
     private readonly IPluginDiagnostics _diagnostics;
     private readonly ILocalAdvisorService? _advisorService;
+    private readonly IAutomationAdviceSink _automationAdviceSink;
     private readonly object _advisorStateGate = new();
     private PluginAdvisorUpdate _currentAdvisorUpdate = PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Offline);
     private PluginAdvisorUpdate? _lastCompletedAdvisorUpdate;
@@ -40,7 +41,8 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
         IGameEventSource gameEventSource,
         ISnapshotObservationSource snapshotSource,
         IPluginDiagnostics? diagnostics = null,
-        ILocalAdvisorService? advisorService = null)
+        ILocalAdvisorService? advisorService = null,
+        IAutomationAdviceSink? automationAdviceSink = null)
         : this(
             new PluginLifetime(),
             gameContextProvider,
@@ -48,7 +50,8 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
             snapshotSource,
             new SnapshotCoordinator(),
             diagnostics ?? NullPluginDiagnostics.Instance,
-            advisorService)
+            advisorService,
+            automationAdviceSink)
     {
     }
 
@@ -59,7 +62,8 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
         ISnapshotObservationSource? snapshotSource = null,
         SnapshotCoordinator? snapshotCoordinator = null,
         IPluginDiagnostics? diagnostics = null,
-        ILocalAdvisorService? advisorService = null)
+        ILocalAdvisorService? advisorService = null,
+        IAutomationAdviceSink? automationAdviceSink = null)
     {
         _lifetime = lifetime;
         _gameContextProvider = gameContextProvider;
@@ -68,6 +72,7 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
         _snapshotCoordinator = snapshotCoordinator ?? new SnapshotCoordinator();
         _diagnostics = diagnostics ?? NullPluginDiagnostics.Instance;
         _advisorService = advisorService;
+        _automationAdviceSink = automationAdviceSink ?? NullAutomationAdviceSink.Instance;
     }
 
     public PluginRunState State => _lifetime.State;
@@ -261,8 +266,9 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
         {
             _snapshotCoordinator.MarkDirty();
             _currentAdvisorUpdate = stale;
-            AdvisorUpdated?.Invoke(stale);
         }
+        PublishAutomationAdvice(stale);
+        NotifyAdvisorUpdated(stale);
         RefreshEligibility();
     }
 
@@ -309,8 +315,9 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
             if (workItem.CancellationToken.IsCancellationRequested || !_snapshotCoordinator.CanAcceptResult(workItem.StateId))
                 return false;
             _currentAdvisorUpdate = update;
-            AdvisorUpdated?.Invoke(update);
         }
+        PublishAutomationAdvice(update);
+        NotifyAdvisorUpdated(update);
         return true;
     }
 
@@ -322,8 +329,9 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
                 return false;
             _lastCompletedAdvisorUpdate = update;
             _currentAdvisorUpdate = update;
-            AdvisorUpdated?.Invoke(update);
         }
+        PublishAutomationAdvice(update);
+        NotifyAdvisorUpdated(update);
         return true;
     }
 
@@ -334,8 +342,9 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
             if (update.StateId is null || !_snapshotCoordinator.CanAcceptResult(update.StateId))
                 return false;
             _currentAdvisorUpdate = update;
-            AdvisorUpdated?.Invoke(update);
         }
+        PublishAutomationAdvice(update);
+        NotifyAdvisorUpdated(update);
         return true;
     }
 
@@ -351,8 +360,9 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
                 return;
             }
             _currentAdvisorUpdate = restored;
-            AdvisorUpdated?.Invoke(restored);
         }
+        PublishAutomationAdvice(restored);
+        NotifyAdvisorUpdated(restored);
     }
 
     private void RecordAdvisorAnalysis(
@@ -375,9 +385,38 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
     private void PublishAdvisorUpdate(PluginAdvisorUpdate update)
     {
         lock (_advisorStateGate)
-        {
             _currentAdvisorUpdate = update;
-            AdvisorUpdated?.Invoke(update);
+        PublishAutomationAdvice(update);
+        NotifyAdvisorUpdated(update);
+    }
+
+    private void PublishAutomationAdvice(PluginAdvisorUpdate update)
+    {
+        try
+        {
+            _automationAdviceSink.Publish(_gameId, update);
+        }
+        catch (Exception exception)
+        {
+            _diagnostics.RecordError("automation_advice_publish_failed", exception, update.StateId);
+        }
+    }
+
+    private void NotifyAdvisorUpdated(PluginAdvisorUpdate update)
+    {
+        var handlers = AdvisorUpdated;
+        if (handlers is null)
+            return;
+        foreach (Action<PluginAdvisorUpdate> handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(update);
+            }
+            catch (Exception exception)
+            {
+                _diagnostics.RecordError("advisor_updated_handler_failed", exception, update.StateId);
+            }
         }
     }
 

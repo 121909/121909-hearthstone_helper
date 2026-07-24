@@ -6,3 +6,4 @@ TestResults/
 BenchmarkDotNet.Artifacts/
 *.user
 *.suo
+validation-runs/

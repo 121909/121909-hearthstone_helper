@@ -1,0 +1,49 @@
+{
+  "referenceWidth": 1920,
+  "referenceHeight": 1080,
+  "deckSlot": { "x": 480, "y": 300 },
+  "playButton": { "x": 1562, "y": 930 },
+  "mulliganConfirm": { "x": 960, "y": 850 },
+  "continueButton": { "x": 960, "y": 930 },
+  "endTurn": { "x": 1576, "y": 514 },
+  "friendlyHero": { "x": 960, "y": 856 },
+  "opponentHero": { "x": 960, "y": 185 },
+  "friendlyHeroPower": { "x": 1132, "y": 842 },
+  "opponentHeroPower": { "x": 1132, "y": 198 },
+  "friendlyWeapon": { "x": 786, "y": 840 },
+  "opponentWeapon": { "x": 786, "y": 200 },
+  "hand": {
+    "centerX": 960,
+    "y": 970,
+    "spacing": 118,
+    "maximumSpan": 970
+  },
+  "friendlyBoard": {
+    "centerX": 960,
+    "y": 650,
+    "spacing": 142,
+    "maximumSpan": 930
+  },
+  "opponentBoard": {
+    "centerX": 960,
+    "y": 402,
+    "spacing": 142,
+    "maximumSpan": 930
+  },
+  "choice": {
+    "centerX": 960,
+    "y": 515,
+    "spacing": 250,
+    "maximumSpan": 1040
+  },
+  "playTarget": { "x": 960, "y": 620 },
+  "boardPositions": [
+    { "x": 520, "y": 635 },
+    { "x": 665, "y": 635 },
+    { "x": 810, "y": 635 },
+    { "x": 960, "y": 635 },
+    { "x": 1110, "y": 635 },
+    { "x": 1255, "y": 635 },
+    { "x": 1400, "y": 635 }
+  ]
+}

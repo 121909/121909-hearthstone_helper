@@ -119,6 +119,15 @@ Assert-ExactVersion `
     -Name "HDT" `
     -ManifestValue $hdtVersion `
     -SourceValue (Read-SourceConstant -Path (Join-Path $repositoryRoot "src\DiscardAdvisor.Domain\RuntimeCompatibility.cs") -Name "HdtVersion")
+$runnerPath = Join-Path $repositoryRoot "tools\windows-match-runner\start-match-runner.ps1"
+Assert-ExactVersion `
+    -Name "Windows runner plugin" `
+    -ManifestValue $pluginVersion `
+    -SourceValue (Read-SourceConstant -Path $runnerPath -Name "expectedPluginVersion")
+Assert-ExactVersion `
+    -Name "Windows runner rule set" `
+    -ManifestValue $ruleSetVersion `
+    -SourceValue (Read-SourceConstant -Path $runnerPath -Name "expectedRuleSetVersion")
 
 if([string]::Equals($PresentationMode, "experimental", [System.StringComparison]::Ordinal))
 {
@@ -211,6 +220,12 @@ try
         "Copy Data\DiscardAdvisor to %APPDATA%\HearthstoneDeckTracker\DiscardAdvisor.`r`n" +
         "Target: HDT $hdtVersion, net472, x64, mode $PresentationMode.`r`n",
         $utf8)
+    $toolDirectory = Join-Path $packageRoot "Tools\WindowsMatchRunner"
+    New-Item -ItemType Directory -Path $toolDirectory -Force | Out-Null
+    Copy-Item -LiteralPath $runnerPath -Destination $toolDirectory -Force
+    Copy-Item -LiteralPath (Join-Path $repositoryRoot "tools\windows-match-runner\default-layout.json") -Destination $toolDirectory -Force
+    Copy-Item -LiteralPath (Join-Path $repositoryRoot "schemas\v1\automation-advice.schema.json") -Destination $toolDirectory -Force
+    Copy-Item -LiteralPath (Join-Path $repositoryRoot "schemas\v1\common.schema.json") -Destination $toolDirectory -Force
 
     $packagePrefix = $packageRoot
     if(-not $packagePrefix.EndsWith([string][System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::Ordinal))

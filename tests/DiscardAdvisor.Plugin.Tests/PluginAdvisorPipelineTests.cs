@@ -14,6 +14,38 @@ namespace DiscardAdvisor.Plugin.Tests;
 public sealed class PluginAdvisorPipelineTests
 {
     [Fact]
+    public async Task AdvisorSubscriberFailureDoesNotTurnCompletedAnalysisIntoFailure()
+    {
+        var observation = GameSnapshotBuilderTests.CreateObservation(
+            GameSnapshotBuilderTests.CreateFriendly(Array.Empty<HandCardSnapshot>()));
+        var source = new StubSnapshotSource(observation);
+        var events = new TriggerGameEventSource();
+        var advisor = new ControlledAdvisorService();
+        var diagnostics = new RecordingDiagnostics();
+        using var coordinator = new SnapshotCoordinator(() => DateTimeOffset.UtcNow, TimeSpan.Zero);
+        using var runtime = new PluginRuntime(
+            new PluginLifetime(),
+            new StubContextProvider(SupportedContext()),
+            events,
+            source,
+            snapshotCoordinator: coordinator,
+            diagnostics: diagnostics,
+            advisorService: advisor);
+        runtime.AdvisorUpdated += _ => throw new InvalidOperationException("overlay failed");
+
+        runtime.Start();
+        runtime.Update();
+        await WaitUntilAsync(() => advisor.Snapshot is not null);
+        advisor.Complete(PluginAdvisorUpdate.StateOnly(
+            PluginAdvisorStatus.NoLegalRoute,
+            advisor.Snapshot!.StateId));
+        await WaitUntilAsync(() => diagnostics.Analyses.Any());
+
+        Assert.Equal(AdvisorAnalysisDisposition.Published, Assert.Single(diagnostics.Analyses).Disposition);
+        Assert.DoesNotContain(diagnostics.Analyses, analysis => analysis.Disposition == AdvisorAnalysisDisposition.Failed);
+    }
+
+    [Fact]
     public async Task LocalAdvisorServiceMapsSnapshotAndReturnsCandidates()
     {
         var snapshot = new GameSnapshotBuilder().Build(GameSnapshotBuilderTests.CreateObservation(

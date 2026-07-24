@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.discard-advisor.local/v1/automation-advice.schema.json",
+  "title": "Discard Advisor automation advice",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "pluginVersion",
+    "ruleSetVersion",
+    "generatedAt",
+    "gameId",
+    "status",
+    "confidence",
+    "coverageProbability",
+    "lethalProbability",
+    "automationAllowed",
+    "blockers",
+    "steps"
+  ],
+  "properties": {
+    "protocolVersion": { "const": "1.0.0" },
+    "pluginVersion": { "$ref": "common.schema.json#/$defs/semanticVersion" },
+    "ruleSetVersion": { "$ref": "common.schema.json#/$defs/semanticVersion" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "gameId": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+    "stateId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "status": {
+      "type": "string",
+      "enum": [
+        "OFFLINE",
+        "INACTIVE",
+        "ANALYZING",
+        "READY",
+        "STALE",
+        "UNSUPPORTED_PATCH",
+        "UNSUPPORTED_INTERACTION",
+        "NO_LEGAL_ROUTE"
+      ]
+    },
+    "routeId": { "type": "string", "minLength": 1 },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "coverageProbability": { "type": "number", "minimum": 0, "maximum": 1 },
+    "lethalProbability": { "type": "number", "minimum": 0, "maximum": 1 },
+    "automationAllowed": { "type": "boolean" },
+    "blockers": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "friendlyHandCount",
+        "friendlyBoardCount",
+        "opponentBoardCount",
+        "choiceCount"
+      ],
+      "properties": {
+        "friendlyHandCount": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "friendlyBoardCount": { "type": "integer", "minimum": 0, "maximum": 7 },
+        "opponentBoardCount": { "type": "integer", "minimum": 0, "maximum": 7 },
+        "choiceCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/step" }
+    }
+  },
+  "$defs": {
+    "locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entityId", "zone"],
+      "properties": {
+        "entityId": { "type": "integer", "minimum": 0 },
+        "cardId": { "type": "string", "minLength": 1 },
+        "zone": {
+          "type": "string",
+          "enum": [
+            "FRIENDLY_HERO",
+            "OPPONENT_HERO",
+            "FRIENDLY_HERO_POWER",
+            "OPPONENT_HERO_POWER",
+            "FRIENDLY_WEAPON",
+            "OPPONENT_WEAPON",
+            "FRIENDLY_HAND",
+            "FRIENDLY_BOARD",
+            "OPPONENT_BOARD",
+            "CHOICE",
+            "UNKNOWN"
+          ]
+        },
+        "index": { "type": "integer", "minimum": 0 },
+        "count": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "type"],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0 },
+        "type": {
+          "type": "string",
+          "enum": [
+            "PLAY_CARD",
+            "ATTACK",
+            "USE_HERO_POWER",
+            "USE_LOCATION",
+            "SELECT_CHOICE",
+            "END_TURN",
+            "UNSUPPORTED"
+          ]
+        },
+        "sourceEntityId": { "type": "integer", "minimum": 0 },
+        "targetEntityId": { "type": "integer", "minimum": 0 },
+        "boardPosition": { "type": "integer", "minimum": 1, "maximum": 7 },
+        "choiceId": { "type": "integer", "minimum": 0 },
+        "source": { "$ref": "#/$defs/locator" },
+        "target": { "$ref": "#/$defs/locator" }
+      }
+    }
+  }
+}
