@@ -13,7 +13,7 @@ param(
 
     [string]$LayoutPath = (Join-Path $PSScriptRoot "default-layout.json"),
 
-    [string]$WindowTitle = "Hearthstone",
+    [string]$WindowTitle = "",
 
     [string]$OutputDirectory = ".\.artifacts\match-runner",
 
@@ -77,7 +77,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$runnerVersion = "0.1.0"
+$runnerVersion = "0.1.1"
 $expectedPluginVersion = "0.4.13"
 $expectedRuleSetVersion = "0.3.4"
 $sessionId = [DateTimeOffset]::UtcNow.ToString("yyyyMMddTHHmmssZ") + "-" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
@@ -138,6 +138,15 @@ namespace DiscardAdvisor.MatchRunner
         public struct POINT { public int X; public int Y; }
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         public static extern IntPtr FindWindow(string className, string windowName);
+        public delegate bool EnumWindowsCallback(IntPtr handle, IntPtr parameter);
+        [DllImport("user32.dll")]
+        public static extern bool EnumWindows(EnumWindowsCallback callback, IntPtr parameter);
+        [DllImport("user32.dll")]
+        public static extern bool IsWindowVisible(IntPtr handle);
+        [DllImport("user32.dll")]
+        public static extern uint GetWindowThreadProcessId(IntPtr handle, out uint processId);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern int GetWindowText(IntPtr handle, System.Text.StringBuilder text, int maximumCount);
         [DllImport("user32.dll")]
         public static extern bool GetClientRect(IntPtr handle, out RECT rect);
         [DllImport("user32.dll")]
@@ -311,6 +320,85 @@ function Get-FatalGateDecisionSince {
     return $decision
 }
 
+function Find-HearthstoneWindowHandle {
+    if(-not [string]::IsNullOrWhiteSpace($WindowTitle))
+    {
+        $exactHandle = [DiscardAdvisor.MatchRunner.NativeMethods]::FindWindow($null, $WindowTitle)
+        if($exactHandle -ne [IntPtr]::Zero)
+        {
+            return $exactHandle
+        }
+    }
+
+    $candidates = New-Object 'System.Collections.Generic.List[object]'
+    $knownTitles = @("Hearthstone", "炉石传说")
+    $callback = [DiscardAdvisor.MatchRunner.NativeMethods+EnumWindowsCallback]{
+        param([IntPtr]$handle, [IntPtr]$parameter)
+
+        if(-not [DiscardAdvisor.MatchRunner.NativeMethods]::IsWindowVisible($handle))
+        {
+            return $true
+        }
+        [uint32]$processId = 0
+        [void][DiscardAdvisor.MatchRunner.NativeMethods]::GetWindowThreadProcessId($handle, [ref]$processId)
+        if($processId -eq 0)
+        {
+            return $true
+        }
+        try
+        {
+            $processName = (Get-Process -Id $processId -ErrorAction Stop).ProcessName
+        }
+        catch
+        {
+            return $true
+        }
+        if(-not [string]::Equals($processName, "Hearthstone", [System.StringComparison]::OrdinalIgnoreCase))
+        {
+            return $true
+        }
+        $titleBuilder = New-Object System.Text.StringBuilder 512
+        [void][DiscardAdvisor.MatchRunner.NativeMethods]::GetWindowText($handle, $titleBuilder, $titleBuilder.Capacity)
+        $title = $titleBuilder.ToString()
+        $priority = if(-not [string]::IsNullOrWhiteSpace($WindowTitle) -and
+            [string]::Equals($title, $WindowTitle, [System.StringComparison]::OrdinalIgnoreCase)) {
+            0
+        } elseif($knownTitles -contains $title) {
+            1
+        } else {
+            2
+        }
+        $candidates.Add([pscustomobject]@{
+            Handle = $handle
+            ProcessId = $processId
+            Title = $title
+            Priority = $priority
+        })
+        return $true
+    }
+    [void][DiscardAdvisor.MatchRunner.NativeMethods]::EnumWindows($callback, [IntPtr]::Zero)
+    $candidate = @($candidates | Sort-Object Priority, ProcessId | Select-Object -First 1)
+    if($candidate.Count -eq 0)
+    {
+        $expected = if([string]::IsNullOrWhiteSpace($WindowTitle)) {
+            "a visible window owned by Hearthstone.exe"
+        } else {
+            "the title '$WindowTitle' or a visible window owned by Hearthstone.exe"
+        }
+        throw "Could not find $expected. Start Hearthstone and wait until its main window is visible."
+    }
+    if(-not [string]::IsNullOrWhiteSpace($WindowTitle) -and
+        -not [string]::Equals($candidate[0].Title, $WindowTitle, [System.StringComparison]::Ordinal))
+    {
+        Write-RunnerEvent -Event "window_title_fallback" -Data @{
+            requestedTitle = $WindowTitle
+            detectedTitle = $candidate[0].Title
+            processId = $candidate[0].ProcessId
+        }
+    }
+    return [IntPtr]$candidate[0].Handle
+}
+
 function Get-HearthstoneWindow {
     if($SimulationMode)
     {
@@ -322,11 +410,7 @@ function Get-HearthstoneWindow {
             Height = $SimulationWindowHeight
         }
     }
-    $handle = [DiscardAdvisor.MatchRunner.NativeMethods]::FindWindow($null, $WindowTitle)
-    if($handle -eq [IntPtr]::Zero)
-    {
-        throw "Could not find a window with the exact title '$WindowTitle'."
-    }
+    $handle = Find-HearthstoneWindowHandle
     $rect = New-Object DiscardAdvisor.MatchRunner.NativeMethods+RECT
     if(-not [DiscardAdvisor.MatchRunner.NativeMethods]::GetClientRect($handle, [ref]$rect))
     {
