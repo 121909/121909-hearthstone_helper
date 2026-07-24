@@ -38,6 +38,9 @@ param(
     [ValidateRange(5, 300)]
     [int]$BlockedAdviceTimeoutSeconds = 30,
 
+    [ValidateSet("ExecuteFirstStep", "Stop")]
+    [string]$BlockedAdvicePolicy = "ExecuteFirstStep",
+
     [ValidateRange(0, 60)]
     [int]$MulliganDelaySeconds = 8,
 
@@ -74,6 +77,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$runnerVersion = "0.1.0"
 $expectedPluginVersion = "0.4.13"
 $expectedRuleSetVersion = "0.3.4"
 $sessionId = [DateTimeOffset]::UtcNow.ToString("yyyyMMddTHHmmssZ") + "-" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
@@ -130,10 +134,14 @@ namespace DiscardAdvisor.MatchRunner
     {
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+        [StructLayout(LayoutKind.Sequential)]
+        public struct POINT { public int X; public int Y; }
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         public static extern IntPtr FindWindow(string className, string windowName);
         [DllImport("user32.dll")]
-        public static extern bool GetWindowRect(IntPtr handle, out RECT rect);
+        public static extern bool GetClientRect(IntPtr handle, out RECT rect);
+        [DllImport("user32.dll")]
+        public static extern bool ClientToScreen(IntPtr handle, ref POINT point);
         [DllImport("user32.dll")]
         public static extern bool SetForegroundWindow(IntPtr handle);
         [DllImport("user32.dll")]
@@ -320,20 +328,27 @@ function Get-HearthstoneWindow {
         throw "Could not find a window with the exact title '$WindowTitle'."
     }
     $rect = New-Object DiscardAdvisor.MatchRunner.NativeMethods+RECT
-    if(-not [DiscardAdvisor.MatchRunner.NativeMethods]::GetWindowRect($handle, [ref]$rect))
+    if(-not [DiscardAdvisor.MatchRunner.NativeMethods]::GetClientRect($handle, [ref]$rect))
     {
-        throw "Could not read the Hearthstone window bounds."
+        throw "Could not read the Hearthstone client-area bounds."
     }
-    if(($rect.Right - $rect.Left) -lt 640 -or ($rect.Bottom - $rect.Top) -lt 360)
+    $origin = New-Object DiscardAdvisor.MatchRunner.NativeMethods+POINT
+    if(-not [DiscardAdvisor.MatchRunner.NativeMethods]::ClientToScreen($handle, [ref]$origin))
+    {
+        throw "Could not map the Hearthstone client area to screen coordinates."
+    }
+    $width = $rect.Right - $rect.Left
+    $height = $rect.Bottom - $rect.Top
+    if($width -lt 640 -or $height -lt 360)
     {
         throw "The Hearthstone window is minimized or too small."
     }
     return [pscustomobject]@{
         Handle = $handle
-        Left = $rect.Left
-        Top = $rect.Top
-        Width = $rect.Right - $rect.Left
-        Height = $rect.Bottom - $rect.Top
+        Left = $origin.X
+        Top = $origin.Y
+        Width = $width
+        Height = $height
     }
 }
 
@@ -346,9 +361,16 @@ function Get-ScaledPoint {
         [object]$Window
     )
 
+    $scale = [Math]::Min(
+        [double]$Window.Width / [double]$layout.referenceWidth,
+        [double]$Window.Height / [double]$layout.referenceHeight)
+    $viewportWidth = [double]$layout.referenceWidth * $scale
+    $viewportHeight = [double]$layout.referenceHeight * $scale
+    $offsetX = ([double]$Window.Width - $viewportWidth) / 2
+    $offsetY = ([double]$Window.Height - $viewportHeight) / 2
     return [pscustomobject]@{
-        X = $Window.Left + [int]([double]$Point.x * $Window.Width / [double]$layout.referenceWidth)
-        Y = $Window.Top + [int]([double]$Point.y * $Window.Height / [double]$layout.referenceHeight)
+        X = $Window.Left + [int]($offsetX + ([double]$Point.x * $scale))
+        Y = $Window.Top + [int]($offsetY + ([double]$Point.y * $scale))
     }
 }
 
@@ -555,7 +577,12 @@ function Get-EligibleAdvice {
     {
         return $null
     }
-    if($advice.status -ne "READY" -or -not [bool]$advice.automationAllowed)
+    if($advice.status -ne "READY")
+    {
+        return $null
+    }
+    if(-not [bool]$advice.automationAllowed -and
+        ($BlockedAdvicePolicy -eq "Stop" -or (Test-AdviceHasHardBlocker $advice)))
     {
         return $null
     }
@@ -576,6 +603,26 @@ function Get-EligibleAdvice {
     return $advice
 }
 
+function Test-AdviceHasHardBlocker {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$Advice
+    )
+
+    foreach($blocker in @($Advice.blockers))
+    {
+        if(([string]$blocker) -in @(
+                "route_empty",
+                "unsupported_action",
+                "source_location_unknown",
+                "target_location_unknown"))
+        {
+            return $true
+        }
+    }
+    return $false
+}
+
 function Get-BlockingAdvice {
     if(-not (Test-Path -LiteralPath $AdvicePath -PathType Leaf))
     {
@@ -589,6 +636,11 @@ function Get-BlockingAdvice {
     }
     $blockingStatus = $advice.status -in @("READY", "NO_LEGAL_ROUTE", "UNSUPPORTED_INTERACTION", "UNSUPPORTED_PATCH")
     if(-not $blockingStatus -or ($advice.status -eq "READY" -and [bool]$advice.automationAllowed))
+    {
+        return $null
+    }
+    if($advice.status -eq "READY" -and $BlockedAdvicePolicy -eq "ExecuteFirstStep" -and
+        -not (Test-AdviceHasHardBlocker $advice))
     {
         return $null
     }
@@ -855,7 +907,9 @@ function Write-SessionSummary {
         dryRun = [bool]$DryRun
         pluginVersion = $expectedPluginVersion
         ruleSetVersion = $expectedRuleSetVersion
+        runnerVersion = $runnerVersion
         handledStateCount = $handledAdviceKeys.Count
+        blockedAdvicePolicy = $BlockedAdvicePolicy
         gameIds = @($completedGameIds | Sort-Object)
     }
     if(-not [string]::IsNullOrWhiteSpace($ErrorMessage))
@@ -917,9 +971,11 @@ try
         requestedMatches = $MatchCount
         pluginVersion = $expectedPluginVersion
         ruleSetVersion = $expectedRuleSetVersion
+        runnerVersion = $runnerVersion
         advicePath = [System.IO.Path]::GetFullPath($AdvicePath)
         dryRun = [bool]$DryRun
         simulation = [bool]$SimulationMode
+        blockedAdvicePolicy = $BlockedAdvicePolicy
         emergencyStop = "Ctrl+Shift+F12"
     }
 
@@ -971,6 +1027,14 @@ try
                 [void]$handledAdviceKeys.Add($adviceKey)
                 $blockingAdviceKey = $null
                 $blockingAdviceSince = $null
+                if(-not [bool]$advice.automationAllowed)
+                {
+                    Write-RunnerEvent -Event "soft_blocked_advice_accepted" -Data @{
+                        gameId = [string]$advice.gameId
+                        stateId = [string]$advice.stateId
+                        blockers = @($advice.blockers)
+                    }
+                }
                 try
                 {
                     Invoke-AdviceStep $advice

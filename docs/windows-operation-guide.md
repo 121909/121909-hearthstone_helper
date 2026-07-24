@@ -1,8 +1,8 @@
 # Windows 影子运行操作手册
 
 本文是 Windows 上采集 Discard Advisor 有效验证证据的完整流程。当前
-发布 cohort 为：插件 `0.4.13`、规则集 `0.3.4`、HDT `1.53.11`、炉石
-构建 `247416`。
+发布 cohort 为：插件 `0.4.13`、Windows 运行器 `0.1.0`、规则集
+`0.3.4`、HDT `1.53.11`、炉石构建 `247416`。
 
 在诊断日志出现 `gate_decision` 且状态为 `Enabled` 之前，不要开始累计
 5 局 Shadow 对局。
@@ -212,7 +212,10 @@ Snapshot、request、analysis 和 `Shadow games with published analyses` 数字
 
 文件包含当前 `gameId`、`stateId`、首选路线、实体所在区域和是否允许自动
 执行。运行器每次只执行路线的第一步，随后等待新的 `stateId`；搜索超时、
-低置信度、低随机覆盖率或未建模随机一费随从效果会阻止执行。
+低置信度、低随机覆盖率或后续未建模随机效果属于软阻断。默认
+`-BlockedAdvicePolicy ExecuteFirstStep` 仍执行当前已定位的合法第一步，然后
+等待新状态重算；未知动作、未知来源/目标或空路线属于硬阻断，始终停止。
+需要保守行为时传入 `-BlockedAdvicePolicy Stop`。
 
 运行器依赖固定的炉石窗口布局。开始前：
 
@@ -221,7 +224,8 @@ Snapshot、request、analysis 和 `Shadow games with published analyses` 数字
 3. 进入传统对战，选中本文的精确狂野套牌，停留在可以点击“开始”的页面。
 4. 复制并校准 `tools\windows-match-runner\default-layout.json`，尤其是
    `deckSlot`、`playButton`、`mulliganConfirm` 和 `continueButton`。坐标以
-   `referenceWidth/referenceHeight` 为基准，运行时会随炉石窗口等比例缩放。
+   `referenceWidth/referenceHeight` 为基准；运行器以炉石客户区而不是标题栏/
+   窗口边框为原点，按宽高较小倍率等比缩放，并自动补偿居中留边。
 5. 确保炉石窗口标题与 `-WindowTitle` 一致，中文客户端通常仍为
    `Hearthstone`。
 
@@ -244,7 +248,8 @@ Snapshot、request、analysis 和 `Shadow games with published analyses` 数字
 任意时刻按 `Ctrl+Shift+F12` 可请求紧急停止。也可以在命令输出的会话目录
 创建名为 `STOP` 的空文件。运行器不会关闭炉石或 HDT，超时和不支持动作会
 停止整个会话并保留已产生的记录。建议被低置信度、覆盖率或未知实体阻断
-超过 30 秒时也会停止；这 30 秒内可人工操作，使插件生成新的 `stateId`。
+且当前策略不允许执行时，超过 30 秒也会停止；这 30 秒内可人工操作，使
+插件生成新的 `stateId`。
 每次鼠标动作后还必须在默认 15 秒内观察到新的状态、状态变化或对局结束；
 否则会按坐标未命中处理并保存失败会话。`DeckMismatch`、牌组不完整以及补丁、
 HDT、CardDefs 或 HearthDb 不兼容会直接给出门禁错误，不再等待整局超时。

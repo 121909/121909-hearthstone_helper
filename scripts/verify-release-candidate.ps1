@@ -85,7 +85,7 @@ function Assert-ReleaseMatch {
         [string]$Description
     )
 
-    foreach($field in @("pluginVersion", "ruleSetVersion", "hdtVersion"))
+    foreach($field in @("pluginVersion", "runnerVersion", "ruleSetVersion", "hdtVersion"))
     {
         $expectedValue = Get-RequiredString -Object $Expected -Name $field -Description "$Description expected release"
         $actualValue = Get-RequiredString -Object $Actual -Name $field -Description "$Description actual release"
@@ -276,6 +276,7 @@ try
 
     Write-Host "Release candidate verified: $archiveFullPath"
     Write-Host "Plugin/rules/HDT: $($manifest.pluginVersion) / $($manifest.ruleSetVersion) / $($manifest.hdtVersion)"
+    Write-Host "Windows runner: $($manifest.runnerVersion)"
     Write-Host "Presentation mode: $presentationMode"
     Write-Host "Verified files: $($entries.Count)"
 }

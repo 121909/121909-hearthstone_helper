@@ -103,6 +103,7 @@ if([int]$release.manifestVersion -ne 1)
     throw "Unsupported release manifest version '$($release.manifestVersion)'."
 }
 $pluginVersion = Get-RequiredString -Object $release -Name "pluginVersion" -Description "Release manifest"
+$runnerVersion = Get-RequiredString -Object $release -Name "runnerVersion" -Description "Release manifest"
 $ruleSetVersion = Get-RequiredString -Object $release -Name "ruleSetVersion" -Description "Release manifest"
 $hdtVersion = Get-RequiredString -Object $release -Name "hdtVersion" -Description "Release manifest"
 $releaseChannel = Get-RequiredString -Object $release -Name "channel" -Description "Release manifest"
@@ -124,6 +125,10 @@ Assert-ExactVersion `
     -Name "Windows runner plugin" `
     -ManifestValue $pluginVersion `
     -SourceValue (Read-SourceConstant -Path $runnerPath -Name "expectedPluginVersion")
+Assert-ExactVersion `
+    -Name "Windows runner" `
+    -ManifestValue $runnerVersion `
+    -SourceValue (Read-SourceConstant -Path $runnerPath -Name "runnerVersion")
 Assert-ExactVersion `
     -Name "Windows runner rule set" `
     -ManifestValue $ruleSetVersion `
@@ -218,7 +223,7 @@ try
         "Discard Advisor release candidate`r`n`r`n" +
         "Copy Plugins\DiscardAdvisor to %APPDATA%\HearthstoneDeckTracker\Plugins\DiscardAdvisor.`r`n" +
         "Copy Data\DiscardAdvisor to %APPDATA%\HearthstoneDeckTracker\DiscardAdvisor.`r`n" +
-        "Target: HDT $hdtVersion, net472, x64, mode $PresentationMode.`r`n",
+        "Target: HDT $hdtVersion, net472, x64, mode $PresentationMode, runner $runnerVersion.`r`n",
         $utf8)
     $toolDirectory = Join-Path $packageRoot "Tools\WindowsMatchRunner"
     New-Item -ItemType Directory -Path $toolDirectory -Force | Out-Null
@@ -250,6 +255,7 @@ try
             "yyyy-MM-ddTHH:mm:ss.fffffffZ",
             [System.Globalization.CultureInfo]::InvariantCulture)
         pluginVersion = $pluginVersion
+        runnerVersion = $runnerVersion
         ruleSetVersion = $ruleSetVersion
         hdtVersion = $hdtVersion
         targetFramework = "net472"
@@ -277,4 +283,5 @@ finally
 
 Write-Host "Release candidate: $archivePath"
 Write-Host "Plugin/rules/HDT: $pluginVersion / $ruleSetVersion / $hdtVersion"
+Write-Host "Windows runner: $runnerVersion"
 Write-Host "Presentation mode: $PresentationMode"

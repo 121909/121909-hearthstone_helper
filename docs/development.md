@@ -99,6 +99,10 @@ $shell = (Get-Process -Id $PID).Path
 ```
 
 The simulation drives the production runner without calling `user32.dll`. It
-uses the same `stateId` in two different games and verifies two executions,
-action acknowledgement, session-only diagnostics/advice/replay/fixture
-archival, a Git commit, and a push to a temporary bare remote.
+executes positioned, targeted, and untargeted play-card paths plus attack,
+hero-power, location, choice, and end-turn branches,
+uses the same `stateId` in two different games, and verifies one soft-blocked
+rough recommendation, per-action acknowledgement, session-only
+diagnostics/advice/replay/fixture
+archival, centered aspect-ratio scaling in a 1600x1200 client area, a Git
+commit, and a push to a temporary bare remote.

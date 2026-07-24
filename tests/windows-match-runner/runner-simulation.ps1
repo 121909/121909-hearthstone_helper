@@ -131,7 +131,15 @@ function Publish-SimulatedAdvice {
         [string]$GameId,
 
         [Parameter(Mandatory = $true)]
-        [string]$StateId
+        [string]$StateId,
+
+        [Parameter(Mandatory = $true)]
+        [object]$Step,
+
+        [switch]$SoftBlocked,
+
+        [ValidateRange(0, 7)]
+        [int]$FriendlyBoardCount = 0
     )
 
     $advice = [ordered]@{
@@ -143,21 +151,18 @@ function Publish-SimulatedAdvice {
         stateId = $StateId
         status = "READY"
         routeId = "simulation-route"
-        confidence = 0.95
-        coverageProbability = 1.0
+        confidence = if($SoftBlocked) { 0.55 } else { 0.95 }
+        coverageProbability = if($SoftBlocked) { 0.75 } else { 1.0 }
         lethalProbability = 0.0
-        automationAllowed = $true
-        blockers = @()
+        automationAllowed = -not $SoftBlocked
+        blockers = if($SoftBlocked) { @("low_confidence:0.550", "low_coverage:0.750") } else { @() }
         layout = [ordered]@{
             friendlyHandCount = 1
-            friendlyBoardCount = 0
+            friendlyBoardCount = $FriendlyBoardCount
             opponentBoardCount = 0
-            choiceCount = 0
+            choiceCount = 3
         }
-        steps = @([ordered]@{
-            index = 0
-            type = "END_TURN"
-        })
+        steps = @($Step)
     }
     $json = $advice | ConvertTo-Json -Depth 16
     $temporaryPath = $advicePath + ".tmp"
@@ -168,6 +173,32 @@ function Publish-SimulatedAdvice {
 
 try
 {
+    $tokens = $null
+    $parseErrors = $null
+    $runnerAst = [System.Management.Automation.Language.Parser]::ParseFile(
+        $runnerPath,
+        [ref]$tokens,
+        [ref]$parseErrors)
+    if($parseErrors.Count -gt 0)
+    {
+        throw "The production runner contains PowerShell parse errors."
+    }
+    $hardBlockerFunction = $runnerAst.Find({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+            $node.Name -eq "Test-AdviceHasHardBlocker"
+    }, $true)
+    if($null -eq $hardBlockerFunction)
+    {
+        throw "Could not locate the production hard-blocker classifier."
+    }
+    Invoke-Expression $hardBlockerFunction.Extent.Text
+    if(-not (Test-AdviceHasHardBlocker ([pscustomobject]@{ blockers = @("source_location_unknown") })) -or
+        (Test-AdviceHasHardBlocker ([pscustomobject]@{ blockers = @("low_confidence:0.550") })))
+    {
+        throw "The production runner did not distinguish hard and soft advice blockers."
+    }
+
     New-Item -ItemType Directory -Path $adviceDirectory, $diagnosticsDirectory, $fixtureDirectory, $replayDirectory, $outputDirectory -Force | Out-Null
     New-Item -ItemType Directory -Path $repositoryPath, $remotePath -Force | Out-Null
 
@@ -189,6 +220,8 @@ try
         "-File", $runnerPath,
         "-SimulationMode",
         "-DryRun",
+        "-SimulationWindowWidth", "1600",
+        "-SimulationWindowHeight", "1200",
         "-MatchCount", "2",
         "-AdvicePath", $advicePath,
         "-DiagnosticsPath", $diagnosticsDirectory,
@@ -229,7 +262,84 @@ try
         return $false
     }
 
-    $stateId = "same-state-in-two-games"
+    $sharedStateId = "same-state-in-two-games"
+    $firstGameSteps = @(
+        [pscustomobject]@{
+            FriendlyBoardCount = 0
+            Step = [ordered]@{
+                index = 0
+                type = "PLAY_CARD"
+                sourceEntityId = 10
+                boardPosition = 1
+                source = [ordered]@{ entityId = 10; cardId = "SIM_CARD"; zone = "FRIENDLY_HAND"; index = 0; count = 1 }
+            }
+        },
+        [pscustomobject]@{
+            FriendlyBoardCount = 1
+            Step = [ordered]@{
+                index = 0
+                type = "PLAY_CARD"
+                sourceEntityId = 11
+                targetEntityId = 200
+                source = [ordered]@{ entityId = 11; cardId = "SIM_TARGETED_SPELL"; zone = "FRIENDLY_HAND"; index = 0; count = 1 }
+                target = [ordered]@{ entityId = 200; cardId = "SIM_HERO"; zone = "OPPONENT_HERO"; index = 0; count = 1 }
+            }
+        },
+        [pscustomobject]@{
+            FriendlyBoardCount = 1
+            Step = [ordered]@{
+                index = 0
+                type = "PLAY_CARD"
+                sourceEntityId = 12
+                source = [ordered]@{ entityId = 12; cardId = "SIM_SPELL"; zone = "FRIENDLY_HAND"; index = 0; count = 1 }
+            }
+        },
+        [pscustomobject]@{
+            FriendlyBoardCount = 1
+            Step = [ordered]@{
+                index = 0
+                type = "ATTACK"
+                sourceEntityId = 20
+                targetEntityId = 200
+                source = [ordered]@{ entityId = 20; cardId = "SIM_MINION"; zone = "FRIENDLY_BOARD"; index = 0; count = 1 }
+                target = [ordered]@{ entityId = 200; cardId = "SIM_HERO"; zone = "OPPONENT_HERO"; index = 0; count = 1 }
+            }
+        },
+        [pscustomobject]@{
+            FriendlyBoardCount = 1
+            Step = [ordered]@{
+                index = 0
+                type = "USE_HERO_POWER"
+                sourceEntityId = 101
+                source = [ordered]@{ entityId = 101; cardId = "SIM_POWER"; zone = "FRIENDLY_HERO_POWER"; index = 0; count = 1 }
+            }
+        },
+        [pscustomobject]@{
+            FriendlyBoardCount = 1
+            Step = [ordered]@{
+                index = 0
+                type = "USE_LOCATION"
+                sourceEntityId = 30
+                targetEntityId = 11
+                source = [ordered]@{ entityId = 30; cardId = "SIM_LOCATION"; zone = "FRIENDLY_BOARD"; index = 0; count = 1 }
+                target = [ordered]@{ entityId = 11; cardId = "SIM_HAND"; zone = "FRIENDLY_HAND"; index = 0; count = 1 }
+            }
+        },
+        [pscustomobject]@{
+            FriendlyBoardCount = 1
+            Step = [ordered]@{
+                index = 0
+                type = "SELECT_CHOICE"
+                targetEntityId = 302
+                choiceId = 900
+                target = [ordered]@{ entityId = 302; cardId = "SIM_CHOICE"; zone = "CHOICE"; index = 1; count = 3 }
+            }
+        },
+        [pscustomobject]@{
+            FriendlyBoardCount = 1
+            Step = [ordered]@{ index = 0; type = "END_TURN" }
+        }
+    )
     for($matchIndex = 1; $matchIndex -le 2; $matchIndex++)
     {
         Wait-Until -Description "match $matchIndex request" -Condition {
@@ -247,10 +357,31 @@ try
             @((Get-RunnerEvents $script:runnerEventsPath) |
                 Where-Object { $_.event -eq "mouse_click" -and $_.data.purpose -eq "Keep opening hand" }).Count -ge $matchIndex
         }
-        Publish-SimulatedAdvice -GameId $gameId -StateId $stateId
-        Wait-Until -Description "match $matchIndex advice execution" -Condition {
-            @((Get-RunnerEvents $script:runnerEventsPath) |
-                Where-Object { $_.event -eq "advice_step_executed" -and $_.data.gameId -eq $gameId }).Count -gt 0
+        $steps = if($matchIndex -eq 1) {
+            $firstGameSteps
+        } else {
+            @([pscustomobject]@{
+                FriendlyBoardCount = 1
+                Step = [ordered]@{ index = 0; type = "END_TURN" }
+            })
+        }
+        for($actionIndex = 0; $actionIndex -lt $steps.Count; $actionIndex++)
+        {
+            $stateId = if($actionIndex -eq 0) { $sharedStateId } else { "match-$matchIndex-state-$actionIndex" }
+            Publish-SimulatedAdvice `
+                -GameId $gameId `
+                -StateId $stateId `
+                -Step $steps[$actionIndex].Step `
+                -FriendlyBoardCount ([int]$steps[$actionIndex].FriendlyBoardCount) `
+                -SoftBlocked:($matchIndex -eq 2)
+            Wait-Until -Description "match $matchIndex action $actionIndex execution" -Condition {
+                @((Get-RunnerEvents $script:runnerEventsPath) |
+                    Where-Object {
+                        $_.event -eq "advice_step_executed" -and
+                        $_.data.gameId -eq $gameId -and
+                        $_.data.stateId -eq $stateId
+                    }).Count -gt 0
+            }
         }
         Set-Content -LiteralPath (Join-Path $fixtureDirectory ("simulation-{0}.snapshot.json" -f $matchIndex)) -Value "{}" -Encoding UTF8
         Set-Content -LiteralPath (Join-Path $replayDirectory ("simulation-{0}.hdtreplay" -f $matchIndex)) -Value "simulation" -Encoding UTF8
@@ -273,22 +404,51 @@ try
         throw "Runner simulation exited with code $($process.ExitCode): $(Get-Content -LiteralPath $stderrPath -Raw)"
     }
     $summary = Get-Content -LiteralPath (Join-Path $script:sessionDirectory "session-summary.json") -Raw | ConvertFrom-Json
-    if([int]$summary.completedMatches -ne 2 -or [bool]$summary.failed -or [int]$summary.handledStateCount -ne 2)
+    if([int]$summary.completedMatches -ne 2 -or [bool]$summary.failed -or [int]$summary.handledStateCount -ne 9)
     {
         throw "Unexpected runner summary: $($summary | ConvertTo-Json -Compress)"
     }
-    $events = Get-RunnerEvents $script:runnerEventsPath
-    if(@($events | Where-Object event -eq "advice_step_acknowledged").Count -ne 2)
+    if($summary.runnerVersion -ne "0.1.0" -or $summary.blockedAdvicePolicy -ne "ExecuteFirstStep")
     {
-        throw "The runner did not acknowledge both simulated actions."
+        throw "The runner summary did not record its executable version and advice policy."
+    }
+    $events = Get-RunnerEvents $script:runnerEventsPath
+    if(@($events | Where-Object event -eq "advice_step_acknowledged").Count -ne 9)
+    {
+        throw "The runner did not acknowledge all nine simulated actions."
+    }
+    if(@($events | Where-Object event -eq "soft_blocked_advice_accepted").Count -ne 1)
+    {
+        throw "The runner did not execute exactly one soft-blocked rough recommendation."
+    }
+    $executedTypes = @($events |
+        Where-Object event -eq "advice_step_executed" |
+        ForEach-Object { [string]$_.data.actionType } |
+        Sort-Object -Unique)
+    foreach($expectedType in @("PLAY_CARD", "ATTACK", "USE_HERO_POWER", "USE_LOCATION", "SELECT_CHOICE", "END_TURN"))
+    {
+        if($executedTypes -notcontains $expectedType)
+        {
+            throw "The runner simulation did not execute action type '$expectedType'."
+        }
+    }
+    if(@($events | Where-Object { $_.event -eq "advice_step_executed" -and $_.data.stateId -eq $sharedStateId }).Count -ne 2)
+    {
+        throw "The runner did not execute the shared state once in each game."
+    }
+    $endTurnClick = @($events | Where-Object { $_.event -eq "mouse_click" -and $_.data.purpose -eq "End turn" })[0]
+    if($null -eq $endTurnClick -or [Math]::Abs([int]$endTurnClick.data.x - 1313) -gt 1 -or
+        [Math]::Abs([int]$endTurnClick.data.y - 578) -gt 1)
+    {
+        throw "The runner did not apply centered aspect-ratio scaling for a 1600x1200 client area."
     }
     if(@(Get-Content -LiteralPath (Join-Path $script:sessionDirectory "diagnostics\discard-advisor-session.jsonl")).Count -ne 4)
     {
         throw "Session diagnostics were not scoped to the two simulated games."
     }
-    if(@(Get-Content -LiteralPath (Join-Path $script:sessionDirectory "automation\advice-history-session.jsonl")).Count -ne 2)
+    if(@(Get-Content -LiteralPath (Join-Path $script:sessionDirectory "automation\advice-history-session.jsonl")).Count -ne 9)
     {
-        throw "Session advice history was not scoped to the two simulated games."
+        throw "Session advice history was not scoped to the nine simulated actions."
     }
     if(@(Get-ChildItem -LiteralPath (Join-Path $script:sessionDirectory "fixtures") -File).Count -ne 2 -or
         @(Get-ChildItem -LiteralPath (Join-Path $script:sessionDirectory "replays") -File).Count -ne 2)
@@ -310,7 +470,7 @@ try
     {
         throw "The runner left the upload repository dirty."
     }
-    Write-Host "Runner simulation passed: 2/2 games, 2 acknowledged actions, scoped evidence, and Git push."
+    Write-Host "Runner simulation passed: all action/play variants, 2/2 games, one soft-blocked route, aspect scaling, scoped evidence, and Git push."
 }
 catch
 {
