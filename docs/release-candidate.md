@@ -3,7 +3,7 @@
 Current candidate versions:
 
 - Plugin: `0.4.13`
-- Windows runner: `0.1.1`
+- Windows runner: `0.1.2`
 - Rule set: `0.3.4`
 - HDT: `1.53.11`
 - Runtime: `.NET Framework 4.7.2`, x64

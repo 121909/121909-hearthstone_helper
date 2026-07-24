@@ -77,7 +77,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$runnerVersion = "0.1.1"
+$runnerVersion = "0.1.2"
 $expectedPluginVersion = "0.4.13"
 $expectedRuleSetVersion = "0.3.4"
 $sessionId = [DateTimeOffset]::UtcNow.ToString("yyyyMMddTHHmmssZ") + "-" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
@@ -120,8 +120,8 @@ function Assert-WindowsHost {
     }
 }
 
-function Initialize-NativeMethods {
-    if("DiscardAdvisor.MatchRunner.NativeMethods" -as [type])
+function Initialize-NativeMethodsV2 {
+    if("DiscardAdvisor.MatchRunner.NativeMethodsV2" -as [type])
     {
         return
     }
@@ -130,7 +130,7 @@ using System;
 using System.Runtime.InteropServices;
 namespace DiscardAdvisor.MatchRunner
 {
-    public static class NativeMethods
+    public static class NativeMethodsV2
     {
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
@@ -186,13 +186,13 @@ function Test-StopRequested {
     {
         return $false
     }
-    $message = New-Object DiscardAdvisor.MatchRunner.NativeMethods+MSG
-    while([DiscardAdvisor.MatchRunner.NativeMethods]::PeekMessage(
+    $message = New-Object DiscardAdvisor.MatchRunner.NativeMethodsV2+MSG
+    while([DiscardAdvisor.MatchRunner.NativeMethodsV2]::PeekMessage(
             [ref]$message,
             [IntPtr]::Zero,
-            [DiscardAdvisor.MatchRunner.NativeMethods]::WmHotKey,
-            [DiscardAdvisor.MatchRunner.NativeMethods]::WmHotKey,
-            [DiscardAdvisor.MatchRunner.NativeMethods]::PmRemove))
+            [DiscardAdvisor.MatchRunner.NativeMethodsV2]::WmHotKey,
+            [DiscardAdvisor.MatchRunner.NativeMethodsV2]::WmHotKey,
+            [DiscardAdvisor.MatchRunner.NativeMethodsV2]::PmRemove))
     {
         if([int]$message.wParam -eq 1)
         {
@@ -323,7 +323,7 @@ function Get-FatalGateDecisionSince {
 function Find-HearthstoneWindowHandle {
     if(-not [string]::IsNullOrWhiteSpace($WindowTitle))
     {
-        $exactHandle = [DiscardAdvisor.MatchRunner.NativeMethods]::FindWindow($null, $WindowTitle)
+        $exactHandle = [DiscardAdvisor.MatchRunner.NativeMethodsV2]::FindWindow($null, $WindowTitle)
         if($exactHandle -ne [IntPtr]::Zero)
         {
             return $exactHandle
@@ -332,15 +332,15 @@ function Find-HearthstoneWindowHandle {
 
     $candidates = New-Object 'System.Collections.Generic.List[object]'
     $knownTitles = @("Hearthstone", "炉石传说")
-    $callback = [DiscardAdvisor.MatchRunner.NativeMethods+EnumWindowsCallback]{
+    $callback = [DiscardAdvisor.MatchRunner.NativeMethodsV2+EnumWindowsCallback]{
         param([IntPtr]$handle, [IntPtr]$parameter)
 
-        if(-not [DiscardAdvisor.MatchRunner.NativeMethods]::IsWindowVisible($handle))
+        if(-not [DiscardAdvisor.MatchRunner.NativeMethodsV2]::IsWindowVisible($handle))
         {
             return $true
         }
         [uint32]$processId = 0
-        [void][DiscardAdvisor.MatchRunner.NativeMethods]::GetWindowThreadProcessId($handle, [ref]$processId)
+        [void][DiscardAdvisor.MatchRunner.NativeMethodsV2]::GetWindowThreadProcessId($handle, [ref]$processId)
         if($processId -eq 0)
         {
             return $true
@@ -358,7 +358,7 @@ function Find-HearthstoneWindowHandle {
             return $true
         }
         $titleBuilder = New-Object System.Text.StringBuilder 512
-        [void][DiscardAdvisor.MatchRunner.NativeMethods]::GetWindowText($handle, $titleBuilder, $titleBuilder.Capacity)
+        [void][DiscardAdvisor.MatchRunner.NativeMethodsV2]::GetWindowText($handle, $titleBuilder, $titleBuilder.Capacity)
         $title = $titleBuilder.ToString()
         $priority = if(-not [string]::IsNullOrWhiteSpace($WindowTitle) -and
             [string]::Equals($title, $WindowTitle, [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -376,7 +376,7 @@ function Find-HearthstoneWindowHandle {
         })
         return $true
     }
-    [void][DiscardAdvisor.MatchRunner.NativeMethods]::EnumWindows($callback, [IntPtr]::Zero)
+    [void][DiscardAdvisor.MatchRunner.NativeMethodsV2]::EnumWindows($callback, [IntPtr]::Zero)
     $candidate = @($candidates | Sort-Object Priority, ProcessId | Select-Object -First 1)
     if($candidate.Count -eq 0)
     {
@@ -411,13 +411,13 @@ function Get-HearthstoneWindow {
         }
     }
     $handle = Find-HearthstoneWindowHandle
-    $rect = New-Object DiscardAdvisor.MatchRunner.NativeMethods+RECT
-    if(-not [DiscardAdvisor.MatchRunner.NativeMethods]::GetClientRect($handle, [ref]$rect))
+    $rect = New-Object DiscardAdvisor.MatchRunner.NativeMethodsV2+RECT
+    if(-not [DiscardAdvisor.MatchRunner.NativeMethodsV2]::GetClientRect($handle, [ref]$rect))
     {
         throw "Could not read the Hearthstone client-area bounds."
     }
-    $origin = New-Object DiscardAdvisor.MatchRunner.NativeMethods+POINT
-    if(-not [DiscardAdvisor.MatchRunner.NativeMethods]::ClientToScreen($handle, [ref]$origin))
+    $origin = New-Object DiscardAdvisor.MatchRunner.NativeMethodsV2+POINT
+    if(-not [DiscardAdvisor.MatchRunner.NativeMethodsV2]::ClientToScreen($handle, [ref]$origin))
     {
         throw "Could not map the Hearthstone client area to screen coordinates."
     }
@@ -525,11 +525,11 @@ function Invoke-MouseClick {
     }
     if($PSCmdlet.ShouldProcess("Hearthstone at $($Point.X),$($Point.Y)", $Purpose))
     {
-        [void][DiscardAdvisor.MatchRunner.NativeMethods]::SetCursorPos($Point.X, $Point.Y)
+        [void][DiscardAdvisor.MatchRunner.NativeMethodsV2]::SetCursorPos($Point.X, $Point.Y)
         Start-Sleep -Milliseconds 100
-        [DiscardAdvisor.MatchRunner.NativeMethods]::mouse_event([DiscardAdvisor.MatchRunner.NativeMethods]::MouseLeftDown, 0, 0, 0, [UIntPtr]::Zero)
+        [DiscardAdvisor.MatchRunner.NativeMethodsV2]::mouse_event([DiscardAdvisor.MatchRunner.NativeMethodsV2]::MouseLeftDown, 0, 0, 0, [UIntPtr]::Zero)
         Start-Sleep -Milliseconds 75
-        [DiscardAdvisor.MatchRunner.NativeMethods]::mouse_event([DiscardAdvisor.MatchRunner.NativeMethods]::MouseLeftUp, 0, 0, 0, [UIntPtr]::Zero)
+        [DiscardAdvisor.MatchRunner.NativeMethodsV2]::mouse_event([DiscardAdvisor.MatchRunner.NativeMethodsV2]::MouseLeftUp, 0, 0, 0, [UIntPtr]::Zero)
     }
 }
 
@@ -552,13 +552,13 @@ function Invoke-Drag {
     }
     if($PSCmdlet.ShouldProcess("Hearthstone", $Purpose))
     {
-        [void][DiscardAdvisor.MatchRunner.NativeMethods]::SetCursorPos($Source.X, $Source.Y)
+        [void][DiscardAdvisor.MatchRunner.NativeMethodsV2]::SetCursorPos($Source.X, $Source.Y)
         Start-Sleep -Milliseconds 120
-        [DiscardAdvisor.MatchRunner.NativeMethods]::mouse_event([DiscardAdvisor.MatchRunner.NativeMethods]::MouseLeftDown, 0, 0, 0, [UIntPtr]::Zero)
+        [DiscardAdvisor.MatchRunner.NativeMethodsV2]::mouse_event([DiscardAdvisor.MatchRunner.NativeMethodsV2]::MouseLeftDown, 0, 0, 0, [UIntPtr]::Zero)
         Start-Sleep -Milliseconds 120
-        [void][DiscardAdvisor.MatchRunner.NativeMethods]::SetCursorPos($Target.X, $Target.Y)
+        [void][DiscardAdvisor.MatchRunner.NativeMethodsV2]::SetCursorPos($Target.X, $Target.Y)
         Start-Sleep -Milliseconds 160
-        [DiscardAdvisor.MatchRunner.NativeMethods]::mouse_event([DiscardAdvisor.MatchRunner.NativeMethods]::MouseLeftUp, 0, 0, 0, [UIntPtr]::Zero)
+        [DiscardAdvisor.MatchRunner.NativeMethodsV2]::mouse_event([DiscardAdvisor.MatchRunner.NativeMethodsV2]::MouseLeftUp, 0, 0, 0, [UIntPtr]::Zero)
     }
 }
 
@@ -576,7 +576,7 @@ function Invoke-AdviceStep {
     $window = Get-HearthstoneWindow
     if(-not $DryRun -and -not $SimulationMode)
     {
-        [void][DiscardAdvisor.MatchRunner.NativeMethods]::SetForegroundWindow($window.Handle)
+        [void][DiscardAdvisor.MatchRunner.NativeMethodsV2]::SetForegroundWindow($window.Handle)
         Start-Sleep -Milliseconds 250
     }
     switch([string]$step.type)
@@ -800,7 +800,7 @@ function Start-NextGame {
     $window = Get-HearthstoneWindow
     if(-not $DryRun -and -not $SimulationMode)
     {
-        [void][DiscardAdvisor.MatchRunner.NativeMethods]::SetForegroundWindow($window.Handle)
+        [void][DiscardAdvisor.MatchRunner.NativeMethodsV2]::SetForegroundWindow($window.Handle)
         Start-Sleep -Milliseconds 250
     }
     if(-not $SkipDeckSelection)
@@ -821,7 +821,7 @@ function Confirm-Mulligan {
     $window = Get-HearthstoneWindow
     if(-not $DryRun -and -not $SimulationMode)
     {
-        [void][DiscardAdvisor.MatchRunner.NativeMethods]::SetForegroundWindow($window.Handle)
+        [void][DiscardAdvisor.MatchRunner.NativeMethodsV2]::SetForegroundWindow($window.Handle)
         Start-Sleep -Milliseconds 250
     }
     Invoke-MouseClick (Get-ScaledPoint $layout.mulliganConfirm $window) "Keep opening hand"
@@ -837,7 +837,7 @@ function Dismiss-CompletedGame {
     $window = Get-HearthstoneWindow
     if(-not $DryRun -and -not $SimulationMode)
     {
-        [void][DiscardAdvisor.MatchRunner.NativeMethods]::SetForegroundWindow($window.Handle)
+        [void][DiscardAdvisor.MatchRunner.NativeMethodsV2]::SetForegroundWindow($window.Handle)
         Start-Sleep -Milliseconds 250
     }
     Invoke-MouseClick (Get-ScaledPoint $layout.continueButton $window) "Dismiss completed match"
@@ -1006,7 +1006,7 @@ function Write-SessionSummary {
 if(-not $SimulationMode)
 {
     Assert-WindowsHost
-    Initialize-NativeMethods
+    Initialize-NativeMethodsV2
 }
 if(-not (Test-Path -LiteralPath $LayoutPath -PathType Leaf))
 {
@@ -1035,11 +1035,11 @@ if($ValidateOnly)
     Write-Host ("Layout validated for Hearthstone window {0}x{1}." -f $window.Width, $window.Height)
     exit 0
 }
-if(-not $SimulationMode -and -not [DiscardAdvisor.MatchRunner.NativeMethods]::RegisterHotKey(
+if(-not $SimulationMode -and -not [DiscardAdvisor.MatchRunner.NativeMethodsV2]::RegisterHotKey(
         [IntPtr]::Zero,
         1,
-        [DiscardAdvisor.MatchRunner.NativeMethods]::ModControl -bor [DiscardAdvisor.MatchRunner.NativeMethods]::ModShift,
-        [DiscardAdvisor.MatchRunner.NativeMethods]::VirtualKeyF12))
+        [DiscardAdvisor.MatchRunner.NativeMethodsV2]::ModControl -bor [DiscardAdvisor.MatchRunner.NativeMethodsV2]::ModShift,
+        [DiscardAdvisor.MatchRunner.NativeMethodsV2]::VirtualKeyF12))
 {
     throw "Could not register the Ctrl+Shift+F12 emergency stop hotkey."
 }
@@ -1199,7 +1199,7 @@ finally
 {
     if($script:hotKeyRegistered)
     {
-        [void][DiscardAdvisor.MatchRunner.NativeMethods]::UnregisterHotKey([IntPtr]::Zero, 1)
+        [void][DiscardAdvisor.MatchRunner.NativeMethodsV2]::UnregisterHotKey([IntPtr]::Zero, 1)
     }
 }
 

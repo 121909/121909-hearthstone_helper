@@ -1,7 +1,7 @@
 # Windows 影子运行操作手册
 
 本文是 Windows 上采集 Discard Advisor 有效验证证据的完整流程。当前
-发布 cohort 为：插件 `0.4.13`、Windows 运行器 `0.1.1`、规则集
+发布 cohort 为：插件 `0.4.13`、Windows 运行器 `0.1.2`、规则集
 `0.3.4`、HDT `1.53.11`、炉石构建 `247416`。
 
 在诊断日志出现 `gate_decision` 且状态为 `Enabled` 之前，不要开始累计
