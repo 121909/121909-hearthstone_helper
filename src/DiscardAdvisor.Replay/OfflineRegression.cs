@@ -113,7 +113,8 @@ public sealed record OfflineRegressionReport(
     ImmutableDictionary<string, int> UnsupportedInteractions,
     ImmutableArray<string> InputErrors,
     ImmutableArray<ReplayArchiveSummary> Replays,
-    ImmutableArray<SnapshotEvaluation> Snapshots)
+    ImmutableArray<SnapshotEvaluation> Snapshots,
+    int IgnoredRuleSetSnapshotCount = 0)
 {
     public double LegalRouteRate => RouteCount == 0 ? 0 : (double)LegalRouteCount / RouteCount;
 
@@ -208,9 +209,17 @@ public sealed class OfflineRegressionRunner
         options ??= new OfflineRegressionOptions();
         options.Validate();
 
+        var snapshots = string.IsNullOrWhiteSpace(options.TargetRuleSetVersion)
+            ? input.Snapshots
+            : input.Snapshots.Where(fixture => string.Equals(
+                    fixture.Snapshot.RuleSetVersion,
+                    options.TargetRuleSetVersion,
+                    StringComparison.OrdinalIgnoreCase))
+                .ToImmutableArray();
+        var ignoredRuleSetSnapshotCount = input.Snapshots.Length - snapshots.Length;
         var evaluations = ImmutableArray.CreateBuilder<SnapshotEvaluation>();
         var unsupported = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (var fixture in input.Snapshots)
+        foreach (var fixture in snapshots)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var snapshotUnsupported = fixture.Snapshot.Derived.UnsupportedInteractions.ToList();
@@ -277,7 +286,7 @@ public sealed class OfflineRegressionRunner
             _utcNow(),
             options,
             input.Replays.Length,
-            input.Snapshots.Length,
+            snapshots.Length,
             values.Count(value => value.MappingSupported),
             values.Count(value => value.ExpertTop3Matched.HasValue),
             values.Count(value => value.ExpertTop3Matched == true),
@@ -294,7 +303,8 @@ public sealed class OfflineRegressionRunner
             unsupported.ToImmutableDictionary(StringComparer.Ordinal),
             input.Errors,
             input.Replays,
-            values);
+            values,
+            ignoredRuleSetSnapshotCount);
     }
 
     public static bool ExpertPrimaryMatchesAdvisorTop3(

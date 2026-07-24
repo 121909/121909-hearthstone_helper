@@ -28,6 +28,8 @@ public static class DiscardWarlockCardIds
     public const string Felbeast = "VAC_940t";
     public const string BonewebSpider = "SCH_147t";
     public const string TheCoin = "GAME_005";
+    public const string DarkmoonCoin = "DMF_COIN2";
+    public const string Squirrel = "DAL_354t";
     public const string LifeTap = "CS2_056";
 }
 
@@ -56,7 +58,9 @@ public static class DiscardWarlockCardCatalog
             [DiscardWarlockCardIds.ShredOfTime] = new(0, RuleCardType.Spell),
             [DiscardWarlockCardIds.Felbeast] = new(1, RuleCardType.Minion, 1, 1),
             [DiscardWarlockCardIds.BonewebSpider] = new(1, RuleCardType.Minion, 2, 1),
-            [DiscardWarlockCardIds.TheCoin] = new(0, RuleCardType.Spell)
+            [DiscardWarlockCardIds.TheCoin] = new(0, RuleCardType.Spell),
+            [DiscardWarlockCardIds.DarkmoonCoin] = new(0, RuleCardType.Spell),
+            [DiscardWarlockCardIds.Squirrel] = new(1, RuleCardType.Minion, 1, 1)
         };
 
     public static IReadOnlyCollection<string> TargetCardIds { get; } = new[]

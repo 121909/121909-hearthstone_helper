@@ -39,6 +39,8 @@ public static class Program
             var paths = new RegressionReportWriter().Write(report, command.OutputDirectory);
             Console.WriteLine($"Offline regression: {(report.Passed ? "PASS" : "FAIL")}");
             Console.WriteLine($"Snapshots: {report.EvaluatedSnapshotCount}/{report.SnapshotCount}");
+            if (report.IgnoredRuleSetSnapshotCount > 0)
+                Console.WriteLine($"Snapshots ignored from other rule sets: {report.IgnoredRuleSetSnapshotCount}");
             Console.WriteLine($"Legal routes: {report.LegalRouteCount}/{report.RouteCount}");
             Console.WriteLine($"Latency p95: {report.LatencyP95Ms:F2} ms");
             Console.WriteLine($"Shadow games with published analyses: {report.ShadowRun.CompletedGameWithPublishedAnalysisCount}/{ValidationPolicy.RequiredShadowGameCount}");

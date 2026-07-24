@@ -106,9 +106,7 @@ public sealed class LocalAdvisorService : ILocalAdvisorService
     private PluginAdvisorUpdate Analyze(GameSnapshot snapshot, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!snapshot.IsStable ||
-            !string.Equals(snapshot.ActivePlayer, "FRIENDLY", StringComparison.Ordinal) ||
-            !string.Equals(snapshot.Step, "MAIN_ACTION", StringComparison.Ordinal))
+        if (!IsAnalysisCandidate(snapshot))
         {
             return PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Inactive, snapshot.StateId);
         }
@@ -119,4 +117,9 @@ public sealed class LocalAdvisorService : ILocalAdvisorService
         cancellationToken.ThrowIfCancellationRequested();
         return PluginAdvisorUpdate.Ready(snapshot.StateId, mapping.State, result);
     }
+
+    internal static bool IsAnalysisCandidate(GameSnapshot snapshot) =>
+        snapshot.IsStable &&
+        string.Equals(snapshot.ActivePlayer, "FRIENDLY", StringComparison.Ordinal) &&
+        string.Equals(snapshot.Step, "MAIN_ACTION", StringComparison.Ordinal);
 }

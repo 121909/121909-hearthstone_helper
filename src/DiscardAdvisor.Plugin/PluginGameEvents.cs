@@ -31,5 +31,7 @@ public enum SnapshotCaptureFailure
     MissingPlayerEntity,
     MissingGameEntity,
     InvalidTurn,
+    UnknownChoiceSource,
+    InconsistentFriendlyDeck,
     EmptyObservation
 }

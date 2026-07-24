@@ -71,8 +71,28 @@ public sealed class DiscardWarlockRuleEngine
                 result,
                 new RuleEvent("random_damage_pending", card.EntityId, null, 5, card.CardId)),
             DiscardWarlockCardIds.HandOfGuldan => Draw(result, side, 3, false, card.EntityId),
+            DiscardWarlockCardIds.TheCoin or DiscardWarlockCardIds.DarkmoonCoin => GainTemporaryMana(result, side, card.EntityId),
             _ => result
         };
+    }
+
+    private static TransitionResult GainTemporaryMana(TransitionResult result, PlayerSide side, int sourceEntityId)
+    {
+        var player = result.State.Player(side);
+        var gained = Math.Min(1, Math.Max(0, 10 - player.Mana.Available));
+        if (gained == 0)
+            return result;
+        player = player with
+        {
+            Mana = player.Mana with
+            {
+                Available = player.Mana.Available + gained,
+                Temporary = player.Mana.Temporary + gained
+            }
+        };
+        return Append(
+            result with { State = result.State.WithPlayer(side, player) },
+            new RuleEvent("gain_temporary_mana", sourceEntityId, null, gained));
     }
 
     private static TransitionResult EntropicContinuity(TransitionResult result, PlayerSide side, int sourceEntityId)

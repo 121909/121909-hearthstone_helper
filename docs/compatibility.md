@@ -13,9 +13,11 @@ all of the following values match a reviewed row:
 The initial row targets Windows, HDT `1.53.11` at commit
 `ddc0ec01afe61a03d459c96b7d7b3f3b5d344573`, and Hearthstone build `246003`.
 Its rule set `0.3.1` is retained as historical compatibility evidence. The
-active row targets Hearthstone build `247416` with rule set `0.3.3` after
+active row targets Hearthstone build `247416` with rule set `0.3.4` after
 `BOT_568` changed from 1 to 2 mana and Silverware Golem moved from `KAR_205`
-to its current `WON_098` printing. It is `EXPERIMENTAL`: the plugin gate,
+to its current `WON_098` printing. The active rule set also recognizes the
+live client's `DMF_COIN2` Coin and the generated vanilla `DAL_354t` Squirrel.
+It is `EXPERIMENTAL`: the plugin gate,
 unknown-deck sampling, local search, LLM validation, Overlay, replay regression,
 and shadow telemetry are implemented. Promotion beyond experimental still
 requires five completed shadow games, metric review, and a small visible-advice

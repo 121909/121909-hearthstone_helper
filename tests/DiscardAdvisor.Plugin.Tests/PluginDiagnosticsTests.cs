@@ -105,6 +105,31 @@ public sealed class PluginDiagnosticsTests
     }
 
     [Fact]
+    public void RecordsMissingAssemblyAndStateWithoutLeakingItsDirectory()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var store = new RedactedDiagnosticStore(directory);
+
+            store.RecordError(
+                "local_advisor_failed",
+                new FileNotFoundException("private-message", @"C:\private\System.Memory.dll"),
+                "turn-3:fixture");
+
+            var log = File.ReadAllText(Path.Combine(directory, "discard-advisor.jsonl"));
+            Assert.Contains("\"stateId\":\"turn-3:fixture\"", log, StringComparison.Ordinal);
+            Assert.Contains("\"missingFile\":\"System.Memory.dll\"", log, StringComparison.Ordinal);
+            Assert.DoesNotContain("private-message", log, StringComparison.Ordinal);
+            Assert.DoesNotContain(@"C:\private", log, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
     public void WritesShadowSessionAndAnalysisTelemetry()
     {
         var directory = CreateTemporaryDirectory();
@@ -115,8 +140,8 @@ public sealed class PluginDiagnosticsTests
                 directory,
                 utcNow: () => DateTimeOffset.Parse("2026-07-22T00:00:00Z"),
                 sessionMode: "shadow",
-                pluginVersion: "0.4.11",
-                ruleSetVersion: "0.3.3",
+                pluginVersion: "0.4.12",
+                ruleSetVersion: "0.3.4",
                 runId: Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
 
             store.RecordGameStarted(gameId);
@@ -153,8 +178,8 @@ public sealed class PluginDiagnosticsTests
             Assert.Contains("Superseded", log, StringComparison.Ordinal);
             Assert.Contains("\"mode\":\"shadow\"", log, StringComparison.Ordinal);
             Assert.Contains("\"runId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"", log, StringComparison.Ordinal);
-            Assert.Contains("\"pluginVersion\":\"0.4.11\"", log, StringComparison.Ordinal);
-            Assert.Contains("\"ruleSetVersion\":\"0.3.3\"", log, StringComparison.Ordinal);
+            Assert.Contains("\"pluginVersion\":\"0.4.12\"", log, StringComparison.Ordinal);
+            Assert.Contains("\"ruleSetVersion\":\"0.3.4\"", log, StringComparison.Ordinal);
             Assert.Contains("\"suggestionVisible\":false", log, StringComparison.Ordinal);
         }
         finally
@@ -228,7 +253,7 @@ public sealed class PluginDiagnosticsTests
         {
         }
 
-        public void RecordError(string code, Exception exception)
+        public void RecordError(string code, Exception exception, string? stateId = null)
         {
         }
     }

@@ -113,6 +113,49 @@ public sealed class PluginAdvisorPipelineTests
     }
 
     [Fact]
+    public void RuntimeDoesNotExportOrDispatchSnapshotsOutsideFriendlyMainAction()
+    {
+        var original = GameSnapshotBuilderTests.CreateObservation(
+            GameSnapshotBuilderTests.CreateFriendly(Array.Empty<HandCardSnapshot>()));
+        var observation = new GameObservation(
+            original.HearthstoneBuild,
+            original.HdtVersion,
+            original.CardDefsHash,
+            original.GameId,
+            original.TurnNumber,
+            "MAIN_START",
+            "OPPONENT",
+            original.RemainingTurnTimeMs,
+            original.IsStable,
+            original.Friendly,
+            original.Opponent,
+            original.Derived,
+            original.SensitiveMetadata,
+            original.ActionsThisTurn,
+            original.CurrentChoice);
+        var diagnostics = new RecordingDiagnostics();
+        var advisor = new ControlledAdvisorService();
+        using var coordinator = new SnapshotCoordinator(() => DateTimeOffset.UtcNow, TimeSpan.Zero);
+        using var runtime = new PluginRuntime(
+            new PluginLifetime(),
+            new StubContextProvider(SupportedContext()),
+            new TriggerGameEventSource(),
+            new StubSnapshotSource(observation),
+            coordinator,
+            diagnostics,
+            advisor);
+
+        runtime.Start();
+        runtime.Update();
+
+        Assert.Equal(PluginAdvisorStatus.Inactive, runtime.CurrentAdvisorUpdate.Status);
+        Assert.Equal(0, advisor.InvocationCount);
+        Assert.Empty(diagnostics.Snapshots);
+        Assert.Empty(diagnostics.Requests);
+        Assert.Empty(diagnostics.Analyses);
+    }
+
+    [Fact]
     public async Task LateResultFromCancelledStateIsNeverPublished()
     {
         var firstObservation = GameSnapshotBuilderTests.CreateObservation(
@@ -476,6 +519,8 @@ public sealed class PluginAdvisorPipelineTests
 
         public ConcurrentQueue<SnapshotCaptureFailure> CaptureFailures { get; } = new();
 
+        public ConcurrentQueue<GameSnapshot> Snapshots { get; } = new();
+
         public void RecordGameStarted(Guid gameId) => StartedGames.Enqueue(gameId);
 
         public void RecordGameEnded(Guid gameId, bool completed) => EndedGames.Enqueue((gameId, completed));
@@ -486,15 +531,13 @@ public sealed class PluginAdvisorPipelineTests
 
         public void RecordSnapshotCaptureSkipped(SnapshotCaptureFailure failure) => CaptureFailures.Enqueue(failure);
 
-        public void RecordSnapshot(GameSnapshot snapshot)
-        {
-        }
+        public void RecordSnapshot(GameSnapshot snapshot) => Snapshots.Enqueue(snapshot);
 
         public void RecordAdvisorRequest(AdvisorRequestDiagnostic request) => Requests.Enqueue(request);
 
         public void RecordAdvisorAnalysis(AdvisorAnalysisDiagnostic analysis) => Analyses.Enqueue(analysis);
 
-        public void RecordError(string code, Exception exception)
+        public void RecordError(string code, Exception exception, string? stateId = null)
         {
         }
     }

@@ -143,6 +143,22 @@ public sealed class OfflineRegressionTests
     }
 
     [Fact]
+    public void Run_IgnoresFixturesFromHistoricalRuleSetCohorts()
+    {
+        var input = new RegressionInputLoader().Load(new[] { FixturePath("minimal-snapshot.json") });
+
+        var report = new OfflineRegressionRunner().Run(
+            input,
+            new OfflineRegressionOptions(
+                TargetPluginVersion: "0.4.12",
+                TargetRuleSetVersion: "0.3.4"));
+
+        Assert.Equal(0, report.SnapshotCount);
+        Assert.Equal(1, report.IgnoredRuleSetSnapshotCount);
+        Assert.Empty(report.Snapshots);
+    }
+
+    [Fact]
     public void ExpertConsistencyUsesThePrimaryRouteInsteadOfSetIntersection()
     {
         var primaryNotSuggested = new ExpertAnnotation(
@@ -289,14 +305,14 @@ public sealed class OfflineRegressionTests
             Analyses = current.Analyses.AddRange(old.Analyses)
         };
 
-        var report = ShadowRunReport.FromTelemetry(telemetry, "0.4.11", "0.3.3");
+        var report = ShadowRunReport.FromTelemetry(telemetry, "0.4.12", "0.3.4");
 
         Assert.Equal(5, report.CompletedGameWithPublishedAnalysisCount);
         Assert.Equal(5, report.AnalysisCount);
         Assert.Equal(1, report.VersionCohortCount);
         Assert.Equal(1, report.IgnoredVersionGameCount);
-        Assert.Equal("0.4.11", report.TargetPluginVersion);
-        Assert.Equal("0.3.3", report.TargetRuleSetVersion);
+        Assert.Equal("0.4.12", report.TargetPluginVersion);
+        Assert.Equal("0.3.4", report.TargetRuleSetVersion);
     }
 
     [Fact]
@@ -389,7 +405,7 @@ public sealed class OfflineRegressionTests
             RunCount: 1,
             VersionCohortCount: 1,
             MissingVersionMetadataGameCount: 0,
-            VersionCohorts: ImmutableArray.Create(new ShadowVersionCohort("0.4.11", "0.3.3", 5, 5, 5, 5)),
+            VersionCohorts: ImmutableArray.Create(new ShadowVersionCohort("0.4.12", "0.3.4", 5, 5, 5, 5)),
             LatencyP50Ms: 100,
             LatencyP95Ms: 200,
             LatencyMaximumMs: 250);
@@ -561,8 +577,8 @@ public sealed class OfflineRegressionTests
                 true,
                 true,
                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "0.4.11",
-                "0.3.3"));
+                "0.4.12",
+                "0.3.4"));
             requests.Add(new ShadowAdvisorRequestObservation(timestamp, index * 2 + 1, gameId, stateId, "shadow"));
             analyses.Add(Analysis(
                 timestamp.AddMilliseconds(100),

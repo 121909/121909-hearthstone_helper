@@ -63,7 +63,13 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
             game.Player.EntitiesDiscardedFromHand.Count,
             game.Player.Deck.Count(entity => entity.CardId == DiscardWarlockCardIds.ShredOfTime));
         var currentChoice = CaptureChoice(game, mechanics);
-        if (currentChoice is null && game.Player.OfferedEntityIds.Count == 0)
+        if (currentChoice is null && game.Player.OfferedEntityIds.Count > 0)
+        {
+            observation = null;
+            failure = SnapshotCaptureFailure.UnknownChoiceSource;
+            return false;
+        }
+        if (currentChoice is null)
             _mechanics.RecordChoiceClosed();
         var fallbackHeroPowerEntityId = NextSyntheticEntityId(game);
         var friendly = CaptureFriendly(
@@ -71,6 +77,12 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
             friendlyHero!,
             CaptureHeroPowerOrUnavailable(friendlyHeroPower, fallbackHeroPowerEntityId),
             mechanics);
+        if (friendly.KnownRemainingDeck.Sum(entry => entry.Count) != friendly.DeckCount)
+        {
+            observation = null;
+            failure = SnapshotCaptureFailure.InconsistentFriendlyDeck;
+            return false;
+        }
         var opponent = CaptureOpponent(
             game,
             opponentHero!,
@@ -123,6 +135,8 @@ internal sealed class HdtSnapshotObservationFactory : ISnapshotObservationSource
                 sourceCardId = chamber.CardId;
             }
         }
+        if (string.IsNullOrWhiteSpace(sourceCardId))
+            return null;
 
         var choiceType = sourceCardId == DiscardWarlockCardIds.CursedCatacombs
             ? "DISCOVER"

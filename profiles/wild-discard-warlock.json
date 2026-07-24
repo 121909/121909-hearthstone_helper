@@ -11,7 +11,7 @@
     "canonicalization": "Sort by ordinal CardId; encode each entry as CardId:count followed by LF; encode as UTF-8.",
     "value": "3204a0f302fa866376ca21b1b793e4f48cf4e8736525512b44ee951f4408d3b4"
   },
-  "ruleSetVersion": "0.3.3",
+  "ruleSetVersion": "0.3.4",
   "cardData": {
     "provider": "HearthstoneJSON",
     "build": 247416,

@@ -54,8 +54,9 @@ The shadow section counts only sessions recorded with `mode=shadow`. Only a real
 Every request and terminal analysis also carries a per-process `runId`, plugin
 version, and rule-set version. The final automated threshold requires complete
 metadata and exactly one plugin/rule version cohort; multiple HDT runs using
-that same version may be combined. Clear or archive diagnostics before testing
-a newer build instead of mixing version cohorts.
+that same version may be combined. When target versions are supplied, telemetry
+from other plugin/rule cohorts and fixtures from other rule sets are reported
+as ignored instead of contaminating the active regression.
 
 ## Expert annotations
 

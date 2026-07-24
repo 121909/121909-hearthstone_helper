@@ -9,7 +9,7 @@ public static class TargetDeckProfile
     public const string PlayerClass = "WARLOCK";
     public const int DeckSize = 30;
     public const string DeckHash = "3204a0f302fa866376ca21b1b793e4f48cf4e8736525512b44ee951f4408d3b4";
-    public const string RuleSetVersion = "0.3.3";
+    public const string RuleSetVersion = "0.3.4";
 
     public static IReadOnlyList<DeckCardCount> Cards { get; } = new[]
     {

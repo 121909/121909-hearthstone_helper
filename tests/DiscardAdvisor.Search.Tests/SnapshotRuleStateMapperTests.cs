@@ -41,6 +41,17 @@ public sealed class SnapshotRuleStateMapperTests
         Assert.Contains("unknown_hand_card:UNKNOWN_CARD", result.UnsupportedInteractions);
     }
 
+    [Theory]
+    [InlineData(DiscardWarlockCardIds.DarkmoonCoin)]
+    [InlineData(DiscardWarlockCardIds.Squirrel)]
+    public void MapsObservedSupportedGeneratedCards(string cardId)
+    {
+        var result = new SnapshotRuleStateMapper().Map(CreateSnapshot(cardId));
+
+        Assert.True(result.IsSupported);
+        Assert.Equal(cardId, Assert.Single(result.State!.Friendly.Hand).CardId);
+    }
+
     [Fact]
     public void RejectsIncompleteKnownDeckWithoutInventingDrawOrder()
     {

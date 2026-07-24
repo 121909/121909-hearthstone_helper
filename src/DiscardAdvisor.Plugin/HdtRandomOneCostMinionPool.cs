@@ -23,6 +23,7 @@ public sealed class HdtRandomOneCostMinionPool : IRandomOneCostMinionPool
 
     public HdtRandomOneCostMinionPool()
     {
+        Version = Cards.Build;
         Candidates = Cards.Collectible.Values
             .Where(card => card.Type == CardType.MINION && card.Cost == 1)
             .Where(card => !string.IsNullOrWhiteSpace(card.Id))
@@ -31,7 +32,7 @@ public sealed class HdtRandomOneCostMinionPool : IRandomOneCostMinionPool
             .ToArray();
     }
 
-    public string Version => Cards.Build;
+    public string Version { get; }
 
     public IReadOnlyList<RandomOneCostMinion> Candidates { get; }
 

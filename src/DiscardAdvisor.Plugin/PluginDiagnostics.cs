@@ -29,7 +29,7 @@ public interface IPluginDiagnostics
 
     void RecordAdvisorAnalysis(AdvisorAnalysisDiagnostic analysis);
 
-    void RecordError(string code, Exception exception);
+    void RecordError(string code, Exception exception, string? stateId = null);
 }
 
 public enum AdvisorAnalysisDisposition
@@ -133,7 +133,7 @@ public sealed class NullPluginDiagnostics : IPluginDiagnostics
     {
     }
 
-    public void RecordError(string code, Exception exception)
+    public void RecordError(string code, Exception exception, string? stateId = null)
     {
     }
 }
@@ -167,7 +167,8 @@ public sealed class QueuedPluginDiagnostics : IPluginDiagnostics
     public void RecordAdvisorAnalysis(AdvisorAnalysisDiagnostic analysis) =>
         Enqueue(() => _inner.RecordAdvisorAnalysis(analysis));
 
-    public void RecordError(string code, Exception exception) => Enqueue(() => _inner.RecordError(code, exception));
+    public void RecordError(string code, Exception exception, string? stateId = null) =>
+        Enqueue(() => _inner.RecordError(code, exception, stateId));
 
     public Task DrainAsync()
     {
@@ -385,22 +386,39 @@ public sealed class RedactedDiagnosticStore : IPluginDiagnostics
             }));
     }
 
-    public void RecordError(string code, Exception exception)
+    public void RecordError(string code, Exception exception, string? stateId = null)
     {
         if (string.IsNullOrWhiteSpace(code))
             throw new ArgumentException("An error code is required.", nameof(code));
         if (exception is null)
             throw new ArgumentNullException(nameof(exception));
 
+        var data = new Dictionary<string, object>
+        {
+            ["code"] = code,
+            ["exceptionType"] = exception.GetType().Name
+        };
+        if (exception is FileNotFoundException fileNotFound && !string.IsNullOrWhiteSpace(fileNotFound.FileName))
+            data["missingFile"] = RedactFileName(fileNotFound.FileName!);
+
         Write(new DiagnosticEntry(
             _utcNow(),
             "error",
-            null,
-            new Dictionary<string, object>
-            {
-                ["code"] = code,
-                ["exceptionType"] = exception.GetType().Name
-            }));
+            stateId,
+            data));
+    }
+
+    private static string RedactFileName(string value)
+    {
+        try
+        {
+            var separator = value.LastIndexOfAny(new[] { '/', '\\' });
+            return separator >= 0 ? value.Substring(separator + 1) : value;
+        }
+        catch (ArgumentException)
+        {
+            return "invalid-file-name";
+        }
     }
 
     private void Write(DiagnosticEntry entry)

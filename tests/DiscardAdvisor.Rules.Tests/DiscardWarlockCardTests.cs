@@ -184,6 +184,35 @@ public sealed class DiscardWarlockCardTests
         Assert.Same(state, result.State);
     }
 
+    [Theory]
+    [InlineData(DiscardWarlockCardIds.TheCoin)]
+    [InlineData(DiscardWarlockCardIds.DarkmoonCoin)]
+    public void CoinVariantsGrantOneTemporaryMana(string cardId)
+    {
+        var coin = DiscardWarlockCardCatalog.Create(cardId, 10);
+        var state = CreateState(hand: new[] { coin }, mana: 2);
+
+        var result = _engine.Apply(state, new PlayCardAction(PlayerSide.Friendly, coin.EntityId));
+
+        Assert.True(result.IsLegal);
+        Assert.Equal((3, 1), (result.State.Friendly.Mana.Available, result.State.Friendly.Mana.Temporary));
+        Assert.Contains(result.Events, ruleEvent => ruleEvent.Type == "gain_temporary_mana");
+    }
+
+    [Fact]
+    public void CoinDoesNotExceedTenAvailableMana()
+    {
+        var coin = DiscardWarlockCardCatalog.Create(DiscardWarlockCardIds.DarkmoonCoin, 10);
+
+        var result = _engine.Apply(
+            CreateState(hand: new[] { coin }, mana: 10),
+            new PlayCardAction(PlayerSide.Friendly, coin.EntityId));
+
+        Assert.True(result.IsLegal);
+        Assert.Equal((10, 0), (result.State.Friendly.Mana.Available, result.State.Friendly.Mana.Temporary));
+        Assert.DoesNotContain(result.Events, ruleEvent => ruleEvent.Type == "gain_temporary_mana");
+    }
+
     [Fact]
     public void SoulariumDrawsThreeTemporaryCardsAndCastsShred()
     {

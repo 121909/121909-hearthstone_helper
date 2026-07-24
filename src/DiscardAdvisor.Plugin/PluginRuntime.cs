@@ -137,6 +137,16 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
                     out var unchangedCompletedState) && workItem is not null)
             {
                 EnsureGameSessionStarted(workItem.Snapshot.GameId);
+                if (!LocalAdvisorService.IsAnalysisCandidate(workItem.Snapshot))
+                {
+                    if (_snapshotCoordinator.TryCompleteWork(workItem.StateId))
+                    {
+                        PublishAdvisorUpdate(PluginAdvisorUpdate.StateOnly(
+                            PluginAdvisorStatus.Inactive,
+                            workItem.StateId));
+                    }
+                    return;
+                }
                 _diagnostics.RecordSnapshot(workItem.Snapshot);
                 if (!TryPublishAnalyzing(workItem))
                     return;
@@ -286,7 +296,7 @@ public sealed class PluginRuntime : IPluginRuntime, IOverlayStateSource, IDispos
         {
             stopwatch.Stop();
             RecordAdvisorAnalysis(workItem, null, stopwatch.Elapsed, AdvisorAnalysisDisposition.Failed);
-            _diagnostics.RecordError("local_advisor_failed", exception);
+            _diagnostics.RecordError("local_advisor_failed", exception, workItem.StateId);
             TryPublishCurrentState(PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Offline, workItem.StateId));
         }
     }

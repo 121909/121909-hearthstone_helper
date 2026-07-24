@@ -49,6 +49,8 @@ public sealed class RegressionReportWriter
         builder.AppendLine($"- Result: **{(report.Passed ? "PASS" : "FAIL")}**");
         builder.AppendLine($"- Replays: {report.ReplayCount}");
         builder.AppendLine($"- Snapshots: {report.EvaluatedSnapshotCount}/{report.SnapshotCount} evaluated");
+        if (report.IgnoredRuleSetSnapshotCount > 0)
+            builder.AppendLine($"- Historical snapshots ignored from other rule sets: {report.IgnoredRuleSetSnapshotCount}");
         builder.AppendLine($"- Legal routes: {report.LegalRouteCount}/{report.RouteCount} ({FormatPercent(report.LegalRouteRate)})");
         builder.AppendLine($"- Latency p50/p95/max: {report.LatencyP50Ms:F2}/{report.LatencyP95Ms:F2}/{report.LatencyMaximumMs:F2} ms");
         builder.AppendLine($"- Deadline expiration: {report.DeadlineExpiredCount}/{report.EvaluatedSnapshotCount} ({FormatPercent(report.DeadlineExpirationRate)})");

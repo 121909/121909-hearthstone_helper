@@ -1,7 +1,7 @@
 {
   "manifestVersion": 1,
-  "pluginVersion": "0.4.11",
-  "ruleSetVersion": "0.3.3",
+  "pluginVersion": "0.4.12",
+  "ruleSetVersion": "0.3.4",
   "hdtVersion": "1.53.11",
   "channel": "experimental",
   "validation": {

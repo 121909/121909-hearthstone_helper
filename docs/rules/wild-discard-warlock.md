@@ -1,6 +1,6 @@
 # Wild Discard Warlock rule specification
 
-Rule-set version: `0.3.3`
+Rule-set version: `0.3.4`
 Card definitions: Hearthstone build `247416`
 Target mode: `RANKED_WILD`
 
@@ -58,6 +58,10 @@ destroys a minion only when damage is applied, and Lifesteal heals after the
 simultaneous combat damage is known. A visible Reborn minion currently marks
 the Snapshot `unsupported_reborn`; reconstructing it without the original
 unbuffed stats and enchantment split would invent state.
+
+The live `DMF_COIN2` cosmetic Coin is equivalent to `GAME_005`: both spend
+zero mana and add one temporary mana without exceeding 10 available mana.
+The generated `DAL_354t` Squirrel is modeled as a vanilla 1/1 one-cost minion.
 
 `HeroState.Attack` is the total visible hero `ATK`, including the equipped
 weapon contribution, matching HDT's `BoardHero` semantics. Equipping or
