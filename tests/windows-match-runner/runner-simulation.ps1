@@ -419,7 +419,7 @@ try
     {
         throw "Unexpected runner summary: $($summary | ConvertTo-Json -Compress)"
     }
-    if($summary.runnerVersion -ne "0.1.3" -or $summary.blockedAdvicePolicy -ne "ExecuteFirstStep")
+    if($summary.runnerVersion -ne "0.1.4" -or $summary.blockedAdvicePolicy -ne "ExecuteFirstStep")
     {
         throw "The runner summary did not record its executable version and advice policy."
     }

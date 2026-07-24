@@ -58,6 +58,8 @@ param(
 
     [string]$GitBranch = "",
 
+    [string]$GitExecutable = "git",
+
     [switch]$UploadToGitHub,
 
     [switch]$SkipPlayButton,
@@ -82,7 +84,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$runnerVersion = "0.1.3"
+$runnerVersion = "0.1.4"
 $expectedPluginVersion = "0.4.13"
 $expectedRuleSetVersion = "0.3.4"
 $sessionId = [DateTimeOffset]::UtcNow.ToString("yyyyMMddTHHmmssZ") + "-" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
@@ -1057,12 +1059,16 @@ function Publish-SessionToGitHub {
     {
         throw "-RepositoryPath is required with -UploadToGitHub."
     }
+    if($null -eq (Get-Command $GitExecutable -ErrorAction SilentlyContinue))
+    {
+        throw "Git executable '$GitExecutable' was not found. Pass its full path with -GitExecutable."
+    }
     $repo = [System.IO.Path]::GetFullPath($RepositoryPath)
     if(-not (Test-Path -LiteralPath (Join-Path $repo ".git") -PathType Container))
     {
         throw "RepositoryPath '$repo' is not a Git worktree."
     }
-    & git -C $repo diff --cached --quiet --exit-code
+    & $GitExecutable -C $repo diff --cached --quiet --exit-code
     if($LASTEXITCODE -eq 1)
     {
         throw "The Git index already contains staged changes. Commit or unstage them before using -UploadToGitHub."
@@ -1079,13 +1085,13 @@ function Publish-SessionToGitHub {
     }
     New-Item -ItemType Directory -Path (Split-Path -Parent $archiveTarget) -Force | Out-Null
     Copy-Item -LiteralPath $sessionDirectory -Destination $archiveTarget -Recurse
-    & git -C $repo add -f -- $archiveRelative
+    & $GitExecutable -C $repo add -f -- $archiveRelative
     if($LASTEXITCODE -ne 0) { throw "git add failed with exit code $LASTEXITCODE." }
-    & git -C $repo commit -m "data: add automated match run $sessionId"
+    & $GitExecutable -C $repo commit -m "data: add automated match run $sessionId"
     if($LASTEXITCODE -ne 0) { throw "git commit failed with exit code $LASTEXITCODE." }
-    $branch = if([string]::IsNullOrWhiteSpace($GitBranch)) { (& git -C $repo branch --show-current).Trim() } else { $GitBranch }
+    $branch = if([string]::IsNullOrWhiteSpace($GitBranch)) { (& $GitExecutable -C $repo branch --show-current).Trim() } else { $GitBranch }
     if([string]::IsNullOrWhiteSpace($branch)) { throw "Could not determine the Git branch to push." }
-    & git -C $repo push $GitRemote "HEAD:$branch"
+    & $GitExecutable -C $repo push $GitRemote "HEAD:$branch"
     if($LASTEXITCODE -ne 0) { throw "git push failed with exit code $LASTEXITCODE." }
     Write-RunnerEvent -Event "github_upload_completed" -Data @{ remote = $GitRemote; branch = $branch; path = $archiveRelative }
 }
