@@ -32,6 +32,9 @@ param(
     [ValidateRange(1, 30)]
     [int]$ActionSettleSeconds = 2,
 
+    [ValidateRange(3, 120)]
+    [int]$ActionAcknowledgeTimeoutSeconds = 15,
+
     [ValidateRange(5, 300)]
     [int]$BlockedAdviceTimeoutSeconds = 30,
 
@@ -59,6 +62,14 @@ param(
 
     [switch]$ValidateOnly,
 
+    [switch]$SimulationMode,
+
+    [ValidateRange(640, 7680)]
+    [int]$SimulationWindowWidth = 1920,
+
+    [ValidateRange(360, 4320)]
+    [int]$SimulationWindowHeight = 1080,
+
     [switch]$DryRun
 )
 
@@ -76,6 +87,7 @@ $completedGameIds = New-Object 'System.Collections.Generic.HashSet[string]' ([Sy
 $script:stopRequested = $false
 $script:sessionStartUtc = [DateTimeOffset]::UtcNow
 $script:activeGameId = $null
+$script:hotKeyRegistered = $false
 
 New-Item -ItemType Directory -Path $sessionDirectory -Force | Out-Null
 
@@ -152,6 +164,10 @@ function Test-StopRequested {
     if($script:stopRequested -or (Test-Path -LiteralPath $stopFile -PathType Leaf))
     {
         return $true
+    }
+    if($SimulationMode)
+    {
+        return $false
     }
     $message = New-Object DiscardAdvisor.MatchRunner.NativeMethods+MSG
     while([DiscardAdvisor.MatchRunner.NativeMethods]::PeekMessage(
@@ -252,7 +268,52 @@ function Update-GameProgress {
     }
 }
 
+function Get-FatalGateDecisionSince {
+    param(
+        [Parameter(Mandatory = $true)]
+        [DateTimeOffset]$Since
+    )
+
+    $latest = @(Get-DiagnosticEvents |
+        Where-Object {
+            $_.event -eq "gate_decision" -and $_.timestamp -and
+            ([DateTimeOffset]$_.timestamp) -ge $Since
+        } |
+        Select-Object -Last 1)
+    if($latest.Count -eq 0)
+    {
+        return $null
+    }
+    $decision = $latest[0]
+    $status = [string]$decision.data.status
+    if($status -notin @(
+            "IncompleteDeck",
+            "DeckMismatch",
+            "UnsupportedPatch",
+            "UnsupportedHdtVersion",
+            "UnsupportedCardDefinitions",
+            "UnsupportedHearthDb"))
+    {
+        return $null
+    }
+    if(([DateTimeOffset]::UtcNow - [DateTimeOffset]$decision.timestamp).TotalSeconds -lt 3)
+    {
+        return $null
+    }
+    return $decision
+}
+
 function Get-HearthstoneWindow {
+    if($SimulationMode)
+    {
+        return [pscustomobject]@{
+            Handle = [IntPtr]::Zero
+            Left = 0
+            Top = 0
+            Width = $SimulationWindowWidth
+            Height = $SimulationWindowHeight
+        }
+    }
     $handle = [DiscardAdvisor.MatchRunner.NativeMethods]::FindWindow($null, $WindowTitle)
     if($handle -eq [IntPtr]::Zero)
     {
@@ -351,8 +412,8 @@ function Invoke-MouseClick {
         [string]$Purpose
     )
 
-    Write-RunnerEvent -Event "mouse_click" -Data @{ purpose = $Purpose; x = $Point.X; y = $Point.Y; dryRun = [bool]$DryRun }
-    if($DryRun)
+    Write-RunnerEvent -Event "mouse_click" -Data @{ purpose = $Purpose; x = $Point.X; y = $Point.Y; dryRun = [bool]$DryRun; simulation = [bool]$SimulationMode }
+    if($DryRun -or $SimulationMode)
     {
         return
     }
@@ -378,8 +439,8 @@ function Invoke-Drag {
         [string]$Purpose
     )
 
-    Write-RunnerEvent -Event "mouse_drag" -Data @{ purpose = $Purpose; sourceX = $Source.X; sourceY = $Source.Y; targetX = $Target.X; targetY = $Target.Y; dryRun = [bool]$DryRun }
-    if($DryRun)
+    Write-RunnerEvent -Event "mouse_drag" -Data @{ purpose = $Purpose; sourceX = $Source.X; sourceY = $Source.Y; targetX = $Target.X; targetY = $Target.Y; dryRun = [bool]$DryRun; simulation = [bool]$SimulationMode }
+    if($DryRun -or $SimulationMode)
     {
         return
     }
@@ -407,7 +468,7 @@ function Invoke-AdviceStep {
         throw "The advice contains no executable step."
     }
     $window = Get-HearthstoneWindow
-    if(-not $DryRun)
+    if(-not $DryRun -and -not $SimulationMode)
     {
         [void][DiscardAdvisor.MatchRunner.NativeMethods]::SetForegroundWindow($window.Handle)
         Start-Sleep -Milliseconds 250
@@ -544,6 +605,56 @@ function Get-BlockingAdvice {
     return $advice
 }
 
+function Wait-ForAdviceAcknowledgement {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$Advice,
+
+        [Parameter(Mandatory = $true)]
+        [int]$CompletedBefore
+    )
+
+    Start-Sleep -Seconds $ActionSettleSeconds
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($ActionAcknowledgeTimeoutSeconds)
+    while([DateTimeOffset]::UtcNow -lt $deadline -and -not (Test-StopRequested))
+    {
+        Update-GameProgress
+        if($completedGameIds.Count -gt $CompletedBefore)
+        {
+            return "game_completed"
+        }
+        if(-not (Test-Path -LiteralPath $AdvicePath -PathType Leaf))
+        {
+            Start-Sleep -Milliseconds $PollMilliseconds
+            continue
+        }
+        $current = Read-JsonWithRetry $AdvicePath
+        if($null -eq $current)
+        {
+            Start-Sleep -Milliseconds $PollMilliseconds
+            continue
+        }
+        if(-not [string]::Equals([string]$current.gameId, [string]$Advice.gameId, [System.StringComparison]::OrdinalIgnoreCase))
+        {
+            return "game_changed"
+        }
+        if($current.status -ne "READY")
+        {
+            return "status_changed"
+        }
+        if(-not [string]::Equals([string]$current.stateId, [string]$Advice.stateId, [System.StringComparison]::Ordinal))
+        {
+            return "state_changed"
+        }
+        Start-Sleep -Milliseconds $PollMilliseconds
+    }
+    if(Test-StopRequested)
+    {
+        return "stopped"
+    }
+    throw "The game did not acknowledge action '$(@($Advice.steps)[0].type)' for state '$($Advice.stateId)' within $ActionAcknowledgeTimeoutSeconds seconds. Check the calibrated coordinates and Hearthstone window focus."
+}
+
 function Start-NextGame {
     if($SkipPlayButton)
     {
@@ -551,7 +662,7 @@ function Start-NextGame {
         return
     }
     $window = Get-HearthstoneWindow
-    if(-not $DryRun)
+    if(-not $DryRun -and -not $SimulationMode)
     {
         [void][DiscardAdvisor.MatchRunner.NativeMethods]::SetForegroundWindow($window.Handle)
         Start-Sleep -Milliseconds 250
@@ -572,7 +683,7 @@ function Confirm-Mulligan {
     }
     Start-Sleep -Seconds $MulliganDelaySeconds
     $window = Get-HearthstoneWindow
-    if(-not $DryRun)
+    if(-not $DryRun -and -not $SimulationMode)
     {
         [void][DiscardAdvisor.MatchRunner.NativeMethods]::SetForegroundWindow($window.Handle)
         Start-Sleep -Milliseconds 250
@@ -588,7 +699,7 @@ function Dismiss-CompletedGame {
     }
     Start-Sleep -Seconds $ContinueDelaySeconds
     $window = Get-HearthstoneWindow
-    if(-not $DryRun)
+    if(-not $DryRun -and -not $SimulationMode)
     {
         [void][DiscardAdvisor.MatchRunner.NativeMethods]::SetForegroundWindow($window.Handle)
         Start-Sleep -Milliseconds 250
@@ -754,8 +865,11 @@ function Write-SessionSummary {
     $summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPath -Encoding UTF8
 }
 
-Assert-WindowsHost
-Initialize-NativeMethods
+if(-not $SimulationMode)
+{
+    Assert-WindowsHost
+    Initialize-NativeMethods
+}
 if(-not (Test-Path -LiteralPath $LayoutPath -PathType Leaf))
 {
     throw "Layout file was not found at '$LayoutPath'."
@@ -783,13 +897,17 @@ if($ValidateOnly)
     Write-Host ("Layout validated for Hearthstone window {0}x{1}." -f $window.Width, $window.Height)
     exit 0
 }
-if(-not [DiscardAdvisor.MatchRunner.NativeMethods]::RegisterHotKey(
+if(-not $SimulationMode -and -not [DiscardAdvisor.MatchRunner.NativeMethods]::RegisterHotKey(
         [IntPtr]::Zero,
         1,
         [DiscardAdvisor.MatchRunner.NativeMethods]::ModControl -bor [DiscardAdvisor.MatchRunner.NativeMethods]::ModShift,
         [DiscardAdvisor.MatchRunner.NativeMethods]::VirtualKeyF12))
 {
     throw "Could not register the Ctrl+Shift+F12 emergency stop hotkey."
+}
+if(-not $SimulationMode)
+{
+    $script:hotKeyRegistered = $true
 }
 
 try
@@ -801,6 +919,7 @@ try
         ruleSetVersion = $expectedRuleSetVersion
         advicePath = [System.IO.Path]::GetFullPath($AdvicePath)
         dryRun = [bool]$DryRun
+        simulation = [bool]$SimulationMode
         emergencyStop = "Ctrl+Shift+F12"
     }
 
@@ -809,6 +928,7 @@ try
         Update-GameProgress
         $completedBefore = $completedGameIds.Count
         $observedBefore = $observedGameIds.Count
+        $matchRequestedAt = [DateTimeOffset]::UtcNow
         Write-RunnerEvent -Event "match_requested" -Data @{ matchIndex = $matchIndex; completedBefore = $completedBefore }
         Start-NextGame
         $startDeadline = [DateTimeOffset]::UtcNow.AddSeconds($GameStartTimeoutSeconds)
@@ -839,6 +959,11 @@ try
                 Write-RunnerEvent -Event "match_completed" -Data @{ matchIndex = $matchIndex; completedMatches = $completedGameIds.Count }
                 break
             }
+            $fatalGate = Get-FatalGateDecisionSince $matchRequestedAt
+            if($null -ne $fatalGate)
+            {
+                throw "The target deck or runtime gate failed with status '$($fatalGate.data.status)'. Check the exact Wild deck, HDT version, and card-definition compatibility."
+            }
             $advice = Get-EligibleAdvice
             if($null -ne $advice)
             {
@@ -855,7 +980,12 @@ try
                     Write-RunnerEvent -Event "advice_step_failed" -Data @{ stateId = [string]$advice.stateId; message = $_.Exception.Message }
                     throw
                 }
-                Start-Sleep -Seconds $ActionSettleSeconds
+                $acknowledgement = Wait-ForAdviceAcknowledgement -Advice $advice -CompletedBefore $completedBefore
+                Write-RunnerEvent -Event "advice_step_acknowledged" -Data @{
+                    gameId = [string]$advice.gameId
+                    stateId = [string]$advice.stateId
+                    reason = $acknowledgement
+                }
             }
             else
             {
@@ -919,7 +1049,10 @@ catch
 }
 finally
 {
-    [void][DiscardAdvisor.MatchRunner.NativeMethods]::UnregisterHotKey([IntPtr]::Zero, 1)
+    if($script:hotKeyRegistered)
+    {
+        [void][DiscardAdvisor.MatchRunner.NativeMethods]::UnregisterHotKey([IntPtr]::Zero, 1)
+    }
 }
 
 Write-Host "Session directory: $sessionDirectory"

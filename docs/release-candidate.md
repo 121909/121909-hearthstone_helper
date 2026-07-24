@@ -66,3 +66,7 @@ Verify an experimental package with the same evidence archive:
   `docs\rules\wild-discard-warlock.md`.
 - The package does not install or start HDT automatically; copy paths are listed
   in its `README.txt`.
+- The Windows runner state machine and Git upload path have a repeatable
+  two-game simulation, but the default mouse coordinates are not certified for
+  every resolution or client layout. Run `-ValidateOnly`, then a supervised
+  one-game session before an unattended multi-game run.

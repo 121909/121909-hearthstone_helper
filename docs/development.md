@@ -88,3 +88,17 @@ Its contract is `schemas\v1\automation-advice.schema.json`. The separate
 only the first step of a fresh matching `gameId + stateId`; the operation guide
 documents coordinate calibration, emergency stop, match limits, and evidence
 upload.
+
+Run the repeatable two-game state-machine and Git-upload simulation with the
+same PowerShell executable that launched the test:
+
+```powershell
+$shell = (Get-Process -Id $PID).Path
+& $shell -NoProfile -File .\tests\windows-match-runner\runner-simulation.ps1 `
+  -PowerShellPath $shell
+```
+
+The simulation drives the production runner without calling `user32.dll`. It
+uses the same `stateId` in two different games and verifies two executions,
+action acknowledgement, session-only diagnostics/advice/replay/fixture
+archival, a Git commit, and a push to a temporary bare remote.
