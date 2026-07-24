@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using DiscardAdvisor.Rules;
 using DiscardAdvisor.Rules.Model;
 using DiscardAdvisor.Search;
 using Json.Schema;
@@ -24,7 +25,7 @@ public sealed class AutomationAdvicePublisherTests
             var update = PluginAdvisorUpdate.Ready("turn-1:ready", state, Result(route, confidence: 0.9));
             var sink = new FileAutomationAdviceSink(
                 directory,
-                "0.4.13",
+                "0.4.14",
                 "0.3.4",
                 () => DateTimeOffset.Parse("2026-07-24T12:00:00Z"));
 
@@ -41,7 +42,7 @@ public sealed class AutomationAdvicePublisherTests
             Assert.True(schemaResult.IsValid);
             Assert.Equal("READY", root.GetProperty("status").GetString());
             Assert.True(root.GetProperty("automationAllowed").GetBoolean());
-            Assert.Equal("0.4.13", root.GetProperty("pluginVersion").GetString());
+            Assert.Equal("0.4.14", root.GetProperty("pluginVersion").GetString());
             Assert.Equal("0.3.4", root.GetProperty("ruleSetVersion").GetString());
             var step = root.GetProperty("steps")[0];
             Assert.Equal("PLAY_CARD", step.GetProperty("type").GetString());
@@ -69,7 +70,7 @@ public sealed class AutomationAdvicePublisherTests
             var lethal = new LethalSearchResult(false, null, 1, TimeSpan.FromMilliseconds(75), true, false);
             var beam = new BeamSearchMetrics(1, 1, 0, 0, TimeSpan.FromMilliseconds(175), true, false);
             var result = Result(route, confidence: 0.8, lethal: lethal, beam: beam);
-            var sink = new FileAutomationAdviceSink(directory, "0.4.13", "0.3.4");
+            var sink = new FileAutomationAdviceSink(directory, "0.4.14", "0.3.4");
 
             sink.Publish(Guid.Empty, PluginAdvisorUpdate.Ready("turn-1:blocked", state, result));
 
@@ -94,7 +95,7 @@ public sealed class AutomationAdvicePublisherTests
         {
             var state = State();
             var route = Route(state, new EndTurnAction(PlayerSide.Friendly));
-            var sink = new FileAutomationAdviceSink(directory, "0.4.13", "0.3.4");
+            var sink = new FileAutomationAdviceSink(directory, "0.4.14", "0.3.4");
             sink.Publish(Guid.Empty, PluginAdvisorUpdate.Ready("turn-1:ready", state, Result(route, 0.9)));
 
             sink.Publish(Guid.Empty, PluginAdvisorUpdate.StateOnly(PluginAdvisorStatus.Stale));
@@ -119,7 +120,7 @@ public sealed class AutomationAdvicePublisherTests
         {
             var state = State();
             var route = Route(state, new PlayCardAction(PlayerSide.Friendly, 10, 999));
-            var sink = new FileAutomationAdviceSink(directory, "0.4.13", "0.3.4");
+            var sink = new FileAutomationAdviceSink(directory, "0.4.14", "0.3.4");
 
             sink.Publish(Guid.Empty, PluginAdvisorUpdate.Ready("turn-1:unknown-target", state, Result(route, 0.9)));
 
@@ -129,6 +130,44 @@ public sealed class AutomationAdvicePublisherTests
             Assert.Contains(
                 root.GetProperty("blockers").EnumerateArray().Select(item => item.GetString()),
                 item => item == "target_location_unknown");
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Theory]
+    [InlineData(DiscardWarlockCardIds.OcularOccultist, "HAND_DISCARD", "FRIENDLY_HAND")]
+    [InlineData(DiscardWarlockCardIds.ChamberOfViscidus, "HAND_DISCARD", "CHOICE")]
+    [InlineData(DiscardWarlockCardIds.CursedCatacombs, "DISCOVER", "CHOICE")]
+    public void LocatesChoiceTargetsAccordingToTheClientInteraction(
+        string sourceCardId,
+        string choiceType,
+        string expectedZone)
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var state = State() with
+            {
+                PendingChoice = new PendingChoiceState(
+                    700,
+                    choiceType,
+                    sourceCardId,
+                    ImmutableArray.Create(new ChoiceCandidateState(10, "EX1_308")),
+                    300)
+            };
+            var action = new SelectChoiceAction(PlayerSide.Friendly, 700, 10);
+            var sink = new FileAutomationAdviceSink(directory, "0.4.14", "0.3.4");
+
+            sink.Publish(Guid.Empty, PluginAdvisorUpdate.Ready("turn-1:choice", state, Result(Route(state, action), 0.9)));
+
+            using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "current-advice.json")));
+            var step = document.RootElement.GetProperty("steps")[0];
+            Assert.Equal("SELECT_CHOICE", step.GetProperty("type").GetString());
+            Assert.Equal(expectedZone, step.GetProperty("target").GetProperty("zone").GetString());
+            Assert.True(document.RootElement.GetProperty("automationAllowed").GetBoolean());
         }
         finally
         {

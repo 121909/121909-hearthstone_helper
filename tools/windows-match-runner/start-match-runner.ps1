@@ -23,6 +23,9 @@ param(
     [ValidateRange(100, 10000)]
     [int]$PollMilliseconds = 500,
 
+    [ValidateRange(1, 60)]
+    [int]$StatusHeartbeatSeconds = 5,
+
     [ValidateRange(5, 600)]
     [int]$GameStartTimeoutSeconds = 180,
 
@@ -50,10 +53,13 @@ param(
     [int]$MulliganTimeoutSeconds = 90,
 
     [ValidateRange(0, 60)]
-    [int]$MulliganUiSettleSeconds = 8,
+    [int]$MulliganUiSettleSeconds = 20,
 
     [ValidateRange(0, 60)]
     [int]$ContinueDelaySeconds = 5,
+
+    [ValidateRange(0, 120)]
+    [int]$DeckScreenSettleSeconds = 20,
 
     [string]$RepositoryPath = "",
 
@@ -87,8 +93,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$runnerVersion = "0.1.5"
-$expectedPluginVersion = "0.4.13"
+$runnerVersion = "0.1.6"
+$expectedPluginVersion = "0.4.14"
 $expectedRuleSetVersion = "0.3.4"
 $sessionId = [DateTimeOffset]::UtcNow.ToString("yyyyMMddTHHmmssZ") + "-" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
 $sessionDirectory = Join-Path ([System.IO.Path]::GetFullPath($OutputDirectory)) $sessionId
@@ -102,6 +108,9 @@ $script:stopRequested = $false
 $script:sessionStartUtc = [DateTimeOffset]::UtcNow
 $script:activeGameId = $null
 $script:hotKeyRegistered = $false
+$script:lastAdviceWaitSignature = $null
+$script:adviceWaitStartedAt = $null
+$script:lastAdviceWaitReportedAt = $null
 
 New-Item -ItemType Directory -Path $sessionDirectory -Force | Out-Null
 
@@ -120,7 +129,8 @@ function Write-RunnerEvent {
     }
     $line = $entry | ConvertTo-Json -Depth 12 -Compress
     Add-Content -LiteralPath $sessionLogPath -Value $line -Encoding UTF8
-    Write-Host ("[{0:HH:mm:ss}] {1}" -f [DateTime]::Now, $Event)
+    $consoleData = if($Data.Count -gt 0) { " " + ($Data | ConvertTo-Json -Depth 8 -Compress) } else { "" }
+    Write-Host ("[{0:HH:mm:ss}] {1}{2}" -f [DateTime]::Now, $Event, $consoleData)
 }
 
 function Assert-WindowsHost {
@@ -338,16 +348,30 @@ function Update-GameProgress {
         }
         if($event.event -eq "game_started")
         {
-            [void]$observedGameIds.Add($gameId)
+            $newGame = $observedGameIds.Add($gameId)
             $script:activeGameId = $gameId
+            if($newGame)
+            {
+                Write-RunnerEvent -Event "diagnostic_game_started" -Data @{
+                    gameId = $gameId
+                    diagnosticTimestamp = [string]$event.timestamp
+                }
+            }
         }
         elseif($event.event -eq "game_ended" -and [bool]$event.data.completed)
         {
             [void]$observedGameIds.Add($gameId)
-            [void]$completedGameIds.Add($gameId)
+            $newCompletion = $completedGameIds.Add($gameId)
             if([string]::Equals($script:activeGameId, $gameId, [System.StringComparison]::OrdinalIgnoreCase))
             {
                 $script:activeGameId = $null
+            }
+            if($newCompletion)
+            {
+                Write-RunnerEvent -Event "diagnostic_game_completed" -Data @{
+                    gameId = $gameId
+                    diagnosticTimestamp = [string]$event.timestamp
+                }
             }
         }
     }
@@ -655,7 +679,15 @@ function Invoke-AdviceStep {
         }
         "SELECT_CHOICE"
         {
-            Invoke-MouseClick (Get-LocatorPoint $step.target $Advice $window) "Select choice"
+            $choicePurpose = if([string]$step.target.zone -eq "FRIENDLY_HAND")
+            {
+                "Select card from hand"
+            }
+            else
+            {
+                "Select popup choice"
+            }
+            Invoke-MouseClick (Get-LocatorPoint $step.target $Advice $window) $choicePurpose
         }
         "ATTACK"
         {
@@ -775,6 +807,163 @@ function Test-AdviceHasHardBlocker {
     return $false
 }
 
+function Get-AdviceWaitState {
+    $diagnostic = [ordered]@{
+        reason = "unknown"
+        activeGameId = $script:activeGameId
+        gameId = $null
+        stateId = $null
+        status = $null
+        generatedAt = $null
+        ageSeconds = $null
+        automationAllowed = $null
+        blockers = @()
+        steps = @()
+    }
+    if(-not (Test-Path -LiteralPath $AdvicePath -PathType Leaf))
+    {
+        $diagnostic.reason = "advice_file_missing"
+        return [pscustomobject]$diagnostic
+    }
+    $advice = Read-JsonWithRetry $AdvicePath
+    if($null -eq $advice)
+    {
+        $diagnostic.reason = "advice_file_unreadable"
+        return [pscustomobject]$diagnostic
+    }
+    $diagnostic.gameId = [string]$advice.gameId
+    $diagnostic.stateId = [string]$advice.stateId
+    $diagnostic.status = [string]$advice.status
+    $diagnostic.generatedAt = [string]$advice.generatedAt
+    $diagnostic.automationAllowed = if($null -eq $advice.automationAllowed) { $null } else { [bool]$advice.automationAllowed }
+    $diagnostic.blockers = @($advice.blockers | ForEach-Object { [string]$_ })
+    $diagnostic.steps = @($advice.steps | ForEach-Object { [string]$_.type })
+    if($advice.generatedAt)
+    {
+        try
+        {
+            $diagnostic.ageSeconds = [Math]::Round(
+                ([DateTimeOffset]::UtcNow - [DateTimeOffset]$advice.generatedAt).TotalSeconds,
+                1)
+        }
+        catch
+        {
+            $diagnostic.reason = "generated_at_invalid"
+            return [pscustomobject]$diagnostic
+        }
+    }
+    if($advice.protocolVersion -ne "1.0.0")
+    {
+        $diagnostic.reason = "protocol_mismatch"
+    }
+    elseif($advice.pluginVersion -ne $expectedPluginVersion -or $advice.ruleSetVersion -ne $expectedRuleSetVersion)
+    {
+        $diagnostic.reason = "version_mismatch"
+    }
+    elseif([string]::IsNullOrWhiteSpace($script:activeGameId))
+    {
+        $diagnostic.reason = "active_game_not_detected"
+    }
+    elseif(-not [string]::Equals([string]$advice.gameId, $script:activeGameId, [System.StringComparison]::OrdinalIgnoreCase))
+    {
+        $diagnostic.reason = "game_id_mismatch"
+    }
+    elseif($advice.status -eq "ANALYZING")
+    {
+        $diagnostic.reason = "analysis_in_progress"
+    }
+    elseif($advice.status -eq "INACTIVE")
+    {
+        $diagnostic.reason = "not_friendly_main_action"
+    }
+    elseif($advice.status -ne "READY")
+    {
+        $diagnostic.reason = "status_not_ready"
+    }
+    elseif([string]::IsNullOrWhiteSpace([string]$advice.stateId))
+    {
+        $diagnostic.reason = "state_id_missing"
+    }
+    elseif($handledAdviceKeys.Contains(([string]$advice.gameId) + ":" + ([string]$advice.stateId)))
+    {
+        $diagnostic.reason = "state_already_executed"
+    }
+    elseif($null -eq $diagnostic.ageSeconds)
+    {
+        $diagnostic.reason = "generated_at_missing"
+    }
+    elseif($diagnostic.ageSeconds -lt -2)
+    {
+        $diagnostic.reason = "advice_timestamp_in_future"
+    }
+    elseif($diagnostic.ageSeconds -gt $AdviceMaximumAgeSeconds)
+    {
+        $diagnostic.reason = "advice_stale"
+    }
+    elseif(@($advice.steps).Count -eq 0)
+    {
+        $diagnostic.reason = "advice_has_no_steps"
+    }
+    elseif(-not [bool]$advice.automationAllowed -and (Test-AdviceHasHardBlocker $advice))
+    {
+        $diagnostic.reason = "hard_blocker"
+    }
+    elseif(-not [bool]$advice.automationAllowed -and $BlockedAdvicePolicy -eq "Stop")
+    {
+        $diagnostic.reason = "blocked_by_policy"
+    }
+    else
+    {
+        $diagnostic.reason = "eligible_advice_pending"
+    }
+    return [pscustomobject]$diagnostic
+}
+
+function Write-AdviceWaitState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$MatchIndex
+    )
+
+    $diagnostic = Get-AdviceWaitState
+    $signature = @(
+        [string]$diagnostic.reason,
+        [string]$diagnostic.activeGameId,
+        [string]$diagnostic.gameId,
+        [string]$diagnostic.stateId,
+        [string]$diagnostic.status,
+        (@($diagnostic.blockers) -join ","),
+        (@($diagnostic.steps) -join ",")
+    ) -join "|"
+    $now = [DateTimeOffset]::UtcNow
+    if(-not [string]::Equals($signature, $script:lastAdviceWaitSignature, [System.StringComparison]::Ordinal))
+    {
+        $script:lastAdviceWaitSignature = $signature
+        $script:adviceWaitStartedAt = $now
+        $script:lastAdviceWaitReportedAt = $null
+    }
+    if($null -ne $script:lastAdviceWaitReportedAt -and
+        ($now - $script:lastAdviceWaitReportedAt).TotalSeconds -lt $StatusHeartbeatSeconds)
+    {
+        return
+    }
+    $script:lastAdviceWaitReportedAt = $now
+    Write-RunnerEvent -Event "advice_wait_state" -Data @{
+        matchIndex = $MatchIndex
+        reason = [string]$diagnostic.reason
+        waitingSeconds = [Math]::Round(($now - $script:adviceWaitStartedAt).TotalSeconds, 1)
+        activeGameId = [string]$diagnostic.activeGameId
+        gameId = [string]$diagnostic.gameId
+        stateId = [string]$diagnostic.stateId
+        status = [string]$diagnostic.status
+        generatedAt = [string]$diagnostic.generatedAt
+        ageSeconds = $diagnostic.ageSeconds
+        automationAllowed = $diagnostic.automationAllowed
+        blockers = @($diagnostic.blockers)
+        steps = @($diagnostic.steps)
+    }
+}
+
 function Get-BlockingAdvice {
     if(-not (Test-Path -LiteralPath $AdvicePath -PathType Leaf))
     {
@@ -818,6 +1007,13 @@ function Wait-ForAdviceAcknowledgement {
         [int]$CompletedBefore
     )
 
+    Write-RunnerEvent -Event "advice_acknowledgement_wait_started" -Data @{
+        gameId = [string]$Advice.gameId
+        stateId = [string]$Advice.stateId
+        actionType = [string](@($Advice.steps)[0].type)
+        settleSeconds = $ActionSettleSeconds
+        timeoutSeconds = $ActionAcknowledgeTimeoutSeconds
+    }
     Start-Sleep -Seconds $ActionSettleSeconds
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($ActionAcknowledgeTimeoutSeconds)
     while([DateTimeOffset]::UtcNow -lt $deadline -and -not (Test-StopRequested))
@@ -965,10 +1161,19 @@ function Confirm-Mulligan {
 }
 
 function Dismiss-CompletedGame {
+    param(
+        [Parameter(Mandatory = $true)]
+        [bool]$PrepareNextMatch
+    )
+
     if($SkipContinue)
     {
-        Write-RunnerEvent -Event "continue_button_skipped" -Data @{}
+        Write-RunnerEvent -Event "continue_button_skipped" -Data @{ prepareNextMatch = $PrepareNextMatch }
         return
+    }
+    Write-RunnerEvent -Event "continue_button_wait_started" -Data @{
+        delaySeconds = $ContinueDelaySeconds
+        prepareNextMatch = $PrepareNextMatch
     }
     Start-Sleep -Seconds $ContinueDelaySeconds
     $window = Get-HearthstoneWindow
@@ -978,7 +1183,19 @@ function Dismiss-CompletedGame {
         Start-Sleep -Milliseconds 250
     }
     Invoke-MouseClick (Get-ScaledPoint $layout.continueButton $window) "Dismiss completed match"
-    Start-Sleep -Seconds 2
+    if($PrepareNextMatch)
+    {
+        Write-RunnerEvent -Event "deck_screen_settle_wait_started" -Data @{
+            delaySeconds = $DeckScreenSettleSeconds
+        }
+        if($DeckScreenSettleSeconds -gt 0)
+        {
+            Start-Sleep -Seconds $DeckScreenSettleSeconds
+        }
+        Write-RunnerEvent -Event "deck_screen_settle_wait_finished" -Data @{
+            delaySeconds = $DeckScreenSettleSeconds
+        }
+    }
 }
 
 function Copy-JsonLinesSinceSessionStart {
@@ -1163,6 +1380,7 @@ if($ValidateOnly)
     Write-Host ("Client area: left={0}, top={1}, width={2}, height={3}" -f $window.Left, $window.Top, $window.Width, $window.Height)
     Write-Host ("Power.log: {0}" -f $(if([string]::IsNullOrWhiteSpace($PowerLogPath)) { "not detected; timed fallback will be used" } else { $PowerLogPath }))
     Write-Host ("Mulligan timing: log timeout={0}s, UI settle={1}s, no-log fallback={2}s" -f $MulliganTimeoutSeconds, $MulliganUiSettleSeconds, $MulliganDelaySeconds)
+    Write-Host ("Between-match timing: continue delay={0}s, deck-screen settle={1}s" -f $ContinueDelaySeconds, $DeckScreenSettleSeconds)
     foreach($name in @("deckSlot", "playButton", "mulliganConfirm", "continueButton", "endTurn", "friendlyHero", "opponentHero", "friendlyHeroPower", "opponentHeroPower", "friendlyWeapon", "opponentWeapon", "playTarget"))
     {
         if($null -eq $layout.PSObject.Properties[$name])
@@ -1207,6 +1425,11 @@ try
         dryRun = [bool]$DryRun
         simulation = [bool]$SimulationMode
         blockedAdvicePolicy = $BlockedAdvicePolicy
+        adviceMaximumAgeSeconds = $AdviceMaximumAgeSeconds
+        blockedAdviceTimeoutSeconds = $BlockedAdviceTimeoutSeconds
+        statusHeartbeatSeconds = $StatusHeartbeatSeconds
+        continueDelaySeconds = $ContinueDelaySeconds
+        deckScreenSettleSeconds = $DeckScreenSettleSeconds
         emergencyStop = "Ctrl+Shift+F12"
     }
 
@@ -1238,6 +1461,9 @@ try
         $gameDeadline = [DateTimeOffset]::UtcNow.AddSeconds($GameTimeoutSeconds)
         $blockingAdviceKey = $null
         $blockingAdviceSince = $null
+        $script:lastAdviceWaitSignature = $null
+        $script:adviceWaitStartedAt = $null
+        $script:lastAdviceWaitReportedAt = $null
         while([DateTimeOffset]::UtcNow -lt $gameDeadline -and -not (Test-StopRequested))
         {
             Update-GameProgress
@@ -1308,6 +1534,7 @@ try
                     $blockingAdviceKey = $null
                     $blockingAdviceSince = $null
                 }
+                Write-AdviceWaitState -MatchIndex $matchIndex
                 Start-Sleep -Milliseconds $PollMilliseconds
             }
         }
@@ -1318,7 +1545,7 @@ try
         }
         if($completedGameIds.Count -gt $completedBefore)
         {
-            Dismiss-CompletedGame
+            Dismiss-CompletedGame -PrepareNextMatch:($matchIndex -lt $MatchCount)
         }
     }
 

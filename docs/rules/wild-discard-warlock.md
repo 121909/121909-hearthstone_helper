@@ -264,6 +264,11 @@ additional play cost, so the minion remains legal with no other card in hand.
 3. Validate `SELECT_CHOICE`, then discard and fully resolve the selected entity.
    With an empty hand, the Battlecry has no effect and no Choice is fabricated.
 
+The live client resolves this interaction by clicking the selected card in the
+normal hand fan. It is not laid out like the location or Discover popup, so
+automation advice exports the selected entity as `FRIENDLY_HAND` rather than
+`CHOICE`.
+
 Because Ocular Occultist occupies its slot first, a board that had six minions
 has no room for a discarded Silverware Golem, Walking Dead, Boneweb spiders, or
 Disposable Acolytes summons.

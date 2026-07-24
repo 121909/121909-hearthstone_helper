@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using DiscardAdvisor.Domain;
+using DiscardAdvisor.Rules;
 using DiscardAdvisor.Rules.Model;
 using DiscardAdvisor.Search;
 using Newtonsoft.Json;
@@ -245,6 +246,8 @@ public sealed class FileAutomationAdviceSink : IAutomationAdviceSink
     private static AutomationEntityLocator? LocateChoice(RuleGameState state, int? entityId)
     {
         if (entityId is not int id || state.PendingChoice is null)
+            return LocateEntity(state, state, entityId);
+        if (state.PendingChoice.SourceCardId == DiscardWarlockCardIds.OcularOccultist)
             return LocateEntity(state, state, entityId);
         var candidateIndex = IndexOfEntity(state.PendingChoice.Candidates.Select(candidate => candidate.EntityId), id);
         if (candidateIndex < 0)

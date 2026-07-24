@@ -145,7 +145,7 @@ function Publish-SimulatedAdvice {
 
     $advice = [ordered]@{
         protocolVersion = "1.0.0"
-        pluginVersion = "0.4.13"
+        pluginVersion = "0.4.14"
         ruleSetVersion = "0.3.4"
         generatedAt = [DateTimeOffset]::UtcNow.ToString("o")
         gameId = $GameId
@@ -236,8 +236,10 @@ try
         "-MulliganUiSettleSeconds", "0",
         "-PowerLogPath", $powerLogPath,
         "-ContinueDelaySeconds", "0",
+        "-DeckScreenSettleSeconds", "0",
         "-ActionSettleSeconds", "1",
         "-ActionAcknowledgeTimeoutSeconds", "10",
+        "-StatusHeartbeatSeconds", "1",
         "-PollMilliseconds", "100",
         "-GameStartTimeoutSeconds", "10",
         "-GameTimeoutSeconds", "60",
@@ -341,6 +343,16 @@ try
         },
         [pscustomobject]@{
             FriendlyBoardCount = 1
+            Step = [ordered]@{
+                index = 0
+                type = "SELECT_CHOICE"
+                targetEntityId = 13
+                choiceId = 901
+                target = [ordered]@{ entityId = 13; cardId = "SIM_HAND_CHOICE"; zone = "FRIENDLY_HAND"; index = 0; count = 1 }
+            }
+        },
+        [pscustomobject]@{
+            FriendlyBoardCount = 1
             Step = [ordered]@{ index = 0; type = "END_TURN" }
         }
     )
@@ -354,7 +366,7 @@ try
         Append-JsonLine -Path $diagnosticPath -Value (New-DiagnosticEvent -Event "game_started" -GameId $gameId -Data @{
             gameId = $gameId
             mode = "shadow"
-            pluginVersion = "0.4.13"
+            pluginVersion = "0.4.14"
             ruleSetVersion = "0.3.4"
         })
         Wait-Until -Description "match $matchIndex mulligan log wait" -Condition {
@@ -368,6 +380,10 @@ try
         Wait-Until -Description "match $matchIndex mulligan click" -Condition {
             @((Get-RunnerEvents $script:runnerEventsPath) |
                 Where-Object { $_.event -eq "mouse_click" -and $_.data.purpose -eq "Keep opening hand" }).Count -ge $matchIndex
+        }
+        Wait-Until -Description "match $matchIndex detailed advice wait state" -Condition {
+            @((Get-RunnerEvents $script:runnerEventsPath) |
+                Where-Object { $_.event -eq "advice_wait_state" }).Count -ge $matchIndex
         }
         $steps = if($matchIndex -eq 1) {
             $firstGameSteps
@@ -400,7 +416,7 @@ try
         Append-JsonLine -Path $diagnosticPath -Value (New-DiagnosticEvent -Event "game_ended" -GameId $gameId -Data @{
             gameId = $gameId
             mode = "shadow"
-            pluginVersion = "0.4.13"
+            pluginVersion = "0.4.14"
             ruleSetVersion = "0.3.4"
             completed = $true
         })
@@ -416,11 +432,11 @@ try
         throw "Runner simulation exited with code $($process.ExitCode): $(Get-Content -LiteralPath $stderrPath -Raw)"
     }
     $summary = Get-Content -LiteralPath (Join-Path $script:sessionDirectory "session-summary.json") -Raw | ConvertFrom-Json
-    if([int]$summary.completedMatches -ne 2 -or [bool]$summary.failed -or [int]$summary.handledStateCount -ne 9)
+    if([int]$summary.completedMatches -ne 2 -or [bool]$summary.failed -or [int]$summary.handledStateCount -ne 10)
     {
         throw "Unexpected runner summary: $($summary | ConvertTo-Json -Compress)"
     }
-    if($summary.runnerVersion -ne "0.1.5" -or $summary.blockedAdvicePolicy -ne "ExecuteFirstStep")
+    if($summary.runnerVersion -ne "0.1.6" -or $summary.blockedAdvicePolicy -ne "ExecuteFirstStep")
     {
         throw "The runner summary did not record its executable version and advice policy."
     }
@@ -433,9 +449,38 @@ try
     {
         throw "The runner did not enter the post-log mulligan UI settle phase for both matches."
     }
-    if(@($events | Where-Object event -eq "advice_step_acknowledged").Count -ne 9)
+    $waitEvents = @($events | Where-Object event -eq "advice_wait_state")
+    if($waitEvents.Count -lt 2 -or @($waitEvents | Where-Object { [string]::IsNullOrWhiteSpace([string]$_.data.reason) }).Count -gt 0)
     {
-        throw "The runner did not acknowledge all nine simulated actions."
+        throw "The runner did not emit detailed, reason-coded advice wait states."
+    }
+    $deckWaitStarts = @($events | Where-Object event -eq "deck_screen_settle_wait_started")
+    $deckWaitFinishes = @($events | Where-Object event -eq "deck_screen_settle_wait_finished")
+    if($deckWaitStarts.Count -ne 1 -or $deckWaitFinishes.Count -ne 1)
+    {
+        throw "The runner did not wait exactly once for the deck screen between two matches."
+    }
+    $deckWaitFinishedIndex = [Array]::IndexOf($events, $deckWaitFinishes[0])
+    $secondMatchRequest = @($events | Where-Object { $_.event -eq "match_requested" -and [int]$_.data.matchIndex -eq 2 })[0]
+    if($null -eq $secondMatchRequest -or $deckWaitFinishedIndex -ge [Array]::IndexOf($events, $secondMatchRequest))
+    {
+        throw "The runner requested the second match before the deck-screen settle wait finished."
+    }
+    if(@($events | Where-Object event -eq "advice_acknowledgement_wait_started").Count -ne 10)
+    {
+        throw "The runner did not log the acknowledgement wait for all ten actions."
+    }
+    if(@($events | Where-Object event -eq "advice_step_acknowledged").Count -ne 10)
+    {
+        throw "The runner did not acknowledge all ten simulated actions."
+    }
+    $choicePurposes = @($events |
+        Where-Object { $_.event -eq "mouse_click" -and $_.data.purpose -like "Select *" } |
+        ForEach-Object { [string]$_.data.purpose } |
+        Sort-Object -Unique)
+    if($choicePurposes -notcontains "Select popup choice" -or $choicePurposes -notcontains "Select card from hand")
+    {
+        throw "The runner did not distinguish popup choices from hand-card choices."
     }
     if(@($events | Where-Object event -eq "soft_blocked_advice_accepted").Count -ne 1)
     {
@@ -466,9 +511,9 @@ try
     {
         throw "Session diagnostics were not scoped to the two simulated games."
     }
-    if(@(Get-Content -LiteralPath (Join-Path $script:sessionDirectory "automation\advice-history-session.jsonl")).Count -ne 9)
+    if(@(Get-Content -LiteralPath (Join-Path $script:sessionDirectory "automation\advice-history-session.jsonl")).Count -ne 10)
     {
-        throw "Session advice history was not scoped to the nine simulated actions."
+        throw "Session advice history was not scoped to the ten simulated actions."
     }
     if(@(Get-ChildItem -LiteralPath (Join-Path $script:sessionDirectory "fixtures") -File).Count -ne 2 -or
         @(Get-ChildItem -LiteralPath (Join-Path $script:sessionDirectory "replays") -File).Count -ne 2)
