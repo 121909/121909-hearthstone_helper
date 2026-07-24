@@ -233,6 +233,7 @@ try
         "-OutputDirectory", $outputDirectory,
         "-SkipDeckSelection",
         "-MulliganDelaySeconds", "0",
+        "-MulliganUiSettleSeconds", "0",
         "-PowerLogPath", $powerLogPath,
         "-ContinueDelaySeconds", "0",
         "-ActionSettleSeconds", "1",
@@ -419,7 +420,7 @@ try
     {
         throw "Unexpected runner summary: $($summary | ConvertTo-Json -Compress)"
     }
-    if($summary.runnerVersion -ne "0.1.4" -or $summary.blockedAdvicePolicy -ne "ExecuteFirstStep")
+    if($summary.runnerVersion -ne "0.1.5" -or $summary.blockedAdvicePolicy -ne "ExecuteFirstStep")
     {
         throw "The runner summary did not record its executable version and advice policy."
     }
@@ -427,6 +428,10 @@ try
     if(@($events | Where-Object { $_.event -eq "mulligan_ready" -and [bool]$_.data.detectedFromPowerLog }).Count -ne 2)
     {
         throw "The runner did not wait for both simulated Power.log mulligan markers."
+    }
+    if(@($events | Where-Object { $_.event -eq "mulligan_ui_settle_wait_started" -and [int]$_.data.delaySeconds -eq 0 }).Count -ne 2)
+    {
+        throw "The runner did not enter the post-log mulligan UI settle phase for both matches."
     }
     if(@($events | Where-Object event -eq "advice_step_acknowledged").Count -ne 9)
     {

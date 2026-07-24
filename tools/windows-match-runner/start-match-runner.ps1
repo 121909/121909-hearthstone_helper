@@ -50,6 +50,9 @@ param(
     [int]$MulliganTimeoutSeconds = 90,
 
     [ValidateRange(0, 60)]
+    [int]$MulliganUiSettleSeconds = 8,
+
+    [ValidateRange(0, 60)]
     [int]$ContinueDelaySeconds = 5,
 
     [string]$RepositoryPath = "",
@@ -84,7 +87,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$runnerVersion = "0.1.4"
+$runnerVersion = "0.1.5"
 $expectedPluginVersion = "0.4.13"
 $expectedRuleSetVersion = "0.3.4"
 $sessionId = [DateTimeOffset]::UtcNow.ToString("yyyyMMddTHHmmssZ") + "-" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
@@ -937,7 +940,21 @@ function Confirm-Mulligan {
     {
         Start-Sleep -Seconds $MulliganDelaySeconds
     }
-    Write-RunnerEvent -Event "mulligan_ready" -Data @{ detectedFromPowerLog = $detectedFromLog; delaySeconds = $MulliganDelaySeconds }
+    if($detectedFromLog)
+    {
+        Write-RunnerEvent -Event "mulligan_ui_settle_wait_started" -Data @{
+            delaySeconds = $MulliganUiSettleSeconds
+        }
+        if($MulliganUiSettleSeconds -gt 0)
+        {
+            Start-Sleep -Seconds $MulliganUiSettleSeconds
+        }
+    }
+    Write-RunnerEvent -Event "mulligan_ready" -Data @{
+        detectedFromPowerLog = $detectedFromLog
+        fallbackDelaySeconds = $MulliganDelaySeconds
+        uiSettleSeconds = $(if($detectedFromLog) { $MulliganUiSettleSeconds } else { 0 })
+    }
     $window = Get-HearthstoneWindow
     if(-not $DryRun -and -not $SimulationMode)
     {
@@ -1145,6 +1162,7 @@ if($ValidateOnly)
     Write-Host "Windows runner: $runnerVersion"
     Write-Host ("Client area: left={0}, top={1}, width={2}, height={3}" -f $window.Left, $window.Top, $window.Width, $window.Height)
     Write-Host ("Power.log: {0}" -f $(if([string]::IsNullOrWhiteSpace($PowerLogPath)) { "not detected; timed fallback will be used" } else { $PowerLogPath }))
+    Write-Host ("Mulligan timing: log timeout={0}s, UI settle={1}s, no-log fallback={2}s" -f $MulliganTimeoutSeconds, $MulliganUiSettleSeconds, $MulliganDelaySeconds)
     foreach($name in @("deckSlot", "playButton", "mulliganConfirm", "continueButton", "endTurn", "friendlyHero", "opponentHero", "friendlyHeroPower", "opponentHeroPower", "friendlyWeapon", "opponentWeapon", "playTarget"))
     {
         if($null -eq $layout.PSObject.Properties[$name])
